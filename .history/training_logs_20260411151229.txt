@@ -1,0 +1,347 @@
+(ipfto) wesunix@DESKTOP-95A0GRL:/mnt/c/users/wes/Desktop/hmwmc$ python tmew1_run.py --epochs 4 --batch-size 4
+
+=== Tier 1 | modalities=('vision', 'numeric') | T=16 | templates=('trigger_delay',) ===
+  t1 ep0 s0000 | total=1.687 latent=0.00 entity=0.00 binary=1.00 unlocked=0
+  t1 ep0 s0025 | total=1.028 latent=0.25 entity=1.00 binary=0.60 unlocked=0
+  t1 ep0 s0050 | total=0.917 latent=0.25 entity=1.00 binary=0.67 unlocked=0
+  t1 ep0 s0075 | total=0.805 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+  t1 ep0 s0100 | total=0.715 latent=0.50 entity=1.00 binary=1.00 unlocked=0
+  t1 ep0 s0125 | total=0.230 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+  t1 ep0 s0150 | total=0.165 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+  t1 ep0 s0175 | total=0.235 latent=1.00 entity=0.92 binary=1.00 unlocked=0
+  t1 ep0 s0200 | total=0.070 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 25).
+  t1 ep0 s0225 | total=0.378 latent=1.00 entity=0.40 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 41).
+  t1 ep0 s0250 | total=0.043 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 57).
+Pruned 4 old nodes (gen < 73).
+  t1 ep0 s0275 | total=0.115 latent=1.00 entity=0.93 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 89).
+  t1 ep0 s0300 | total=0.115 latent=1.00 entity=0.77 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 105).
+Pruned 4 old nodes (gen < 121).
+  t1 ep0 s0325 | total=0.039 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 137).
+  t1 ep0 s0350 | total=0.089 latent=1.00 entity=0.92 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 153).
+Pruned 4 old nodes (gen < 169).
+  t1 ep0 s0375 | total=0.013 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 185).
+Pruned 4 old nodes (gen < 201).
+  t1 ep0 s0400 | total=0.101 latent=1.00 entity=0.92 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 217).
+  t1 ep0 s0425 | total=0.027 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 233).
+Pruned 4 old nodes (gen < 249).
+  t1 ep0 s0450 | total=0.034 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 265).
+  t1 ep0 s0475 | total=0.105 latent=1.00 entity=0.73 binary=1.00 unlocked=0
+Pruned 3 old nodes (gen < 281).
+Pruned 4 old nodes (gen < 297).
+  t1 ep0 s0500 | total=0.068 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+  [val] t1 ep0 | next_step=0.0111 latent=1.000 | who_holds_token=0.89 who_was_first_tagged=0.92 did_alarm_fire=0.99 which_entity_occluded=1.00
+  -> promoting from tier 1
+
+  ===== Diagnostics =====
+  mean_episodic_read_entropy: 3.158339522778988
+  who_holds_token by handoffs:
+    handoffs= 0  acc=1.000  n=197
+    handoffs= 1  acc=0.000  n=11
+    handoffs= 2  acc=0.500  n=2
+    handoffs=3+  acc=0.000  n=1
+  who_was_first_tagged by handoffs:
+    handoffs= 0  acc=0.947  n=227
+    handoffs= 1  acc=1.000  n=20
+    handoffs=3+  acc=1.000  n=5
+  what_was_true_rule (belief revision):
+        with_cue  acc=0.200  n=100
+
+
+=== Tier 2 | modalities=('vision', 'numeric', 'audio') | T=24 | templates=('trigger_delay', 'occlusion_identity', 'handoff') ===
+Pruned 4 old nodes (gen < 313).
+  t2 ep0 s0000 | total=0.734 latent=1.00 entity=0.88 binary=1.00 unlocked=0
+Pruned 3 old nodes (gen < 329).
+  t2 ep0 s0025 | total=0.264 latent=1.00 entity=0.69 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 345).
+Pruned 4 old nodes (gen < 361).
+  t2 ep0 s0050 | total=0.017 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 377).
+  t2 ep0 s0075 | total=0.016 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 393).
+Pruned 3 old nodes (gen < 409).
+  t2 ep0 s0100 | total=0.048 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 425).
+  t2 ep0 s0125 | total=0.213 latent=1.00 entity=0.85 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 441).
+Pruned 4 old nodes (gen < 457).
+  t2 ep0 s0150 | total=0.134 latent=1.00 entity=0.85 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 473).
+  t2 ep0 s0175 | total=0.298 latent=1.00 entity=0.56 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 489).
+Pruned 4 old nodes (gen < 505).
+  t2 ep0 s0200 | total=0.101 latent=1.00 entity=0.92 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 521).
+Pruned 4 old nodes (gen < 537).
+  t2 ep0 s0225 | total=0.141 latent=1.00 entity=0.79 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 553).
+  t2 ep0 s0250 | total=0.017 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 569).
+Pruned 4 old nodes (gen < 585).
+  t2 ep0 s0275 | total=0.075 latent=1.00 entity=0.92 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 601).
+  t2 ep0 s0300 | total=0.096 latent=1.00 entity=0.91 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 617).
+Pruned 4 old nodes (gen < 633).
+  t2 ep0 s0325 | total=0.043 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 649).
+  t2 ep0 s0350 | total=0.105 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 665).
+Pruned 4 old nodes (gen < 681).
+  t2 ep0 s0375 | total=0.166 latent=1.00 entity=0.90 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 697).
+Pruned 4 old nodes (gen < 713).
+  t2 ep0 s0400 | total=0.125 latent=1.00 entity=0.89 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 729).
+  t2 ep0 s0425 | total=0.013 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 745).
+Pruned 4 old nodes (gen < 761).
+  t2 ep0 s0450 | total=0.064 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 777).
+  t2 ep0 s0475 | total=0.116 latent=1.00 entity=0.79 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 793).
+Pruned 4 old nodes (gen < 809).
+  t2 ep0 s0500 | total=0.010 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+  [val] t2 ep0 | next_step=0.0169 latent=1.000 | who_holds_token=0.84 who_was_first_tagged=0.91 did_alarm_fire=1.00 which_entity_occluded=1.00
+  -> promoting from tier 2
+
+  ===== Diagnostics =====
+  mean_episodic_read_entropy: 3.0845379307866096
+  who_holds_token by handoffs:
+    handoffs= 0  acc=1.000  n=187
+    handoffs= 1  acc=0.000  n=33
+    handoffs= 2  acc=0.875  n=8
+    handoffs=3+  acc=0.000  n=2
+  who_was_first_tagged by handoffs:
+    handoffs= 0  acc=0.937  n=207
+    handoffs= 1  acc=0.929  n=28
+    handoffs= 2  acc=1.000  n=8
+    handoffs=3+  acc=1.000  n=6
+  what_was_true_rule (belief revision):
+        with_cue  acc=0.241  n=54
+
+
+=== Tier 3 | modalities=('vision', 'numeric', 'audio', 'text') | T=32 | templates=('trigger_delay', 'occlusion_identity', 'handoff') ===
+Pruned 4 old nodes (gen < 825).
+  t3 ep0 s0000 | total=4.593 latent=1.00 entity=0.91 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 841).
+  t3 ep0 s0025 | total=0.872 latent=0.50 entity=0.91 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 857).
+Pruned 4 old nodes (gen < 873).
+  t3 ep0 s0050 | total=0.362 latent=1.00 entity=0.91 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 889).
+  t3 ep0 s0075 | total=0.358 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 905).
+Pruned 4 old nodes (gen < 921).
+  t3 ep0 s0100 | total=0.343 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 937).
+  t3 ep0 s0125 | total=0.399 latent=1.00 entity=0.67 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 953).
+Pruned 4 old nodes (gen < 969).
+  t3 ep0 s0150 | total=0.098 latent=1.00 entity=0.92 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 985).
+  t3 ep0 s0175 | total=0.277 latent=1.00 entity=0.82 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1001).
+Pruned 4 old nodes (gen < 1017).
+  t3 ep0 s0200 | total=0.156 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1033).
+Pruned 4 old nodes (gen < 1049).
+  t3 ep0 s0225 | total=0.266 latent=1.00 entity=0.91 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1065).
+  t3 ep0 s0250 | total=0.309 latent=1.00 entity=0.64 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1081).
+Pruned 4 old nodes (gen < 1097).
+  t3 ep0 s0275 | total=0.217 latent=1.00 entity=0.83 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1113).
+  t3 ep0 s0300 | total=0.099 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1129).
+Pruned 4 old nodes (gen < 1145).
+  t3 ep0 s0325 | total=0.118 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1161).
+  t3 ep0 s0350 | total=0.122 latent=1.00 entity=0.92 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1177).
+Pruned 4 old nodes (gen < 1193).
+  t3 ep0 s0375 | total=0.108 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1209).
+Pruned 4 old nodes (gen < 1225).
+  t3 ep0 s0400 | total=0.234 latent=1.00 entity=0.82 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1241).
+  t3 ep0 s0425 | total=0.102 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1257).
+Pruned 4 old nodes (gen < 1273).
+  t3 ep0 s0450 | total=0.035 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1289).
+  t3 ep0 s0475 | total=0.157 latent=1.00 entity=0.93 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1305).
+Pruned 4 old nodes (gen < 1321).
+  t3 ep0 s0500 | total=0.104 latent=1.00 entity=0.91 binary=1.00 unlocked=0
+  [val] t3 ep0 | next_step=0.0905 latent=1.000 | who_holds_token=0.81 who_was_first_tagged=0.90 did_alarm_fire=1.00 which_entity_occluded=1.00
+Pruned 4 old nodes (gen < 1337).
+  t3 ep1 s0000 | total=0.265 latent=1.00 entity=0.82 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1353).
+  t3 ep1 s0025 | total=0.139 latent=1.00 entity=0.93 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1369).
+Pruned 4 old nodes (gen < 1385).
+  t3 ep1 s0050 | total=0.142 latent=1.00 entity=0.90 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1401).
+  t3 ep1 s0075 | total=0.125 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1417).
+Pruned 4 old nodes (gen < 1433).
+  t3 ep1 s0100 | total=0.026 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1449).
+  t3 ep1 s0125 | total=0.096 latent=1.00 entity=0.91 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1465).
+Pruned 4 old nodes (gen < 1481).
+  t3 ep1 s0150 | total=0.236 latent=1.00 entity=0.77 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1497).
+  t3 ep1 s0175 | total=0.040 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1513).
+Pruned 4 old nodes (gen < 1529).
+  t3 ep1 s0200 | total=0.188 latent=1.00 entity=0.85 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1545).
+Pruned 4 old nodes (gen < 1561).
+  t3 ep1 s0225 | total=0.160 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1577).
+  t3 ep1 s0250 | total=0.158 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1593).
+Pruned 4 old nodes (gen < 1609).
+  t3 ep1 s0275 | total=0.334 latent=1.00 entity=0.57 binary=1.00 unlocked=0
+Pruned 3 old nodes (gen < 1625).
+  t3 ep1 s0300 | total=0.118 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1641).
+Pruned 4 old nodes (gen < 1657).
+  t3 ep1 s0325 | total=0.194 latent=1.00 entity=0.88 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1673).
+  t3 ep1 s0350 | total=0.087 latent=1.00 entity=0.92 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1689).
+Pruned 4 old nodes (gen < 1705).
+  t3 ep1 s0375 | total=0.168 latent=1.00 entity=0.85 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1721).
+Pruned 4 old nodes (gen < 1737).
+  t3 ep1 s0400 | total=0.118 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1753).
+  t3 ep1 s0425 | total=0.231 latent=1.00 entity=0.75 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1769).
+Pruned 4 old nodes (gen < 1785).
+  t3 ep1 s0450 | total=0.074 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1801).
+  t3 ep1 s0475 | total=0.116 latent=1.00 entity=0.85 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1817).
+Pruned 4 old nodes (gen < 1833).
+  t3 ep1 s0500 | total=0.216 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+  [val] t3 ep1 | next_step=0.0879 latent=1.000 | who_holds_token=0.81 who_was_first_tagged=0.90 did_alarm_fire=1.00 which_entity_occluded=1.00
+Pruned 4 old nodes (gen < 1849).
+  t3 ep2 s0000 | total=0.121 latent=1.00 entity=0.93 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1865).
+  t3 ep2 s0025 | total=0.174 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1881).
+Pruned 4 old nodes (gen < 1897).
+  t3 ep2 s0050 | total=0.222 latent=1.00 entity=0.69 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1913).
+  t3 ep2 s0075 | total=0.253 latent=1.00 entity=0.64 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1929).
+Pruned 4 old nodes (gen < 1945).
+  t3 ep2 s0100 | total=0.332 latent=1.00 entity=0.67 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1961).
+  t3 ep2 s0125 | total=0.207 latent=1.00 entity=0.56 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 1977).
+Pruned 4 old nodes (gen < 1993).
+  t3 ep2 s0150 | total=0.279 latent=1.00 entity=0.82 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2009).
+  t3 ep2 s0175 | total=0.096 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2025).
+Pruned 4 old nodes (gen < 2041).
+  t3 ep2 s0200 | total=0.178 latent=1.00 entity=0.92 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2057).
+Pruned 4 old nodes (gen < 2073).
+  t3 ep2 s0225 | total=0.211 latent=1.00 entity=0.73 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2089).
+  t3 ep2 s0250 | total=0.154 latent=1.00 entity=0.75 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2105).
+Pruned 4 old nodes (gen < 2121).
+  t3 ep2 s0275 | total=0.265 latent=1.00 entity=0.64 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2137).
+  t3 ep2 s0300 | total=0.172 latent=1.00 entity=0.93 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2153).
+Pruned 4 old nodes (gen < 2169).
+  t3 ep2 s0325 | total=0.306 latent=1.00 entity=0.71 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2185).
+  t3 ep2 s0350 | total=0.261 latent=1.00 entity=0.64 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2201).
+Pruned 4 old nodes (gen < 2217).
+  t3 ep2 s0375 | total=0.355 latent=1.00 entity=0.67 binary=1.00 unlocked=0
+Pruned 3 old nodes (gen < 2233).
+Pruned 4 old nodes (gen < 2249).
+  t3 ep2 s0400 | total=0.126 latent=1.00 entity=0.91 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2265).
+  t3 ep2 s0425 | total=0.073 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2281).
+Pruned 4 old nodes (gen < 2297).
+  t3 ep2 s0450 | total=0.115 latent=1.00 entity=0.85 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2313).
+  t3 ep2 s0475 | total=0.280 latent=1.00 entity=0.62 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2329).
+Pruned 4 old nodes (gen < 2345).
+  t3 ep2 s0500 | total=0.080 latent=1.00 entity=0.92 binary=1.00 unlocked=0
+  [val] t3 ep2 | next_step=0.0898 latent=1.000 | who_holds_token=0.81 who_was_first_tagged=0.90 did_alarm_fire=1.00 which_entity_occluded=1.00
+Pruned 4 old nodes (gen < 2361).
+  t3 ep3 s0000 | total=0.199 latent=1.00 entity=0.83 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2377).
+  t3 ep3 s0025 | total=0.177 latent=1.00 entity=0.86 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2393).
+Pruned 4 old nodes (gen < 2409).
+  t3 ep3 s0050 | total=0.185 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 3 old nodes (gen < 2425).
+  t3 ep3 s0075 | total=0.130 latent=1.00 entity=0.85 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2441).
+Pruned 3 old nodes (gen < 2457).
+  t3 ep3 s0100 | total=0.300 latent=1.00 entity=0.82 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2473).
+  t3 ep3 s0125 | total=0.139 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2489).
+Pruned 4 old nodes (gen < 2505).
+  t3 ep3 s0150 | total=0.268 latent=1.00 entity=0.75 binary=1.00 unlocked=0
+Pruned 3 old nodes (gen < 2521).
+  t3 ep3 s0175 | total=0.186 latent=1.00 entity=0.71 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2537).
+Pruned 4 old nodes (gen < 2553).
+  t3 ep3 s0200 | total=0.074 latent=1.00 entity=0.80 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2569).
+Pruned 4 old nodes (gen < 2585).
+  t3 ep3 s0225 | total=0.186 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2601).
+  t3 ep3 s0250 | total=0.075 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2617).
+Pruned 3 old nodes (gen < 2633).
+  t3 ep3 s0275 | total=0.096 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2649).
+  t3 ep3 s0300 | total=0.156 latent=1.00 entity=0.91 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2665).
+Pruned 4 old nodes (gen < 2681).
+  t3 ep3 s0325 | total=0.123 latent=1.00 entity=0.92 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2697).
+  t3 ep3 s0350 | total=0.071 latent=1.00 entity=1.00 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2713).
+Pruned 4 old nodes (gen < 2729).
+  t3 ep3 s0375 | total=0.237 latent=1.00 entity=0.70 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2745).
+Pruned 4 old nodes (gen < 2761).
+  t3 ep3 s0400 | total=0.170 latent=1.00 entity=0.86 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2777).
+  t3 ep3 s0425 | total=0.275 latent=1.00 entity=0.80 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2793).
+Pruned 4 old nodes (gen < 2809).
+  t3 ep3 s0450 | total=0.133 latent=1.00 entity=0.77 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2825).
+  t3 ep3 s0475 | total=0.210 latent=1.00 entity=0.77 binary=1.00 unlocked=0
+Pruned 4 old nodes (gen < 2841).
