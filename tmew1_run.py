@@ -281,10 +281,14 @@ def run_curriculum(
                     stress_str = ""
                     if stresses:
                         sm = float(np.mean(np.asarray(stresses, dtype=np.float32)))
-                        stress_str = f" stress_mean={sm:.2f}"
+                        stress_str = f" stress={sm:.3f}"
+                    pnn_states = summary.get("pnn_states") or []
+                    pnn_str = ""
+                    if pnn_states:
+                        pnn_str = " pnn=" + "/".join(s[0] for s in pnn_states)
                     print(
                         f"  t{tier.tier} ep{epoch} s{step:04d} | total={stats['total']:.3f} latent={stats['latent_acc']:.2f} "
-                        f"{qacc_str}{stress_str} unlocked={summary.get('unlocked', 0)}"
+                        f"{qacc_str}{stress_str}{pnn_str} unlocked={summary.get('unlocked', 0)}"
                     )
 
             val = evaluate(model, criterion, probe, query_head, val_loader, tcfg, tier.enabled_modalities)

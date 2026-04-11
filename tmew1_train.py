@@ -349,7 +349,13 @@ def build_model(world_cfg: WorldConfig) -> Tuple[HomeostaticMultimodalWorldModel
         num_cohorts=8,
         num_memory_slots=16,
         num_episodic_slots=32,
-        controller=ControllerConfig(),
+        controller=ControllerConfig(
+            exploit_budget=10.0,
+            unlock_stress_threshold=0.08,
+            stress_threshold=0.30,
+            intervention_interval=4,
+            strategic_unlock_fraction=0.50,
+        ),
         enable_online_homeostasis=True,
     )
     model = HomeostaticMultimodalWorldModel(cfg)
