@@ -1,0 +1,1479 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Homeostatic Multimodal World Model Diagram</title>
+    <style>
+      :root {
+        --bg: #0b1020;
+        --panel: #111831;
+        --panel-2: #0f1530;
+        --ink: #e8ecff;
+        --muted: #a9b5e1;
+        --line: #34416d;
+        --accent: #7dd3fc;
+        --accent-2: #c4b5fd;
+        --accent-3: #86efac;
+        --accent-4: #fca5a5;
+        --accent-5: #fcd34d;
+        --shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+        --radius: 18px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(
+            circle at top left,
+            rgba(125, 211, 252, 0.08),
+            transparent 28%
+          ),
+          radial-gradient(
+            circle at top right,
+            rgba(196, 181, 253, 0.08),
+            transparent 24%
+          ),
+          linear-gradient(180deg, #0a0f1f 0%, #0a1022 100%);
+        min-height: 100vh;
+      }
+
+      .wrap {
+        max-width: 1500px;
+        margin: 0 auto;
+        padding: 28px;
+      }
+
+      .hero {
+        display: grid;
+        gap: 12px;
+        margin-bottom: 22px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 34px;
+        line-height: 1.05;
+        letter-spacing: -0.03em;
+      }
+
+      .sub {
+        color: var(--muted);
+        max-width: 1000px;
+        font-size: 15px;
+        line-height: 1.55;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1.25fr 0.75fr;
+        gap: 20px;
+        align-items: start;
+      }
+
+      .card {
+        background: linear-gradient(
+          180deg,
+          rgba(17, 24, 49, 0.96),
+          rgba(10, 14, 28, 0.98)
+        );
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 24px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      .card-head {
+        padding: 18px 20px 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.03),
+          rgba(255, 255, 255, 0)
+        );
+      }
+
+      .card-head h2 {
+        margin: 0;
+        font-size: 20px;
+        letter-spacing: -0.02em;
+      }
+
+      .card-head p {
+        margin: 8px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .card-body {
+        padding: 18px;
+      }
+
+      .stack {
+        display: grid;
+        gap: 20px;
+      }
+
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        display: inline-block;
+      }
+
+      .notes {
+        display: grid;
+        gap: 14px;
+      }
+
+      .note {
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 18px;
+        padding: 14px 15px;
+      }
+
+      .note h3 {
+        margin: 0 0 8px;
+        font-size: 14px;
+        letter-spacing: -0.01em;
+      }
+
+      .note p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.55;
+      }
+
+      .svg-wrap {
+        overflow: auto;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+
+      svg {
+        width: 100%;
+        height: auto;
+        display: block;
+        min-width: 820px;
+      }
+
+      .footer {
+        margin-top: 20px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      @media (max-width: 1100px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <section class="hero">
+        <h1>Homeostatic Multimodal World Model</h1>
+        <div class="sub">
+          This diagram captures the current architecture and training loop:
+          multimodal episodic input streams, gated fusion, chunked recurrent
+          world-model blocks, episodic memory, query reasoning, and the
+          homeostatic control plane built around PNN state transitions,
+          circadian plasticity, RD-style stress, immune veto, and a causal
+          tapestry event memory.
+        </div>
+      </section>
+
+      <div class="grid">
+        <div class="stack">
+          <section class="card">
+            <div class="card-head">
+              <h2>Architecture diagram</h2>
+              <p>
+                Data path on the left, control path on the right. The core
+                sequence model runs in chunks, each layer keeps hidden state
+                plus memory slots, and episodic memory writes event-conditioned
+                traces over time.
+              </p>
+            </div>
+            <div class="card-body">
+              <div class="svg-wrap">
+                <svg
+                  viewBox="0 0 1400 980"
+                  xmlns="http://www.w3.org/2000/svg"
+                  role="img"
+                  aria-label="Architecture diagram"
+                >
+                  <defs>
+                    <marker
+                      id="arrow"
+                      viewBox="0 0 10 10"
+                      refX="9"
+                      refY="5"
+                      markerWidth="8"
+                      markerHeight="8"
+                      orient="auto-start-reverse"
+                    >
+                      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8fb5ff" />
+                    </marker>
+                    <marker
+                      id="arrowGreen"
+                      viewBox="0 0 10 10"
+                      refX="9"
+                      refY="5"
+                      markerWidth="8"
+                      markerHeight="8"
+                      orient="auto-start-reverse"
+                    >
+                      <path d="M 0 0 L 10 5 L 0 10 z" fill="#86efac" />
+                    </marker>
+                    <filter
+                      id="shadow"
+                      x="-20%"
+                      y="-20%"
+                      width="140%"
+                      height="140%"
+                    >
+                      <feDropShadow
+                        dx="0"
+                        dy="6"
+                        stdDeviation="10"
+                        flood-opacity="0.18"
+                      />
+                    </filter>
+                  </defs>
+
+                  <rect
+                    x="20"
+                    y="20"
+                    width="1360"
+                    height="940"
+                    rx="28"
+                    fill="#0d1430"
+                    stroke="#2c3c69"
+                  />
+
+                  <text
+                    x="60"
+                    y="70"
+                    fill="#e8ecff"
+                    font-size="28"
+                    font-weight="700"
+                  >
+                    Sequence substrate + homeostatic regulatory plane
+                  </text>
+                  <text x="60" y="100" fill="#a9b5e1" font-size="14">
+                    Solid arrows = forward data flow · dashed arrows = control /
+                    feedback flow
+                  </text>
+
+                  <!-- Inputs -->
+                  <rect
+                    x="50"
+                    y="150"
+                    width="200"
+                    height="92"
+                    rx="18"
+                    fill="#122044"
+                    stroke="#4b77d1"
+                    filter="url(#shadow)"
+                  />
+                  <text
+                    x="68"
+                    y="183"
+                    fill="#7dd3fc"
+                    font-size="15"
+                    font-weight="700"
+                  >
+                    Text stream
+                  </text>
+                  <text x="68" y="208" fill="#e8ecff" font-size="13">
+                    token ids or symbolic step text
+                  </text>
+                  <text x="68" y="227" fill="#a9b5e1" font-size="12">
+                    shape: [B, T] or [B, T, L]
+                  </text>
+
+                  <rect
+                    x="50"
+                    y="270"
+                    width="200"
+                    height="92"
+                    rx="18"
+                    fill="#122044"
+                    stroke="#4b77d1"
+                    filter="url(#shadow)"
+                  />
+                  <text
+                    x="68"
+                    y="303"
+                    fill="#7dd3fc"
+                    font-size="15"
+                    font-weight="700"
+                  >
+                    Vision stream
+                  </text>
+                  <text x="68" y="328" fill="#e8ecff" font-size="13">
+                    grid frames / tiny raster world
+                  </text>
+                  <text x="68" y="347" fill="#a9b5e1" font-size="12">
+                    shape: [B, T, C, H, W]
+                  </text>
+
+                  <rect
+                    x="50"
+                    y="390"
+                    width="200"
+                    height="92"
+                    rx="18"
+                    fill="#122044"
+                    stroke="#4b77d1"
+                    filter="url(#shadow)"
+                  />
+                  <text
+                    x="68"
+                    y="423"
+                    fill="#7dd3fc"
+                    font-size="15"
+                    font-weight="700"
+                  >
+                    Audio stream
+                  </text>
+                  <text x="68" y="448" fill="#e8ecff" font-size="13">
+                    tones / cues / event bits
+                  </text>
+                  <text x="68" y="467" fill="#a9b5e1" font-size="12">
+                    shape: [B, T, F]
+                  </text>
+
+                  <rect
+                    x="50"
+                    y="510"
+                    width="200"
+                    height="92"
+                    rx="18"
+                    fill="#122044"
+                    stroke="#4b77d1"
+                    filter="url(#shadow)"
+                  />
+                  <text
+                    x="68"
+                    y="543"
+                    fill="#7dd3fc"
+                    font-size="15"
+                    font-weight="700"
+                  >
+                    Numeric stream
+                  </text>
+                  <text x="68" y="568" fill="#e8ecff" font-size="13">
+                    world variables / latent hints
+                  </text>
+                  <text x="68" y="587" fill="#a9b5e1" font-size="12">
+                    shape: [B, T, F]
+                  </text>
+
+                  <!-- Encoders -->
+                  <rect
+                    x="320"
+                    y="140"
+                    width="180"
+                    height="470"
+                    rx="22"
+                    fill="#111b3b"
+                    stroke="#4e5f98"
+                  />
+                  <text
+                    x="345"
+                    y="175"
+                    fill="#e8ecff"
+                    font-size="20"
+                    font-weight="700"
+                  >
+                    Modality encoders
+                  </text>
+
+                  <rect
+                    x="345"
+                    y="205"
+                    width="130"
+                    height="58"
+                    rx="14"
+                    fill="#182853"
+                    stroke="#7dd3fc"
+                  />
+                  <text x="370" y="240" fill="#e8ecff" font-size="13">
+                    TextEncoder
+                  </text>
+
+                  <rect
+                    x="345"
+                    y="285"
+                    width="130"
+                    height="58"
+                    rx="14"
+                    fill="#182853"
+                    stroke="#7dd3fc"
+                  />
+                  <text x="366" y="320" fill="#e8ecff" font-size="13">
+                    VisionEncoder
+                  </text>
+
+                  <rect
+                    x="345"
+                    y="365"
+                    width="130"
+                    height="58"
+                    rx="14"
+                    fill="#182853"
+                    stroke="#7dd3fc"
+                  />
+                  <text x="366" y="400" fill="#e8ecff" font-size="13">
+                    AudioEncoder
+                  </text>
+
+                  <rect
+                    x="345"
+                    y="445"
+                    width="130"
+                    height="58"
+                    rx="14"
+                    fill="#182853"
+                    stroke="#7dd3fc"
+                  />
+                  <text x="357" y="480" fill="#e8ecff" font-size="13">
+                    NumericEncoder
+                  </text>
+
+                  <rect
+                    x="345"
+                    y="530"
+                    width="130"
+                    height="58"
+                    rx="14"
+                    fill="#1b3159"
+                    stroke="#c4b5fd"
+                  />
+                  <text x="355" y="555" fill="#e8ecff" font-size="13">
+                    GatedModality
+                  </text>
+                  <text x="373" y="573" fill="#e8ecff" font-size="13">
+                    Fusion
+                  </text>
+
+                  <!-- Core sequence model -->
+                  <rect
+                    x="560"
+                    y="125"
+                    width="480"
+                    height="560"
+                    rx="24"
+                    fill="#101833"
+                    stroke="#5972ba"
+                  />
+                  <text
+                    x="585"
+                    y="165"
+                    fill="#e8ecff"
+                    font-size="22"
+                    font-weight="700"
+                  >
+                    Chunked recurrent world-model core
+                  </text>
+                  <text x="585" y="190" fill="#a9b5e1" font-size="13">
+                    forward() runs in chunk windows, each layer scans
+                    sequentially inside its chunk
+                  </text>
+
+                  <rect
+                    x="590"
+                    y="220"
+                    width="420"
+                    height="120"
+                    rx="18"
+                    fill="#16224a"
+                    stroke="#8fb5ff"
+                  />
+                  <text
+                    x="612"
+                    y="250"
+                    fill="#e8ecff"
+                    font-size="18"
+                    font-weight="700"
+                  >
+                    AdaptiveSparseWorldBlock × N layers
+                  </text>
+                  <text x="612" y="278" fill="#a9b5e1" font-size="13">
+                    input_norm → latent_a / latent_b → sparse controls →
+                    multiplicative cohorts → decode → residual
+                  </text>
+                  <text x="612" y="302" fill="#a9b5e1" font-size="13">
+                    per-layer hidden state + memory slots + write / forget gates
+                  </text>
+                  <text x="612" y="326" fill="#a9b5e1" font-size="13">
+                    control surfaces: thresholds, gains, mult_gate,
+                    residual_gate, write_alpha, forget_lambda
+                  </text>
+
+                  <rect
+                    x="590"
+                    y="370"
+                    width="420"
+                    height="105"
+                    rx="18"
+                    fill="#162a43"
+                    stroke="#86efac"
+                  />
+                  <text
+                    x="612"
+                    y="400"
+                    fill="#e8ecff"
+                    font-size="18"
+                    font-weight="700"
+                  >
+                    EpisodicMemoryBank
+                  </text>
+                  <text x="612" y="427" fill="#a9b5e1" font-size="13">
+                    episodic read: query current state against episodic slots
+                  </text>
+                  <text x="612" y="451" fill="#a9b5e1" font-size="13">
+                    episodic write: event mask or surprise-driven write strength
+                  </text>
+
+                  <rect
+                    x="590"
+                    y="505"
+                    width="420"
+                    height="145"
+                    rx="18"
+                    fill="#1b2448"
+                    stroke="#fcd34d"
+                  />
+                  <text
+                    x="612"
+                    y="535"
+                    fill="#e8ecff"
+                    font-size="18"
+                    font-weight="700"
+                  >
+                    Prediction + probe heads
+                  </text>
+                  <text x="612" y="563" fill="#a9b5e1" font-size="13">
+                    Text head · Numeric head · Audio head · Vision head
+                  </text>
+                  <text x="612" y="587" fill="#a9b5e1" font-size="13">
+                    LatentRuleProbe for episode-level latent-state supervision
+                  </text>
+                  <text x="612" y="611" fill="#a9b5e1" font-size="13">
+                    QueryHead answers who_holds_token, who_was_first_tagged,
+                    did_alarm_fire,
+                  </text>
+                  <text x="612" y="631" fill="#a9b5e1" font-size="13">
+                    which_entity_occluded, and belief-revision query
+                    what_was_true_rule
+                  </text>
+
+                  <!-- Controller plane -->
+                  <rect
+                    x="1080"
+                    y="125"
+                    width="260"
+                    height="560"
+                    rx="24"
+                    fill="#111a32"
+                    stroke="#7a4fc7"
+                  />
+                  <text
+                    x="1105"
+                    y="165"
+                    fill="#e8ecff"
+                    font-size="22"
+                    font-weight="700"
+                  >
+                    Homeostatic controller
+                  </text>
+                  <text x="1105" y="191" fill="#a9b5e1" font-size="13">
+                    Acts on layers, not on examples
+                  </text>
+
+                  <rect
+                    x="1105"
+                    y="220"
+                    width="210"
+                    height="68"
+                    rx="14"
+                    fill="#1a2141"
+                    stroke="#c4b5fd"
+                  />
+                  <text
+                    x="1125"
+                    y="247"
+                    fill="#e8ecff"
+                    font-size="14"
+                    font-weight="700"
+                  >
+                    PerineuronalNet
+                  </text>
+                  <text x="1125" y="269" fill="#a9b5e1" font-size="12">
+                    OPEN / CLOSING / LOCKED
+                  </text>
+
+                  <rect
+                    x="1105"
+                    y="305"
+                    width="210"
+                    height="68"
+                    rx="14"
+                    fill="#1a2141"
+                    stroke="#c4b5fd"
+                  />
+                  <text
+                    x="1125"
+                    y="332"
+                    fill="#e8ecff"
+                    font-size="14"
+                    font-weight="700"
+                  >
+                    CircadianGate
+                  </text>
+                  <text x="1125" y="354" fill="#a9b5e1" font-size="12">
+                    day / night plasticity multiplier
+                  </text>
+
+                  <rect
+                    x="1105"
+                    y="390"
+                    width="210"
+                    height="68"
+                    rx="14"
+                    fill="#1a2141"
+                    stroke="#c4b5fd"
+                  />
+                  <text
+                    x="1125"
+                    y="417"
+                    fill="#e8ecff"
+                    font-size="14"
+                    font-weight="700"
+                  >
+                    RDStressField
+                  </text>
+                  <text x="1125" y="439" fill="#a9b5e1" font-size="12">
+                    loss / density / residual / stale / contradiction pulse
+                  </text>
+
+                  <rect
+                    x="1105"
+                    y="475"
+                    width="210"
+                    height="68"
+                    rx="14"
+                    fill="#1a2141"
+                    stroke="#c4b5fd"
+                  />
+                  <text
+                    x="1125"
+                    y="502"
+                    fill="#e8ecff"
+                    font-size="14"
+                    font-weight="700"
+                  >
+                    StressImmuneLayer
+                  </text>
+                  <text x="1125" y="524" fill="#a9b5e1" font-size="12">
+                    veto repeat-harm interventions
+                  </text>
+
+                  <rect
+                    x="1105"
+                    y="560"
+                    width="210"
+                    height="92"
+                    rx="14"
+                    fill="#1a2141"
+                    stroke="#c4b5fd"
+                  />
+                  <text
+                    x="1125"
+                    y="587"
+                    fill="#e8ecff"
+                    font-size="14"
+                    font-weight="700"
+                  >
+                    CausalTapestry + Bandit
+                  </text>
+                  <text x="1125" y="609" fill="#a9b5e1" font-size="12">
+                    action-effect memory, contextual
+                  </text>
+                  <text x="1125" y="627" fill="#a9b5e1" font-size="12">
+                    selection, strategic unlock
+                  </text>
+
+                  <!-- Output panel -->
+                  <rect
+                    x="590"
+                    y="730"
+                    width="750"
+                    height="170"
+                    rx="22"
+                    fill="#101933"
+                    stroke="#48608f"
+                  />
+                  <text
+                    x="615"
+                    y="770"
+                    fill="#e8ecff"
+                    font-size="22"
+                    font-weight="700"
+                  >
+                    Outputs + diagnostics
+                  </text>
+                  <text x="615" y="800" fill="#a9b5e1" font-size="14">
+                    ForwardOutput: sequence, fusion_weights, layer_diagnostics,
+                    episodic_read_entropy, controller_report, prediction heads
+                  </text>
+                  <text x="615" y="830" fill="#a9b5e1" font-size="14">
+                    Diagnostic buckets: handoff-count recall, belief revision
+                    under false cue, controller unlock counts, PNN state cycles
+                  </text>
+                  <text x="615" y="860" fill="#a9b5e1" font-size="14">
+                    Observed failure modes: episodic overwrite cliff across
+                    handoffs, recency-dominated false-rule retention, generic
+                    rather than contradiction-specific controller firing
+                  </text>
+
+                  <!-- Data arrows -->
+                  <path
+                    d="M 250 196 L 320 196"
+                    stroke="#8fb5ff"
+                    stroke-width="3"
+                    fill="none"
+                    marker-end="url(#arrow)"
+                  />
+                  <path
+                    d="M 250 316 L 320 316"
+                    stroke="#8fb5ff"
+                    stroke-width="3"
+                    fill="none"
+                    marker-end="url(#arrow)"
+                  />
+                  <path
+                    d="M 250 436 L 320 436"
+                    stroke="#8fb5ff"
+                    stroke-width="3"
+                    fill="none"
+                    marker-end="url(#arrow)"
+                  />
+                  <path
+                    d="M 250 556 L 320 556"
+                    stroke="#8fb5ff"
+                    stroke-width="3"
+                    fill="none"
+                    marker-end="url(#arrow)"
+                  />
+
+                  <path
+                    d="M 500 556 L 560 556"
+                    stroke="#8fb5ff"
+                    stroke-width="3"
+                    fill="none"
+                    marker-end="url(#arrow)"
+                  />
+                  <path
+                    d="M 800 340 L 800 370"
+                    stroke="#8fb5ff"
+                    stroke-width="3"
+                    fill="none"
+                    marker-end="url(#arrow)"
+                  />
+                  <path
+                    d="M 800 475 L 800 505"
+                    stroke="#8fb5ff"
+                    stroke-width="3"
+                    fill="none"
+                    marker-end="url(#arrow)"
+                  />
+                  <path
+                    d="M 800 650 L 800 730"
+                    stroke="#8fb5ff"
+                    stroke-width="3"
+                    fill="none"
+                    marker-end="url(#arrow)"
+                  />
+
+                  <!-- Control arrows -->
+                  <path
+                    d="M 1080 255 L 1010 255 L 1010 280"
+                    stroke="#86efac"
+                    stroke-width="3"
+                    stroke-dasharray="9 7"
+                    fill="none"
+                    marker-end="url(#arrowGreen)"
+                  />
+                  <path
+                    d="M 1080 340 L 1030 340 L 1030 330"
+                    stroke="#86efac"
+                    stroke-width="3"
+                    stroke-dasharray="9 7"
+                    fill="none"
+                    marker-end="url(#arrowGreen)"
+                  />
+                  <path
+                    d="M 1080 425 L 1030 425 L 1030 425"
+                    stroke="#86efac"
+                    stroke-width="3"
+                    stroke-dasharray="9 7"
+                    fill="none"
+                    marker-end="url(#arrowGreen)"
+                  />
+                  <path
+                    d="M 1080 510 L 1030 510 L 1030 560"
+                    stroke="#86efac"
+                    stroke-width="3"
+                    stroke-dasharray="9 7"
+                    fill="none"
+                    marker-end="url(#arrowGreen)"
+                  />
+                  <path
+                    d="M 1080 606 L 1040 606 L 1040 615"
+                    stroke="#86efac"
+                    stroke-width="3"
+                    stroke-dasharray="9 7"
+                    fill="none"
+                    marker-end="url(#arrowGreen)"
+                  />
+
+                  <!-- Feedback arrows -->
+                  <path
+                    d="M 1010 785 L 1130 785 L 1130 652"
+                    stroke="#fca5a5"
+                    stroke-width="3"
+                    stroke-dasharray="8 7"
+                    fill="none"
+                    marker-end="url(#arrow)"
+                  />
+                  <text x="1035" y="770" fill="#fca5a5" font-size="12">
+                    diagnostics, stress, contradiction pulses
+                  </text>
+                </svg>
+              </div>
+
+              <div class="legend">
+                <span class="chip"
+                  ><span class="dot" style="background: var(--accent)"></span
+                  >Forward data flow</span
+                >
+                <span class="chip"
+                  ><span class="dot" style="background: var(--accent-3)"></span
+                  >Homeostatic control flow</span
+                >
+                <span class="chip"
+                  ><span class="dot" style="background: var(--accent-4)"></span
+                  >Diagnostics / feedback loop</span
+                >
+                <span class="chip"
+                  ><span class="dot" style="background: var(--accent-5)"></span
+                  >Heads / supervision</span
+                >
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <h2>Training loop diagram</h2>
+              <p>
+                The controller mutates parameters only after backward and
+                optimizer step, which is the safety fix that removed the
+                autograd versioning failure in the run logs.
+              </p>
+            </div>
+            <div class="card-body">
+              <div class="svg-wrap">
+                <svg
+                  viewBox="0 0 1400 760"
+                  xmlns="http://www.w3.org/2000/svg"
+                  role="img"
+                  aria-label="Training loop diagram"
+                >
+                  <defs>
+                    <marker
+                      id="arrow2"
+                      viewBox="0 0 10 10"
+                      refX="9"
+                      refY="5"
+                      markerWidth="8"
+                      markerHeight="8"
+                      orient="auto-start-reverse"
+                    >
+                      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8fb5ff" />
+                    </marker>
+                  </defs>
+
+                  <rect
+                    x="20"
+                    y="20"
+                    width="1360"
+                    height="720"
+                    rx="28"
+                    fill="#0d1430"
+                    stroke="#2c3c69"
+                  />
+                  <text
+                    x="60"
+                    y="70"
+                    fill="#e8ecff"
+                    font-size="28"
+                    font-weight="700"
+                  >
+                    Curriculum training + diagnostics loop
+                  </text>
+                  <text x="60" y="100" fill="#a9b5e1" font-size="14">
+                    Tiered synthetic episodes, multitask loss, delayed
+                    controller actuation, then diagnostic reports by difficulty
+                    bucket
+                  </text>
+
+                  <!-- left column -->
+                  <rect
+                    x="60"
+                    y="150"
+                    width="230"
+                    height="88"
+                    rx="18"
+                    fill="#122044"
+                    stroke="#4b77d1"
+                  />
+                  <text
+                    x="84"
+                    y="185"
+                    fill="#e8ecff"
+                    font-size="16"
+                    font-weight="700"
+                  >
+                    1. Episode generator
+                  </text>
+                  <text x="84" y="210" fill="#a9b5e1" font-size="13">
+                    TMEW-1 templates:
+                  </text>
+                  <text x="84" y="228" fill="#a9b5e1" font-size="13">
+                    trigger_delay, occlusion_identity, handoff, false_cue
+                  </text>
+
+                  <rect
+                    x="60"
+                    y="275"
+                    width="230"
+                    height="88"
+                    rx="18"
+                    fill="#122044"
+                    stroke="#4b77d1"
+                  />
+                  <text
+                    x="84"
+                    y="310"
+                    fill="#e8ecff"
+                    font-size="16"
+                    font-weight="700"
+                  >
+                    2. Batch collation
+                  </text>
+                  <text x="84" y="335" fill="#a9b5e1" font-size="13">
+                    vision / audio / numeric / text
+                  </text>
+                  <text x="84" y="353" fill="#a9b5e1" font-size="13">
+                    query times / types / targets / binary mask
+                  </text>
+
+                  <rect
+                    x="60"
+                    y="400"
+                    width="230"
+                    height="104"
+                    rx="18"
+                    fill="#122044"
+                    stroke="#4b77d1"
+                  />
+                  <text
+                    x="84"
+                    y="435"
+                    fill="#e8ecff"
+                    font-size="16"
+                    font-weight="700"
+                  >
+                    3. Forward pass
+                  </text>
+                  <text x="84" y="460" fill="#a9b5e1" font-size="13">
+                    model(...)
+                  </text>
+                  <text x="84" y="478" fill="#a9b5e1" font-size="13">
+                    sequence + diagnostics + heads
+                  </text>
+                  <text x="84" y="496" fill="#a9b5e1" font-size="13">
+                    no controller mutation during autograd
+                  </text>
+
+                  <rect
+                    x="60"
+                    y="545"
+                    width="230"
+                    height="118"
+                    rx="18"
+                    fill="#122044"
+                    stroke="#4b77d1"
+                  />
+                  <text
+                    x="84"
+                    y="580"
+                    fill="#e8ecff"
+                    font-size="16"
+                    font-weight="700"
+                  >
+                    4. Loss assembly
+                  </text>
+                  <text x="84" y="605" fill="#a9b5e1" font-size="13">
+                    next-step multimodal prediction loss
+                  </text>
+                  <text x="84" y="623" fill="#a9b5e1" font-size="13">
+                    + latent rule probe loss
+                  </text>
+                  <text x="84" y="641" fill="#a9b5e1" font-size="13">
+                    + QueryHead loss
+                  </text>
+
+                  <!-- center -->
+                  <rect
+                    x="380"
+                    y="150"
+                    width="290"
+                    height="90"
+                    rx="18"
+                    fill="#16224a"
+                    stroke="#8fb5ff"
+                  />
+                  <text
+                    x="404"
+                    y="185"
+                    fill="#e8ecff"
+                    font-size="16"
+                    font-weight="700"
+                  >
+                    5. Backprop + optimization
+                  </text>
+                  <text x="404" y="210" fill="#a9b5e1" font-size="13">
+                    total.backward() → clip_grad_norm → optimizer.step()
+                  </text>
+                  <text x="404" y="228" fill="#a9b5e1" font-size="13">
+                    control surfaces also receive SGD gradients
+                  </text>
+
+                  <rect
+                    x="380"
+                    y="280"
+                    width="290"
+                    height="102"
+                    rx="18"
+                    fill="#162a43"
+                    stroke="#86efac"
+                  />
+                  <text
+                    x="404"
+                    y="315"
+                    fill="#e8ecff"
+                    font-size="16"
+                    font-weight="700"
+                  >
+                    6. Homeostatic actuation
+                  </text>
+                  <text x="404" y="340" fill="#a9b5e1" font-size="13">
+                    probe forward if needed
+                  </text>
+                  <text x="404" y="358" fill="#a9b5e1" font-size="13">
+                    controller_step(loss, contradiction_signal)
+                  </text>
+                  <text x="404" y="376" fill="#a9b5e1" font-size="13">
+                    apply bounded layer interventions after optimizer step
+                  </text>
+
+                  <rect
+                    x="380"
+                    y="420"
+                    width="290"
+                    height="112"
+                    rx="18"
+                    fill="#1b3159"
+                    stroke="#c4b5fd"
+                  />
+                  <text
+                    x="404"
+                    y="455"
+                    fill="#e8ecff"
+                    font-size="16"
+                    font-weight="700"
+                  >
+                    7. Controller internals
+                  </text>
+                  <text x="404" y="480" fill="#a9b5e1" font-size="13">
+                    score layers → update PNN states → resolve pending action
+                    effects
+                  </text>
+                  <text x="404" y="498" fill="#a9b5e1" font-size="13">
+                    bandit action select → immune veto → strategic unlock
+                  </text>
+                  <text x="404" y="516" fill="#a9b5e1" font-size="13">
+                    log to causal tapestry
+                  </text>
+
+                  <rect
+                    x="380"
+                    y="570"
+                    width="290"
+                    height="95"
+                    rx="18"
+                    fill="#1b2448"
+                    stroke="#fcd34d"
+                  />
+                  <text
+                    x="404"
+                    y="605"
+                    fill="#e8ecff"
+                    font-size="16"
+                    font-weight="700"
+                  >
+                    8. Tier promotion
+                  </text>
+                  <text x="404" y="630" fill="#a9b5e1" font-size="13">
+                    validation latent_acc threshold advances the curriculum
+                  </text>
+                  <text x="404" y="648" fill="#a9b5e1" font-size="13">
+                    Tier 3 currently continues even without promotion
+                  </text>
+
+                  <!-- right -->
+                  <rect
+                    x="780"
+                    y="150"
+                    width="540"
+                    height="112"
+                    rx="18"
+                    fill="#111b3b"
+                    stroke="#5972ba"
+                  />
+                  <text
+                    x="806"
+                    y="185"
+                    fill="#e8ecff"
+                    font-size="16"
+                    font-weight="700"
+                  >
+                    9. Diagnostics pass
+                  </text>
+                  <text x="806" y="210" fill="#a9b5e1" font-size="13">
+                    run_diagnostic_report() → recall_by_difficulty()
+                  </text>
+                  <text x="806" y="228" fill="#a9b5e1" font-size="13">
+                    Buckets who_holds_token by handoff count,
+                    who_was_first_tagged by handoffs, and what_was_true_rule
+                    under false cue
+                  </text>
+                  <text x="806" y="246" fill="#a9b5e1" font-size="13">
+                    Also logs mean_episodic_read_entropy so read vs write
+                    failure can be separated
+                  </text>
+
+                  <rect
+                    x="780"
+                    y="300"
+                    width="540"
+                    height="180"
+                    rx="18"
+                    fill="#111b3b"
+                    stroke="#5972ba"
+                  />
+                  <text
+                    x="806"
+                    y="335"
+                    fill="#e8ecff"
+                    font-size="16"
+                    font-weight="700"
+                  >
+                    10. Current empirical picture
+                  </text>
+                  <text x="806" y="365" fill="#a9b5e1" font-size="13">
+                    Handoff cliff is real and graded: 0 handoffs strong, 1
+                    moderate, 2 weak, 3+ still weak.
+                  </text>
+                  <text x="806" y="389" fill="#a9b5e1" font-size="13">
+                    Episodic read entropy drops with training, which implies the
+                    memory path is being used.
+                  </text>
+                  <text x="806" y="413" fill="#a9b5e1" font-size="13">
+                    Belief revision remains near chance, which points at recency
+                    bias and missing contradiction-aware control.
+                  </text>
+                  <text x="806" y="437" fill="#a9b5e1" font-size="13">
+                    Controller unlocks do happen, but they mostly track generic
+                    turbulence rather than explicit contradiction episodes.
+                  </text>
+                  <text x="806" y="461" fill="#a9b5e1" font-size="13">
+                    Latest patch routes contradiction pulses into controller
+                    stress and strengthens handoff audio signaling.
+                  </text>
+
+                  <rect
+                    x="780"
+                    y="520"
+                    width="540"
+                    height="145"
+                    rx="18"
+                    fill="#111b3b"
+                    stroke="#5972ba"
+                  />
+                  <text
+                    x="806"
+                    y="555"
+                    fill="#e8ecff"
+                    font-size="16"
+                    font-weight="700"
+                  >
+                    11. Next experimental branch
+                  </text>
+                  <text x="806" y="580" fill="#a9b5e1" font-size="13">
+                    Ablate handoff-only audio signal boost with
+                    contradiction_stress_gain = 0.0 first.
+                  </text>
+                  <text x="806" y="604" fill="#a9b5e1" font-size="13">
+                    Then re-enable contradiction-aware stress and compare
+                    belief-revision lift.
+                  </text>
+                  <text x="806" y="628" fill="#a9b5e1" font-size="13">
+                    If handoff recall rises but rule revision remains flat,
+                    episodic writes are fixable and controller routing becomes
+                    the main frontier.
+                  </text>
+
+                  <!-- arrows -->
+                  <path
+                    d="M 290 194 L 380 194"
+                    stroke="#8fb5ff"
+                    stroke-width="3"
+                    fill="none"
+                    marker-end="url(#arrow2)"
+                  />
+                  <path
+                    d="M 290 319 L 350 319 L 350 194 L 380 194"
+                    stroke="#8fb5ff"
+                    stroke-width="3"
+                    fill="none"
+                    marker-end="url(#arrow2)"
+                  />
+                  <path
+                    d="M 290 452 L 350 452 L 350 194 L 380 194"
+                    stroke="#8fb5ff"
+                    stroke-width="3"
+                    fill="none"
+                    marker-end="url(#arrow2)"
+                  />
+                  <path
+                    d="M 290 604 L 350 604 L 350 194 L 380 194"
+                    stroke="#8fb5ff"
+                    stroke-width="3"
+                    fill="none"
+                    marker-end="url(#arrow2)"
+                  />
+                  <path
+                    d="M 525 240 L 525 280"
+                    stroke="#8fb5ff"
+                    stroke-width="3"
+                    fill="none"
+                    marker-end="url(#arrow2)"
+                  />
+                  <path
+                    d="M 525 382 L 525 420"
+                    stroke="#8fb5ff"
+                    stroke-width="3"
+                    fill="none"
+                    marker-end="url(#arrow2)"
+                  />
+                  <path
+                    d="M 525 532 L 525 570"
+                    stroke="#8fb5ff"
+                    stroke-width="3"
+                    fill="none"
+                    marker-end="url(#arrow2)"
+                  />
+                  <path
+                    d="M 670 331 L 780 331"
+                    stroke="#86efac"
+                    stroke-width="3"
+                    fill="none"
+                    marker-end="url(#arrow2)"
+                  />
+                  <path
+                    d="M 670 475 L 780 475 L 780 206"
+                    stroke="#86efac"
+                    stroke-width="3"
+                    fill="none"
+                    marker-end="url(#arrow2)"
+                  />
+                </svg>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <aside class="stack">
+          <section class="card">
+            <div class="card-head">
+              <h2>Key model ideas</h2>
+              <p>
+                The architecture is deliberately split between a sequence
+                substrate and a regulatory layer.
+              </p>
+            </div>
+            <div class="card-body notes">
+              <div class="note">
+                <h3>Stateful sparse substrate</h3>
+                <p>
+                  Each block keeps recurrent hidden state plus a slot memory.
+                  The chunked scan reduces Python overhead while preserving
+                  recurrence semantics inside each chunk.
+                </p>
+              </div>
+              <div class="note">
+                <h3>Episodic memory is separate from working state</h3>
+                <p>
+                  The model uses both layer-local memory slots and a cross-layer
+                  episodic bank. That separation is what makes the
+                  handoff-overwrite diagnosis meaningful.
+                </p>
+              </div>
+              <div class="note">
+                <h3>Homeostasis acts on the model, not the dataset</h3>
+                <p>
+                  PNN state, circadian gating, RD stress, immune memory, and the
+                  causal tapestry all live at the controller plane. They
+                  modulate layer behavior after optimization rather than
+                  becoming part of the ordinary forward graph.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <h2>Current failure interpretation</h2>
+              <p>
+                The latest diagnostics imply the memory path is active but still
+                brittle under overwrite and contradiction.
+              </p>
+            </div>
+            <div class="card-body notes">
+              <div class="note">
+                <h3>Handoff overwrite cliff</h3>
+                <p>
+                  Recall drops as handoff count rises. That points to a
+                  write-retention problem more than a total inability to read
+                  episodic traces.
+                </p>
+              </div>
+              <div class="note">
+                <h3>Belief revision bug</h3>
+                <p>
+                  The false cue sits more recently in the numeric stream, so
+                  recurrent state leans toward recency instead of corrected
+                  truth. That is why contradiction-aware stress routing matters.
+                </p>
+              </div>
+              <div class="note">
+                <h3>Controller is alive, but under-specified</h3>
+                <p>
+                  Unlocks and PNN state cycling occur, but not yet in a way that
+                  is tightly aligned to correction events. The recent
+                  contradiction pulse patch is meant to close that gap.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <h2>What to edit next</h2>
+              <p>
+                This HTML is designed as a working canvas asset, so the labels
+                can be changed directly.
+              </p>
+            </div>
+            <div class="card-body notes">
+              <div class="note">
+                <h3>Add ablation branch labels</h3>
+                <p>
+                  One branch for handoff-only audio enhancement, one branch for
+                  contradiction-aware controller stress, and one branch for
+                  joint activation.
+                </p>
+              </div>
+              <div class="note">
+                <h3>Expand query supervision</h3>
+                <p>
+                  You can add separate boxes for query loss, delayed recall
+                  heads, or future counterfactual heads if that becomes part of
+                  the loop.
+                </p>
+              </div>
+              <div class="note">
+                <h3>Split architecture by file</h3>
+                <p>
+                  If you later modularize the Python implementation, the diagram
+                  can be mirrored with file-level boundaries for blocks,
+                  controller, memory, losses, and training utilities.
+                </p>
+              </div>
+            </div>
+          </section>
+        </aside>
+      </div>
+
+      <div class="footer">
+        Canvas artifact: editable HTML systems diagram for the current model and
+        training loop.
+      </div>
+    </div>
+  </body>
+</html>

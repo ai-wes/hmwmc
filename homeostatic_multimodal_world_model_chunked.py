@@ -382,6 +382,15 @@ class ControllerConfig:
     stale_penalty_weight: float = 0.20
     entropy_penalty_weight: float = 0.05
 
+    # Contradiction-aware stress pulsing. The synthetic benchmark encodes the
+    # currently believed active rule in the numeric stream; when that channel
+    # flips after being stable, we treat it as a correction / contradiction
+    # event and inject a stress pulse so the controller can react.
+    contradiction_numeric_index: int = 3
+    contradiction_threshold: float = 0.20
+    contradiction_stability_steps: int = 2
+    contradiction_stress_gain: float = 0.40
+
 
 @dataclass
 class WorldModelConfig:
@@ -1101,9 +1110,15 @@ class HomeostaticController:
             unlocked += 1
         return unlocked
 
-    def observe_and_act(self, layer_diagnostics: Sequence[Mapping[str, float]], global_loss: float) -> Dict[str, Any]:
+    def observe_and_act(
+        self,
+        layer_diagnostics: Sequence[Mapping[str, float]],
+        global_loss: float,
+        contradiction_signal: float = 0.0,
+    ) -> Dict[str, Any]:
         self.global_step += 1
         self.last_action_report = []
+        contradiction_signal = float(max(0.0, contradiction_signal))
         for gate in self.circadian:
             gate.update(self.global_step)
 
@@ -1116,6 +1131,14 @@ class HomeostaticController:
             scores.append(score)
 
         self.stress_field.update({0: self.proxies}, self.global_step)
+        if contradiction_signal > 0.0:
+            n_layers = max(1, len(self.proxies) - 1)
+            gain = float(self.cfg.controller.contradiction_stress_gain)
+            for idx, proxy in enumerate(self.proxies):
+                depth_bias = 0.75 + 0.50 * (idx / n_layers)
+                proxy.local_stress = float(np.clip(proxy.local_stress + gain * contradiction_signal * depth_bias, 0.0, 1.0))
+                self.stress_field.stress_values[f"0_{proxy.id}"] = proxy.local_stress
+
         median_score = float(np.median(np.asarray(scores, dtype=np.float32))) if scores else float(global_loss)
 
         for idx, score in enumerate(scores):
@@ -1188,6 +1211,7 @@ class HomeostaticController:
             "pnn_states": [pnn.state.value for pnn in self.pnns],
             "unlocked": unlocked,
             "actions": list(self.last_action_report),
+            "contradiction_signal": contradiction_signal,
         }
         self.last_scores = list(scores)
         return report
@@ -1264,6 +1288,7 @@ class HomeostaticMultimodalWorldModel(nn.Module):
 
         self._last_forward_report: Optional[Dict[str, Any]] = None
         self._last_layer_diagnostics: List[Dict[str, float]] = []
+        self._last_contradiction_signal: float = 0.0
 
     def init_state(self, batch_size: int, device: torch.device | None = None) -> WorldModelState:
         device = device or next(self.parameters()).device
@@ -1318,6 +1343,29 @@ class HomeostaticMultimodalWorldModel(nn.Module):
                 raise ValueError(f"event_mask must have shape [B,T], got {tuple(event_mask.shape)}")
             if (int(event_mask.size(0)), int(event_mask.size(1))) != ref_bt:
                 raise ValueError(f"event_mask must match [B,T]={ref_bt}, got {tuple(event_mask.shape)}")
+
+    def _compute_numeric_contradiction_signal(self, numeric: Optional[Tensor]) -> float:
+        if numeric is None or numeric.dim() != 3:
+            return 0.0
+        idx = int(self.cfg.controller.contradiction_numeric_index)
+        if idx < 0 or idx >= numeric.size(-1) or numeric.size(1) <= 1:
+            return 0.0
+        rule = numeric[..., idx]
+        prev = rule[:, :-1]
+        curr = rule[:, 1:]
+        change = (curr - prev).abs()
+        if prev.size(1) <= 1:
+            pulse = float(change.max().item()) if change.numel() > 0 else 0.0
+            return max(0.0, pulse - float(self.cfg.controller.contradiction_threshold))
+
+        lookback = max(1, int(self.cfg.controller.contradiction_stability_steps))
+        stable_steps = min(lookback, prev.size(1))
+        stable_ref = prev[:, :stable_steps].mean(dim=1, keepdim=True)
+        stable_delta = (curr - stable_ref).abs()
+        pulse = torch.maximum(change.max(dim=1).values, stable_delta.max(dim=1).values)
+        pulse = pulse - float(self.cfg.controller.contradiction_threshold)
+        pulse = pulse.clamp_min(0.0)
+        return float(pulse.mean().item())
 
     def _encode_modalities(
         self,
@@ -1376,6 +1424,7 @@ class HomeostaticMultimodalWorldModel(nn.Module):
         b, t, _ = fused.shape
         device = fused.device
         state = state or self.init_state(b, device=device)
+        self._last_contradiction_signal = self._compute_numeric_contradiction_signal(numeric)
 
         outputs: List[Tensor] = []
         per_layer_diagnostics: List[List[Dict[str, float]]] = [[] for _ in range(self.cfg.num_layers)]
@@ -1455,9 +1504,11 @@ class HomeostaticMultimodalWorldModel(nn.Module):
     def controller_step(self, loss_value: Tensor | float) -> Dict[str, Any]:
         if not self._last_layer_diagnostics:
             raise RuntimeError("controller_step called before a forward pass produced diagnostics.")
-        report = self.controller.observe_and_act(self._last_layer_diagnostics, _as_float(loss_value))
-        # Training loops typically omit controller_loss on forward(); they call this after backward.
-        # Mirror forward()'s assignment so summarize_controller_report / logs see real stresses & unlocks.
+        report = self.controller.observe_and_act(
+            self._last_layer_diagnostics,
+            _as_float(loss_value),
+            contradiction_signal=self._last_contradiction_signal,
+        )
         self._last_forward_report = report
         return report
 

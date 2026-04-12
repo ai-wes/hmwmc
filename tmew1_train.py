@@ -204,7 +204,7 @@ def _render_audio(state: WorldState, cfg: WorldConfig, events: Dict[str, Any]) -
         vec[2] = 1.0
     if events.get("handoff"):
         vec[3] = 1.0                    # token changed hands this step
-        vec[4] = float(events.get("new_holder_id", 0)) / max(1, cfg.max_entities - 1)
+        vec[4] = 1.0                    # duplicate handoff event bit for a cleaner write cue
     vec[5:] = np.random.normal(0, 0.05, cfg.audio_dim - 5).astype(np.float32)
     return vec
 
