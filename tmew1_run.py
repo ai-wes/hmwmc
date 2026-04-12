@@ -14,10 +14,8 @@ from __future__ import annotations
 
 import argparse
 import random
-from dataclasses import dataclass, replace
-from typing import Any, Dict, List, Sequence, Tuple
-from tmew1_diagnostics import run_diagnostic_report
-from tmew1_diagnostics import EXTENDED_QUERY_TYPES  # add to imports
+from dataclasses import replace
+from typing import Dict, Sequence
 import numpy as np
 import torch
 from torch import Tensor, nn
@@ -32,14 +30,14 @@ from tmew1_train import (
     build_model,
     shift_targets,
 )
-from tmew1_queries import (
-    QUERY_TYPES,
-    QUERY_TYPE_TO_IDX,
-    QueryHead,
-    generate_episode_with_queries,
-    episode_to_tensors,
-    collate_with_queries,
-    query_train_step_addon,
+from tmew1_queries import QueryHead, query_train_step_addon
+from tmew1_diagnostics import (
+    EXTENDED_QUERY_TYPES,
+    EXTENDED_QUERY_TYPE_TO_IDX,
+    generate_episode_with_diagnostics,
+    episode_to_diag_tensors,
+    collate_diag,
+    run_diagnostic_report,
 )
 
 from homeostatic_multimodal_world_model_chunked import (
@@ -70,8 +68,14 @@ class TMEW1QueryDataset(Dataset):
         return self.n
 
     def __getitem__(self, idx: int) -> Dict[str, Tensor]:
-        ep = generate_episode_with_queries(self.cfg, self.tier, seed=self.base_seed + idx, num_queries=self.num_queries)
-        return episode_to_tensors(ep)
+        ep = generate_episode_with_diagnostics(
+            self.cfg,
+            self.tier,
+            seed=self.base_seed + idx,
+            num_queries=self.num_queries,
+            enable_false_cue=True,
+        )
+        return episode_to_diag_tensors(ep)
 
 
 # -----------------------------------------------------------------------------
@@ -92,11 +96,11 @@ def per_qtype_accuracy(
     qtypes = batch["query_types"]
 
     metrics: Dict[str, float] = {}
-    for qtype_name, qtype_idx in QUERY_TYPE_TO_IDX.items():
+    for qtype_name, qtype_idx in EXTENDED_QUERY_TYPE_TO_IDX.items():
         mask = qtypes == qtype_idx
         if not mask.any():
             continue
-        if is_binary[mask].any():
+        if is_binary[mask].all():
             preds = binary_logits[mask].argmax(-1)
         else:
             preds = entity_logits[mask].argmax(-1)
@@ -143,7 +147,13 @@ def train_one_step(
     rule_logits = probe(output.sequence)
     aux = nn.functional.cross_entropy(rule_logits, batch["latent_rule"])
 
-    q_loss, q_metrics = query_train_step_addon(output.sequence, query_head, batch, weight=0.5)
+    q_loss, q_metrics = query_train_step_addon(
+        output.sequence,
+        query_head,
+        batch,
+        query_type_to_idx=EXTENDED_QUERY_TYPE_TO_IDX,
+        weight=0.5,
+    )
 
     total = losses.total + tcfg.aux_latent_weight * aux + q_loss
 
@@ -262,15 +272,19 @@ def run_curriculum(
     )
 
     for tier in tiers:
-        if tier.tier >= 2 and "handoff" not in tier.template_pool:
-            tier = replace(tier, template_pool=tuple(list(tier.template_pool) + ["handoff"]))
+        if tier.tier >= 2:
+            boosted_templates = list(tier.template_pool)
+            if "handoff" not in boosted_templates:
+                boosted_templates.append("handoff")
+            boosted_templates.extend(["handoff", "handoff", "false_cue", "false_cue"])
+            tier = replace(tier, template_pool=tuple(boosted_templates))
 
         print(f"\n=== Tier {tier.tier} | modalities={tier.enabled_modalities} | T={tier.max_episode_length} | templates={tier.template_pool} ===")
 
         train_ds = TMEW1QueryDataset(world_cfg, tier, tcfg.train_episodes_per_tier, base_seed=1000 * tier.tier, num_queries=num_queries)
         val_ds = TMEW1QueryDataset(world_cfg, tier, tcfg.val_episodes, base_seed=9000 + 1000 * tier.tier, num_queries=num_queries)
-        train_loader = DataLoader(train_ds, batch_size=tcfg.batch_size, shuffle=True, collate_fn=collate_with_queries, num_workers=0)
-        val_loader = DataLoader(val_ds, batch_size=tcfg.batch_size, shuffle=False, collate_fn=collate_with_queries, num_workers=0)
+        train_loader = DataLoader(train_ds, batch_size=tcfg.batch_size, shuffle=True, collate_fn=collate_diag, num_workers=0)
+        val_loader = DataLoader(val_ds, batch_size=tcfg.batch_size, shuffle=False, collate_fn=collate_diag, num_workers=0)
 
         promoted = False
         for epoch in range(tcfg.epochs_per_tier):
@@ -291,9 +305,14 @@ def run_curriculum(
                     stresses = summary.get("stresses") or []
                     if stresses:
                         step_metrics["stress"] = float(np.mean(np.asarray(stresses, dtype=np.float32)))
+                    pnn_states = summary.get("pnn_states") or []
+                    pnn_str = "/".join(s[0] for s in pnn_states) if pnn_states else ""
                     log_training_snapshot(
                         score_logger,
-                        step_label=f"t{tier.tier} ep{epoch} s{step:04d}",
+                        step_label=(
+                            f"t{tier.tier} ep{epoch} s{step:04d}"
+                            f" | pnn={pnn_str} unlocked={summary.get('unlocked', 0)}"
+                        ),
                         metrics=step_metrics,
                         specs=specs,
                     )

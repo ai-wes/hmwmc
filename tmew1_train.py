@@ -512,7 +512,7 @@ def run_curriculum(world_cfg: WorldConfig, tcfg: TrainConfig, tiers: Sequence[Cu
                         step_metrics["stress"] = float(np.mean(np.asarray(stresses, dtype=np.float32)))
                     log_training_snapshot(
                         score_logger,
-                        step_label=f"tier{tier.tier} ep{epoch} s{step:04d}",
+                        step_label=f"tier{tier.tier} ep{epoch} s{step:04d} | unlocked={summary.get('unlocked', 0)}",
                         metrics=step_metrics,
                         specs=specs,
                     )

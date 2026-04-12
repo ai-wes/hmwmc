@@ -358,6 +358,7 @@ def query_train_step_addon(
     output_sequence: Tensor,
     query_head: QueryHead,
     batch: Dict[str, Tensor],
+    query_type_to_idx: Optional[Dict[str, int]] = None,
     weight: float = 0.5,
 ) -> Tuple[Tensor, Dict[str, float]]:
     """
@@ -374,17 +375,52 @@ def query_train_step_addon(
         optimizer.step()
         model.controller_step(total.detach())   # after optimizer.step(); mutates parameters
     """
-    # Clamp query times to a safe range in case episode length was shortened.
     t_max = output_sequence.size(1) - 1
     qtimes = batch["query_times"].clamp(max=t_max)
     entity_logits, binary_logits = query_head(output_sequence, qtimes, batch["query_types"])
-    loss, metrics = query_loss(
-        entity_logits,
-        binary_logits,
-        batch["query_targets"],
-        batch["query_is_binary"],
-    )
-    return weight * loss, metrics
+    qtypes = batch["query_types"]
+    targets = batch["query_targets"]
+    is_binary = batch["query_is_binary"]
+
+    query_weights = torch.ones_like(targets, dtype=torch.float32, device=targets.device)
+    qtype_map = query_type_to_idx or QUERY_TYPE_TO_IDX
+    if "who_holds_token" in qtype_map:
+        query_weights[qtypes == qtype_map["who_holds_token"]] = 2.0
+    if "what_was_true_rule" in qtype_map:
+        query_weights[qtypes == qtype_map["what_was_true_rule"]] = 3.0
+
+    losses = []
+    metrics: Dict[str, float] = {}
+
+    entity_mask = ~is_binary
+    binary_mask = is_binary
+
+    if entity_mask.any():
+        ent_logits = entity_logits[entity_mask]
+        ent_targets = targets[entity_mask]
+        ent_weights = query_weights[entity_mask]
+        ent_loss_vec = F.cross_entropy(ent_logits, ent_targets, reduction="none")
+        ent_loss = (ent_loss_vec * ent_weights).sum() / ent_weights.sum().clamp_min(1.0)
+        losses.append(ent_loss)
+        with torch.no_grad():
+            metrics["entity_acc"] = (ent_logits.argmax(-1) == ent_targets).float().mean().item()
+            metrics["entity_loss"] = float(ent_loss.item())
+
+    if binary_mask.any():
+        bin_logits = binary_logits[binary_mask]
+        bin_targets = targets[binary_mask]
+        bin_weights = query_weights[binary_mask]
+        bin_loss_vec = F.cross_entropy(bin_logits, bin_targets, reduction="none")
+        bin_loss = (bin_loss_vec * bin_weights).sum() / bin_weights.sum().clamp_min(1.0)
+        losses.append(bin_loss)
+        with torch.no_grad():
+            metrics["binary_acc"] = (bin_logits.argmax(-1) == bin_targets).float().mean().item()
+            metrics["binary_loss"] = float(bin_loss.item())
+
+    if not losses:
+        return torch.zeros((), device=output_sequence.device), metrics
+
+    return weight * torch.stack(losses).mean(), metrics
 
 
 __all__ = [
