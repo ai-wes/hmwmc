@@ -32,6 +32,12 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 
 from tmew1_train import WorldConfig, CurriculumTier, _make_world, _render_vision, _render_audio, _render_numeric, _render_text
+from score_logging import (
+    ScoreColorMapper,
+    MetricSpec,
+    ScoreDirection,
+    _Ansi,
+)
 from tmew1_queries import (
     QUERY_TYPES,
     QUERY_TYPE_TO_IDX,
@@ -316,21 +322,33 @@ def recall_by_difficulty(
 
 
 def format_diagnostics(report: Dict[str, Any]) -> str:
-    """Pretty-print the diagnostics report as a multi-line string."""
+    """Pretty-print the diagnostics report as a multi-line string with color."""
+    mapper = ScoreColorMapper()
+    acc_spec = MetricSpec(ScoreDirection.HIGHER_IS_BETTER, 0.0, 1.0)
+    entropy_spec = MetricSpec(ScoreDirection.LOWER_IS_BETTER, 1.5, 3.5)
+
+    def _color_val(value: float, spec: MetricSpec) -> str:
+        scored = mapper.evaluate("v", value, spec)
+        return f"{scored.band.color}{_Ansi.BOLD}{value:.3f}{_Ansi.RESET}"
+
     lines = ["", "  ===== Diagnostics ====="]
-    lines.append(f"  mean_episodic_read_entropy: {report.get('mean_episodic_read_entropy')}")
+    ent = report.get("mean_episodic_read_entropy")
+    if ent is not None:
+        lines.append(f"  mean_episodic_read_entropy: {_color_val(ent, entropy_spec)}")
+    else:
+        lines.append(f"  mean_episodic_read_entropy: N/A")
     lines.append("  who_holds_token by handoffs:")
     for k, v in report["who_holds_token_by_handoffs"].items():
         if v["n"] > 0:
-            lines.append(f"    handoffs={k:>2s}  acc={v['acc']:.3f}  n={v['n']}")
+            lines.append(f"    handoffs={k:>2s}  acc={_color_val(v['acc'], acc_spec)}  n={v['n']}")
     lines.append("  who_was_first_tagged by handoffs:")
     for k, v in report["who_was_first_tagged_by_handoffs"].items():
         if v["n"] > 0:
-            lines.append(f"    handoffs={k:>2s}  acc={v['acc']:.3f}  n={v['n']}")
+            lines.append(f"    handoffs={k:>2s}  acc={_color_val(v['acc'], acc_spec)}  n={v['n']}")
     lines.append("  what_was_true_rule (belief revision):")
     for k, v in report["what_was_true_rule_by_falsecue"].items():
         if v["n"] > 0:
-            lines.append(f"    {k:>12s}  acc={v['acc']:.3f}  n={v['n']}")
+            lines.append(f"    {k:>12s}  acc={_color_val(v['acc'], acc_spec)}  n={v['n']}")
     lines.append("")
     return "\n".join(lines)
 

@@ -382,15 +382,6 @@ class ControllerConfig:
     stale_penalty_weight: float = 0.20
     entropy_penalty_weight: float = 0.05
 
-    # Contradiction-aware stress pulsing. The synthetic benchmark encodes the
-    # currently believed active rule in the numeric stream; when that channel
-    # flips after being stable, we treat it as a correction / contradiction
-    # event and inject a stress pulse so the controller can react.
-    contradiction_numeric_index: int = 3
-    contradiction_threshold: float = 0.20
-    contradiction_stability_steps: int = 2
-    contradiction_stress_gain: float = 0.40
-
 
 @dataclass
 class WorldModelConfig:
@@ -414,6 +405,13 @@ class WorldModelConfig:
     # Event memory settings
     surprise_event_threshold: float = 0.25
     event_write_min_strength: float = 0.05
+    episodic_similarity_temperature: float = 0.75
+    episodic_strength_decay: float = 0.995
+    episodic_strengthen_scale: float = 0.35
+    episodic_weaken_scale: float = 0.30
+    episodic_novelty_threshold: float = 0.45
+    episodic_allocate_boost: float = 0.35
+    episodic_min_strength: float = 0.01
 
     # Runtime behavior
     enable_online_homeostasis: bool = True
@@ -795,25 +793,72 @@ class EpisodicMemoryBank(nn.Module):
         self.read_v = nn.Linear(d, d, bias=False)
         self.norm = RMSNorm(d)
 
-    def read(self, query: Tensor, episodic_memory: Tensor) -> Tuple[Tensor, Tensor]:
+    def _compute_logits(self, query: Tensor, episodic_memory: Tensor, episodic_strengths: Optional[Tensor] = None) -> Tensor:
         q = self.read_q(query).unsqueeze(1)
         k = self.read_k(episodic_memory)
-        v = self.read_v(episodic_memory)
-        logits = torch.matmul(q, k.transpose(-1, -2)) / math.sqrt(query.size(-1))
-        weights = torch.softmax(logits, dim=-1)
-        context = torch.matmul(weights, v).squeeze(1)
-        entropy = -(weights.clamp_min(1e-8) * weights.clamp_min(1e-8).log()).sum(dim=-1).mean()
-        return context, entropy
+        logits = torch.matmul(q, k.transpose(-1, -2)).squeeze(1) / math.sqrt(query.size(-1))
+        if episodic_strengths is not None:
+            logits = logits + torch.log(episodic_strengths.clamp_min(self.cfg.episodic_min_strength))
+        return logits
 
-    def write(self, state_vec: Tensor, episodic_memory: Tensor, event_strength: Tensor) -> Tensor:
-        event_strength = event_strength.clamp(0.0, 1.0).view(state_vec.size(0), 1, 1)
-        candidate = self.norm(self.write_proj(torch.cat([state_vec, episodic_memory[:, 0, :]], dim=-1)))
-        blended_front = (
-            (1.0 - event_strength) * episodic_memory[:, :1, :]
-            + event_strength * candidate.unsqueeze(1)
-        )
-        older = episodic_memory[:, :-1, :]
-        return torch.cat([blended_front, older], dim=1)
+    def read(self, query: Tensor, episodic_memory: Tensor, episodic_strengths: Optional[Tensor] = None) -> Tuple[Tensor, Tensor, Tensor]:
+        logits = self._compute_logits(query, episodic_memory, episodic_strengths)
+        weights = torch.softmax(logits, dim=-1)
+        v = self.read_v(episodic_memory)
+        context = torch.matmul(weights.unsqueeze(1), v).squeeze(1)
+        entropy = -(weights.clamp_min(1e-8) * weights.clamp_min(1e-8).log()).sum(dim=-1).mean()
+        return context, entropy, weights
+
+    def write(
+        self,
+        state_vec: Tensor,
+        episodic_memory: Tensor,
+        episodic_strengths: Tensor,
+        event_strength: Tensor,
+        contradiction_signal: Optional[Tensor] = None,
+    ) -> Tuple[Tensor, Tensor]:
+        bsz, _, _ = episodic_memory.shape
+        event_strength = event_strength.clamp(0.0, 1.0).view(bsz, 1)
+        contradiction_signal = contradiction_signal.clamp(0.0, 1.0).view(bsz, 1) if contradiction_signal is not None else torch.zeros_like(event_strength)
+
+        read_context, _, _ = self.read(state_vec, episodic_memory, episodic_strengths)
+        candidate = self.norm(self.write_proj(torch.cat([state_vec, read_context], dim=-1)))
+
+        mem_norm = F.normalize(episodic_memory, dim=-1)
+        cand_norm = F.normalize(candidate, dim=-1).unsqueeze(1)
+        similarity = (mem_norm * cand_norm).sum(dim=-1)
+        max_similarity = similarity.max(dim=-1, keepdim=True).values
+        novelty = torch.sigmoid((self.cfg.episodic_novelty_threshold - max_similarity) * 8.0)
+
+        strengths = episodic_strengths * self.cfg.episodic_strength_decay
+        match_logits = similarity / max(self.cfg.episodic_similarity_temperature, 1e-6) + torch.log(strengths.clamp_min(self.cfg.episodic_min_strength))
+        update_weights = torch.softmax(match_logits, dim=-1)
+
+        confirm_strength = event_strength * (1.0 - novelty)
+        slot_alpha = (confirm_strength * self.cfg.episodic_strengthen_scale) * update_weights
+        episodic_memory = (1.0 - slot_alpha.unsqueeze(-1)) * episodic_memory + slot_alpha.unsqueeze(-1) * candidate.unsqueeze(1)
+        strengths = strengths + slot_alpha
+
+        if contradiction_signal is not None:
+            weaken = contradiction_signal * self.cfg.episodic_weaken_scale * update_weights
+            strengths = strengths * (1.0 - weaken)
+
+        alloc_strength = event_strength * novelty
+        weakest_idx = strengths.argmin(dim=-1)
+        batch_idx = torch.arange(bsz, device=episodic_memory.device)
+        alloc_mask = alloc_strength.squeeze(-1) > self.cfg.event_write_min_strength
+        if alloc_mask.any():
+            episodic_memory = episodic_memory.clone()
+            strengths = strengths.clone()
+            episodic_memory[batch_idx[alloc_mask], weakest_idx[alloc_mask], :] = candidate[alloc_mask]
+            strengths[batch_idx[alloc_mask], weakest_idx[alloc_mask]] = torch.maximum(
+                strengths[batch_idx[alloc_mask], weakest_idx[alloc_mask]],
+                (alloc_strength.squeeze(-1)[alloc_mask] * (1.0 + self.cfg.episodic_allocate_boost)).clamp_min(self.cfg.episodic_min_strength),
+            )
+
+        episodic_memory = self.norm(episodic_memory)
+        strengths = strengths.clamp(self.cfg.episodic_min_strength, 1.0)
+        return episodic_memory, strengths
 
 
 # -----------------------------------------------------------------------------
@@ -1110,15 +1155,9 @@ class HomeostaticController:
             unlocked += 1
         return unlocked
 
-    def observe_and_act(
-        self,
-        layer_diagnostics: Sequence[Mapping[str, float]],
-        global_loss: float,
-        contradiction_signal: float = 0.0,
-    ) -> Dict[str, Any]:
+    def observe_and_act(self, layer_diagnostics: Sequence[Mapping[str, float]], global_loss: float) -> Dict[str, Any]:
         self.global_step += 1
         self.last_action_report = []
-        contradiction_signal = float(max(0.0, contradiction_signal))
         for gate in self.circadian:
             gate.update(self.global_step)
 
@@ -1131,14 +1170,6 @@ class HomeostaticController:
             scores.append(score)
 
         self.stress_field.update({0: self.proxies}, self.global_step)
-        if contradiction_signal > 0.0:
-            n_layers = max(1, len(self.proxies) - 1)
-            gain = float(self.cfg.controller.contradiction_stress_gain)
-            for idx, proxy in enumerate(self.proxies):
-                depth_bias = 0.75 + 0.50 * (idx / n_layers)
-                proxy.local_stress = float(np.clip(proxy.local_stress + gain * contradiction_signal * depth_bias, 0.0, 1.0))
-                self.stress_field.stress_values[f"0_{proxy.id}"] = proxy.local_stress
-
         median_score = float(np.median(np.asarray(scores, dtype=np.float32))) if scores else float(global_loss)
 
         for idx, score in enumerate(scores):
@@ -1211,7 +1242,6 @@ class HomeostaticController:
             "pnn_states": [pnn.state.value for pnn in self.pnns],
             "unlocked": unlocked,
             "actions": list(self.last_action_report),
-            "contradiction_signal": contradiction_signal,
         }
         self.last_scores = list(scores)
         return report
@@ -1225,6 +1255,7 @@ class WorldModelState:
     layer_hidden: List[Tensor]
     layer_memory: List[Tensor]
     episodic_memory: Tensor
+    episodic_strengths: Tensor
     timestep: int = 0
 
     def detach(self) -> "WorldModelState":
@@ -1232,6 +1263,7 @@ class WorldModelState:
             layer_hidden=[x.detach() for x in self.layer_hidden],
             layer_memory=[x.detach() for x in self.layer_memory],
             episodic_memory=self.episodic_memory.detach(),
+            episodic_strengths=self.episodic_strengths.detach(),
             timestep=self.timestep,
         )
 
@@ -1288,14 +1320,20 @@ class HomeostaticMultimodalWorldModel(nn.Module):
 
         self._last_forward_report: Optional[Dict[str, Any]] = None
         self._last_layer_diagnostics: List[Dict[str, float]] = []
-        self._last_contradiction_signal: float = 0.0
 
     def init_state(self, batch_size: int, device: torch.device | None = None) -> WorldModelState:
         device = device or next(self.parameters()).device
         hidden = [torch.zeros(batch_size, self.cfg.d_model, device=device) for _ in range(self.cfg.num_layers)]
         memory = [torch.zeros(batch_size, self.cfg.num_memory_slots, self.cfg.d_model, device=device) for _ in range(self.cfg.num_layers)]
         episodic = torch.zeros(batch_size, self.cfg.num_episodic_slots, self.cfg.d_model, device=device)
-        return WorldModelState(layer_hidden=hidden, layer_memory=memory, episodic_memory=episodic, timestep=0)
+        episodic_strengths = torch.full((batch_size, self.cfg.num_episodic_slots), self.cfg.episodic_min_strength, device=device)
+        return WorldModelState(
+            layer_hidden=hidden,
+            layer_memory=memory,
+            episodic_memory=episodic,
+            episodic_strengths=episodic_strengths,
+            timestep=0,
+        )
 
     def _validate_inputs(
         self,
@@ -1344,29 +1382,6 @@ class HomeostaticMultimodalWorldModel(nn.Module):
             if (int(event_mask.size(0)), int(event_mask.size(1))) != ref_bt:
                 raise ValueError(f"event_mask must match [B,T]={ref_bt}, got {tuple(event_mask.shape)}")
 
-    def _compute_numeric_contradiction_signal(self, numeric: Optional[Tensor]) -> float:
-        if numeric is None or numeric.dim() != 3:
-            return 0.0
-        idx = int(self.cfg.controller.contradiction_numeric_index)
-        if idx < 0 or idx >= numeric.size(-1) or numeric.size(1) <= 1:
-            return 0.0
-        rule = numeric[..., idx]
-        prev = rule[:, :-1]
-        curr = rule[:, 1:]
-        change = (curr - prev).abs()
-        if prev.size(1) <= 1:
-            pulse = float(change.max().item()) if change.numel() > 0 else 0.0
-            return max(0.0, pulse - float(self.cfg.controller.contradiction_threshold))
-
-        lookback = max(1, int(self.cfg.controller.contradiction_stability_steps))
-        stable_steps = min(lookback, prev.size(1))
-        stable_ref = prev[:, :stable_steps].mean(dim=1, keepdim=True)
-        stable_delta = (curr - stable_ref).abs()
-        pulse = torch.maximum(change.max(dim=1).values, stable_delta.max(dim=1).values)
-        pulse = pulse - float(self.cfg.controller.contradiction_threshold)
-        pulse = pulse.clamp_min(0.0)
-        return float(pulse.mean().item())
-
     def _encode_modalities(
         self,
         text_tokens: Optional[Tensor],
@@ -1387,15 +1402,17 @@ class HomeostaticMultimodalWorldModel(nn.Module):
         self,
         x_chunk: Tensor,
         episodic_memory: Tensor,
+        episodic_strengths: Tensor,
         prev_output: Tensor,
         event_mask_chunk: Optional[Tensor] = None,
-    ) -> Tuple[Tensor, Tensor, Tensor, List[float]]:
+        contradiction_signal_chunk: Optional[Tensor] = None,
+    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, List[float]]:
         outputs: List[Tensor] = []
         entropies: List[float] = []
         steps = x_chunk.size(1)
         for step in range(steps):
             x_t = x_chunk[:, step, :]
-            episodic_context, episodic_entropy = self.episodic_memory.read(x_t, episodic_memory)
+            episodic_context, episodic_entropy, _ = self.episodic_memory.read(x_t, episodic_memory, episodic_strengths)
             entropies.append(_as_float(episodic_entropy))
             x_t = self.final_norm(x_t + episodic_context)
             if event_mask_chunk is not None:
@@ -1403,10 +1420,28 @@ class HomeostaticMultimodalWorldModel(nn.Module):
             else:
                 surprise = torch.sigmoid(self.event_proj(torch.cat([x_t, x_t - prev_output], dim=-1))).squeeze(-1)
                 strength = surprise.clamp_min(self.cfg.event_write_min_strength) * (surprise > self.cfg.surprise_event_threshold).float()
-            episodic_memory = self.episodic_memory.write(x_t, episodic_memory, strength)
+            contradiction_signal = contradiction_signal_chunk[:, step] if contradiction_signal_chunk is not None else None
+            episodic_memory, episodic_strengths = self.episodic_memory.write(
+                x_t, episodic_memory, episodic_strengths, strength, contradiction_signal=contradiction_signal
+            )
             outputs.append(x_t)
             prev_output = x_t
-        return torch.stack(outputs, dim=1), episodic_memory, prev_output, entropies
+        return torch.stack(outputs, dim=1), episodic_memory, episodic_strengths, prev_output, entropies
+
+    def _compute_numeric_contradiction_signal(self, numeric: Optional[Tensor]) -> Optional[Tensor]:
+        if numeric is None:
+            return None
+        idx = int(getattr(self.cfg.controller, "contradiction_numeric_index", 3))
+        if idx >= numeric.size(-1):
+            return None
+        series = numeric[..., idx]
+        if series.size(1) < 2:
+            return torch.zeros_like(series)
+        threshold = float(getattr(self.cfg.controller, "contradiction_threshold", 0.20))
+        diff = (series[:, 1:] - series[:, :-1]).abs()
+        pulse = (diff > threshold).float()
+        pulse = torch.cat([torch.zeros_like(pulse[:, :1]), pulse], dim=1)
+        return pulse
 
     def forward(
         self,
@@ -1424,13 +1459,13 @@ class HomeostaticMultimodalWorldModel(nn.Module):
         b, t, _ = fused.shape
         device = fused.device
         state = state or self.init_state(b, device=device)
-        self._last_contradiction_signal = self._compute_numeric_contradiction_signal(numeric)
 
         outputs: List[Tensor] = []
         per_layer_diagnostics: List[List[Dict[str, float]]] = [[] for _ in range(self.cfg.num_layers)]
         episodic_entropies: List[float] = []
         prev_output = torch.zeros(b, self.cfg.d_model, device=device)
         chunk_size = max(1, int(self.cfg.scan_chunk_size))
+        contradiction_signal_full = self._compute_numeric_contradiction_signal(numeric)
 
         for start in range(0, t, chunk_size):
             end = min(t, start + chunk_size)
@@ -1444,11 +1479,14 @@ class HomeostaticMultimodalWorldModel(nn.Module):
                 per_layer_diagnostics[layer_idx].extend(diag_chunk)
 
             event_chunk = event_mask[:, start:end] if event_mask is not None else None
-            x_chunk, state.episodic_memory, prev_output, ent_chunk = self._run_episodic_chunk(
+            contradiction_chunk = contradiction_signal_full[:, start:end] if contradiction_signal_full is not None else None
+            x_chunk, state.episodic_memory, state.episodic_strengths, prev_output, ent_chunk = self._run_episodic_chunk(
                 x_chunk,
                 state.episodic_memory,
+                state.episodic_strengths,
                 prev_output,
                 event_chunk,
+                contradiction_chunk,
             )
             outputs.append(x_chunk)
             episodic_entropies.extend(ent_chunk)
@@ -1504,13 +1542,7 @@ class HomeostaticMultimodalWorldModel(nn.Module):
     def controller_step(self, loss_value: Tensor | float) -> Dict[str, Any]:
         if not self._last_layer_diagnostics:
             raise RuntimeError("controller_step called before a forward pass produced diagnostics.")
-        report = self.controller.observe_and_act(
-            self._last_layer_diagnostics,
-            _as_float(loss_value),
-            contradiction_signal=self._last_contradiction_signal,
-        )
-        self._last_forward_report = report
-        return report
+        return self.controller.observe_and_act(self._last_layer_diagnostics, _as_float(loss_value))
 
     def emergency_stabilize(self) -> None:
         self.controller.emergency_stabilize()

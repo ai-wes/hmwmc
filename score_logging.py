@@ -241,6 +241,11 @@ def build_default_metric_specs() -> dict[str, MetricSpec]:
         "q_loss": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 2.0),
         "stress": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 0.15),
         "episodic_read_entropy": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 1.5, 3.5),
+        "qacc/who_holds_token": MetricSpec(ScoreDirection.HIGHER_IS_BETTER, 0.0, 1.0),
+        "qacc/who_was_first_tagged": MetricSpec(ScoreDirection.HIGHER_IS_BETTER, 0.0, 1.0),
+        "qacc/did_alarm_fire": MetricSpec(ScoreDirection.HIGHER_IS_BETTER, 0.0, 1.0),
+        "qacc/which_entity_occluded": MetricSpec(ScoreDirection.HIGHER_IS_BETTER, 0.0, 1.0),
+        "qacc/what_was_true_rule": MetricSpec(ScoreDirection.HIGHER_IS_BETTER, 0.0, 1.0),
     }
 
 

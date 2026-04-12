@@ -40,6 +40,7 @@ from homeostatic_multimodal_world_model_chunked import (
     LossOutput,
     summarize_controller_report,
 )
+from score_logging import ScoreLogger, build_default_metric_specs, log_training_snapshot
 
 
 # -----------------------------------------------------------------------------
@@ -475,6 +476,9 @@ def run_curriculum(world_cfg: WorldConfig, tcfg: TrainConfig, tiers: Sequence[Cu
     np.random.seed(tcfg.seed)
     random.seed(tcfg.seed)
 
+    score_logger = ScoreLogger("tmew_train_scores")
+    specs = build_default_metric_specs()
+
     model, criterion, probe = build_model(world_cfg)
     model = model.to(tcfg.device)
     probe = probe.to(tcfg.device)
@@ -498,12 +502,28 @@ def run_curriculum(world_cfg: WorldConfig, tcfg: TrainConfig, tiers: Sequence[Cu
                 stats = train_step(model, criterion, probe, optimizer, batch, tcfg, tier.enabled_modalities)
                 if step % tcfg.log_every == 0:
                     summary = summarize_controller_report(model._last_forward_report)
-                    print(f"  tier{tier.tier} ep{epoch} step{step:04d} | "
-                          f"total={stats['total']:.4f} latent_acc={stats['latent_acc']:.3f} "
-                          f"unlocked={summary.get('unlocked', 0)}")
+                    step_metrics = {
+                        "total": stats["total"],
+                        "aux_latent": stats["aux_latent"],
+                        "latent_acc": stats["latent_acc"],
+                    }
+                    stresses = summary.get("stresses") or []
+                    if stresses:
+                        step_metrics["stress"] = float(np.mean(np.asarray(stresses, dtype=np.float32)))
+                    log_training_snapshot(
+                        score_logger,
+                        step_label=f"tier{tier.tier} ep{epoch} s{step:04d}",
+                        metrics=step_metrics,
+                        specs=specs,
+                    )
 
             val = evaluate(model, criterion, probe, val_loader, tcfg, tier.enabled_modalities)
-            print(f"  [val] tier{tier.tier} ep{epoch} | latent_acc={val['latent_acc']:.3f} aux={val['aux_latent']:.4f}")
+            log_training_snapshot(
+                score_logger,
+                step_label=f"[val] tier{tier.tier} ep{epoch}",
+                metrics=val,
+                specs=specs,
+            )
 
             if val["latent_acc"] >= tier.promote_at_accuracy:
                 print(f"  -> promoting from tier {tier.tier}")

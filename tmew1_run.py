@@ -49,6 +49,7 @@ from homeostatic_multimodal_world_model_chunked import (
     LossOutput,
     summarize_controller_report,
 )
+from score_logging import ScoreLogger, build_default_metric_specs, log_training_snapshot
 
 
 # -----------------------------------------------------------------------------
@@ -244,6 +245,9 @@ def run_curriculum(
     np.random.seed(tcfg.seed)
     random.seed(tcfg.seed)
 
+    score_logger = ScoreLogger("tmew_scores")
+    specs = build_default_metric_specs()
+
     model, criterion, probe = build_model(world_cfg)
     query_head = QueryHead(model.cfg.d_model, world_cfg.max_entities, len(EXTENDED_QUERY_TYPES))
 
@@ -258,7 +262,6 @@ def run_curriculum(
     )
 
     for tier in tiers:
-        # Inject handoff into Tier 2+ so the queries have meaningful targets.
         if tier.tier >= 2 and "handoff" not in tier.template_pool:
             tier = replace(tier, template_pool=tuple(list(tier.template_pool) + ["handoff"]))
 
@@ -276,24 +279,32 @@ def run_curriculum(
                 stats = train_one_step(model, criterion, probe, query_head, optimizer, batch, tcfg, tier.enabled_modalities)
                 if step % tcfg.log_every == 0:
                     summary = summarize_controller_report(model._last_forward_report)
-                    qacc_str = " ".join(f"{k.split('/')[-1][:6]}={v:.2f}" for k, v in stats.items() if k in ("entity_acc", "binary_acc"))
+                    step_metrics = {
+                        "total": stats["total"],
+                        "next_step": stats["next_step"],
+                        "aux_latent": stats["aux_latent"],
+                        "latent_acc": stats["latent_acc"],
+                        "q_loss": stats["q_loss"],
+                        "entity_acc": stats.get("entity_acc", 0.0),
+                        "binary_acc": stats.get("binary_acc", 0.0),
+                    }
                     stresses = summary.get("stresses") or []
-                    stress_str = ""
                     if stresses:
-                        sm = float(np.mean(np.asarray(stresses, dtype=np.float32)))
-                        stress_str = f" stress={sm:.3f}"
-                    pnn_states = summary.get("pnn_states") or []
-                    pnn_str = ""
-                    if pnn_states:
-                        pnn_str = " pnn=" + "/".join(s[0] for s in pnn_states)
-                    print(
-                        f"  t{tier.tier} ep{epoch} s{step:04d} | total={stats['total']:.3f} latent={stats['latent_acc']:.2f} "
-                        f"{qacc_str}{stress_str}{pnn_str} unlocked={summary.get('unlocked', 0)}"
+                        step_metrics["stress"] = float(np.mean(np.asarray(stresses, dtype=np.float32)))
+                    log_training_snapshot(
+                        score_logger,
+                        step_label=f"t{tier.tier} ep{epoch} s{step:04d}",
+                        metrics=step_metrics,
+                        specs=specs,
                     )
 
             val = evaluate(model, criterion, probe, query_head, val_loader, tcfg, tier.enabled_modalities)
-            qparts = " ".join(f"{k.split('/')[-1]}={v:.2f}" for k, v in val.items() if k.startswith("qacc/"))
-            print(f"  [val] t{tier.tier} ep{epoch} | next_step={val['next_step']:.4f} latent={val['latent_acc']:.3f} | {qparts}")
+            log_training_snapshot(
+                score_logger,
+                step_label=f"[val] t{tier.tier} ep{epoch}",
+                metrics=val,
+                specs=specs,
+            )
 
             if val["latent_acc"] >= tier.promote_at_accuracy:
                 print(f"  -> promoting from tier {tier.tier}")
