@@ -73,7 +73,7 @@ class TMEW1QueryDataset(Dataset):
             self.tier,
             seed=self.base_seed + idx,
             num_queries=self.num_queries,
-            enable_false_cue=True,
+            enable_false_cue=self.tier.tier >= 2,
         )
         return episode_to_diag_tensors(ep)
 
@@ -259,7 +259,9 @@ def run_curriculum(
     specs = build_default_metric_specs()
 
     model, criterion, probe = build_model(world_cfg)
-    query_head = QueryHead(model.cfg.d_model, world_cfg.max_entities, len(EXTENDED_QUERY_TYPES))
+    # The shared categorical head must cover both entity-id answers and latent-rule answers.
+    num_categorical_answers = max(world_cfg.max_entities, world_cfg.num_latent_rules)
+    query_head = QueryHead(model.cfg.d_model, num_categorical_answers, len(EXTENDED_QUERY_TYPES))
 
     model = model.to(tcfg.device)
     probe = probe.to(tcfg.device)
