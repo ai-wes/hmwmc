@@ -44,6 +44,7 @@ from tmew1_queries import (
     Query,
     EpisodeWithQueries,
     HandoffState,
+    augment_sequence_with_holder_audio,
     _step_world_with_handoff,
 )
 
@@ -258,6 +259,7 @@ def recall_by_difficulty(
     query_head,
     loader: DataLoader,
     device: str,
+    holder_feature_dim: int,
     enabled: Sequence[str] = ("vision", "numeric", "audio"),
 ) -> Dict[str, Any]:
     """
@@ -301,7 +303,13 @@ def recall_by_difficulty(
 
         t_max = output.sequence.size(1) - 1
         qtimes = batch["query_times"].clamp(max=t_max)
-        entity_logits, binary_logits = query_head(output.sequence, qtimes, batch["query_types"])
+        augmented_seq = augment_sequence_with_holder_audio(
+            output.sequence,
+            batch.get("audio"),
+            max_entities=holder_feature_dim,
+            use_audio="audio" in enabled,
+        )
+        entity_logits, binary_logits = query_head(augmented_seq, qtimes, batch["query_types"])
 
         bs, q = batch["query_types"].shape
         for bi in range(bs):
@@ -388,7 +396,7 @@ def run_diagnostic_report(
 ) -> Dict[str, Any]:
     ds = TMEW1DiagnosticDataset(world_cfg, tier, n=n_episodes, base_seed=base_seed, enable_false_cue=True)
     loader = DataLoader(ds, batch_size=8, shuffle=False, collate_fn=collate_diag, num_workers=0)
-    report = recall_by_difficulty(model, query_head, loader, device, enabled=tier.enabled_modalities)
+    report = recall_by_difficulty(model, query_head, loader, device, world_cfg.max_entities, enabled=tier.enabled_modalities)
     print(format_diagnostics(report))
     return report
 

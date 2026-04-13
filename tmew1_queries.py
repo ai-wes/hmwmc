@@ -276,6 +276,35 @@ class QueryHead(nn.Module):
 
 
 # -----------------------------------------------------------------------------
+# Sequence augmentation
+# -----------------------------------------------------------------------------
+def augment_sequence_with_holder_audio(
+    sequence: Tensor,
+    audio: Optional[Tensor],
+    max_entities: int,
+    use_audio: bool = True,
+) -> Tensor:
+    """
+    Append raw holder-identity audio channels to the sequence representation.
+
+    sequence: (B, T, D)
+    audio:    (B, T_full, A), typically aligned to the unshifted episode.
+    """
+    b, t, _ = sequence.shape
+    if not use_audio or audio is None:
+        holder_audio = torch.zeros(b, t, max_entities, device=sequence.device, dtype=sequence.dtype)
+        return torch.cat([sequence, holder_audio], dim=-1)
+
+    holder_start = 8
+    holder_end = holder_start + max_entities
+    clipped = audio[:, :t, holder_start:min(holder_end, audio.size(-1))].to(sequence.dtype)
+    if clipped.size(-1) < max_entities:
+        pad = torch.zeros(b, t, max_entities - clipped.size(-1), device=sequence.device, dtype=sequence.dtype)
+        clipped = torch.cat([clipped, pad], dim=-1)
+    return torch.cat([sequence, clipped], dim=-1)
+
+
+# -----------------------------------------------------------------------------
 # Query loss
 # -----------------------------------------------------------------------------
 def query_loss(
@@ -431,6 +460,7 @@ __all__ = [
     "Query",
     "EpisodeWithQueries",
     "HandoffState",
+    "augment_sequence_with_holder_audio",
     "generate_episode_with_queries",
     "QueryHead",
     "query_loss",

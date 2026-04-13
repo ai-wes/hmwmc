@@ -30,7 +30,7 @@ from tmew1_train import (
     build_model,
     shift_targets,
 )
-from tmew1_queries import QueryHead, query_train_step_addon
+from tmew1_queries import QueryHead, augment_sequence_with_holder_audio, query_train_step_addon
 from tmew1_diagnostics import (
     EXTENDED_QUERY_TYPES,
     EXTENDED_QUERY_TYPE_TO_IDX,
@@ -98,10 +98,18 @@ def per_qtype_accuracy(
     output_sequence: Tensor,
     query_head: QueryHead,
     batch: Dict[str, Tensor],
+    holder_feature_dim: int,
+    enabled: Sequence[str],
 ) -> Dict[str, float]:
     t_max = output_sequence.size(1) - 1
     qtimes = batch["query_times"].clamp(max=t_max)
-    entity_logits, binary_logits = query_head(output_sequence, qtimes, batch["query_types"])
+    augmented_seq = augment_sequence_with_holder_audio(
+        output_sequence,
+        batch.get("audio"),
+        max_entities=holder_feature_dim,
+        use_audio="audio" in enabled,
+    )
+    entity_logits, binary_logits = query_head(augmented_seq, qtimes, batch["query_types"])
 
     targets = batch["query_targets"]
     is_binary = batch["query_is_binary"]
@@ -134,6 +142,7 @@ def train_one_step(
     batch: Dict[str, Tensor],
     tcfg: TrainConfig,
     enabled: Sequence[str],
+    holder_feature_dim: int,
 ) -> Dict[str, float]:
     optimizer.zero_grad(set_to_none=True)
 
@@ -161,7 +170,12 @@ def train_one_step(
     aux = nn.functional.cross_entropy(rule_logits, batch["latent_rule"])
 
     q_loss, q_metrics = query_train_step_addon(
-        output.sequence,
+        augment_sequence_with_holder_audio(
+            output.sequence,
+            batch.get("audio"),
+            max_entities=holder_feature_dim,
+            use_audio="audio" in enabled,
+        ),
         query_head,
         batch,
         query_type_to_idx=EXTENDED_QUERY_TYPE_TO_IDX,
@@ -217,6 +231,7 @@ def evaluate(
     loader: DataLoader,
     tcfg: TrainConfig,
     enabled: Sequence[str],
+    holder_feature_dim: int,
 ) -> Dict[str, float]:
     model.eval()
     probe.eval()
@@ -251,7 +266,7 @@ def evaluate(
         )
         rule_logits = probe(output.sequence)
         rule_acc = (rule_logits.argmax(-1) == batch["latent_rule"]).float().mean().item()
-        qtype_metrics = per_qtype_accuracy(output.sequence, query_head, batch)
+        qtype_metrics = per_qtype_accuracy(output.sequence, query_head, batch, holder_feature_dim, enabled)
         holder_acc = 0.0
         if "audio" in enabled and "holder_per_step" in batch:
             holder_logits = holder_head(output.sequence)
@@ -300,7 +315,7 @@ def run_curriculum(
     model, criterion, probe = build_model(world_cfg)
     # The shared categorical head must cover both entity-id answers and latent-rule answers.
     num_categorical_answers = max(world_cfg.max_entities, world_cfg.num_latent_rules)
-    query_head = QueryHead(model.cfg.d_model, num_categorical_answers, len(EXTENDED_QUERY_TYPES))
+    query_head = QueryHead(model.cfg.d_model + world_cfg.max_entities, num_categorical_answers, len(EXTENDED_QUERY_TYPES))
     holder_head = CurrentHolderHead(model.cfg.d_model, world_cfg.max_entities)
 
     model = model.to(tcfg.device)
@@ -333,7 +348,7 @@ def run_curriculum(
         for epoch in range(tcfg.epochs_per_tier):
             for step, batch in enumerate(train_loader):
                 batch = {k: v.to(tcfg.device) for k, v in batch.items()}
-                stats = train_one_step(model, criterion, probe, query_head, holder_head, optimizer, batch, tcfg, tier.enabled_modalities)
+                stats = train_one_step(model, criterion, probe, query_head, holder_head, optimizer, batch, tcfg, tier.enabled_modalities, world_cfg.max_entities)
                 if step % tcfg.log_every == 0:
                     summary = summarize_controller_report(model._last_forward_report)
                     step_metrics = {
@@ -362,7 +377,7 @@ def run_curriculum(
                         specs=specs,
                     )
 
-            val = evaluate(model, criterion, probe, query_head, holder_head, val_loader, tcfg, tier.enabled_modalities)
+            val = evaluate(model, criterion, probe, query_head, holder_head, val_loader, tcfg, tier.enabled_modalities, world_cfg.max_entities)
             log_training_snapshot(
                 score_logger,
                 step_label=f"[val] t{tier.tier} ep{epoch}",
