@@ -51,7 +51,7 @@ class WorldConfig:
     grid_h: int = 16
     grid_w: int = 16
     vision_channels: int = 3
-    audio_dim: int = 8
+    audio_dim: int = 16
     numeric_dim: int = 6
     text_vocab_size: int = 64
     text_seq_len: int = 1               # one symbolic token per step
@@ -195,7 +195,12 @@ def _render_vision(state: WorldState, cfg: WorldConfig) -> np.ndarray:
     return img
 
 
-def _render_audio(state: WorldState, cfg: WorldConfig, events: Dict[str, Any]) -> np.ndarray:
+def _render_audio(
+    state: WorldState,
+    cfg: WorldConfig,
+    events: Dict[str, Any],
+    current_holder_id: Optional[int] = None,
+) -> np.ndarray:
     vec = np.zeros(cfg.audio_dim, dtype=np.float32)
     if events.get("trigger"):
         vec[0] = 1.0                    # high tone marks armed state
@@ -206,7 +211,12 @@ def _render_audio(state: WorldState, cfg: WorldConfig, events: Dict[str, Any]) -
     if events.get("handoff"):
         vec[3] = 1.0                    # token changed hands this step
         vec[4] = 1.0                    # duplicate handoff event bit for a cleaner write cue
-    vec[5:] = np.random.normal(0, 0.05, cfg.audio_dim - 5).astype(np.float32)
+    new_holder_id = events.get("new_holder_id", -1)
+    if 0 <= new_holder_id < cfg.max_entities and (8 + new_holder_id) < cfg.audio_dim:
+        vec[8 + new_holder_id] = 1.0
+    if current_holder_id is not None and 0 <= current_holder_id < cfg.max_entities and (8 + current_holder_id) < cfg.audio_dim:
+        vec[8 + current_holder_id] = max(vec[8 + current_holder_id], 0.3)
+    vec[5:8] = np.random.normal(0, 0.05, 3).astype(np.float32)
     return vec
 
 
