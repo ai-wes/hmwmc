@@ -383,7 +383,7 @@ def collate(batch: Sequence[Dict[str, Any]]) -> Dict[str, Tensor]:
 # -----------------------------------------------------------------------------
 @dataclass
 class TrainConfig:
-    batch_size: int = 8
+    batch_size: int = 32
     train_episodes_per_tier: int = 2048
     val_episodes: int = 256
     epochs_per_tier: int = 4
@@ -396,7 +396,7 @@ class TrainConfig:
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     seed: int = 0
     use_amp: bool = torch.cuda.is_available()   # mixed-precision (float16)
-    num_workers: int = 2                         # DataLoader worker processes
+    num_workers: int = 0                         # unused with PreCachedDataset
 
 
 class LatentRuleProbe(nn.Module):

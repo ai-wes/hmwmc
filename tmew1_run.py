@@ -89,6 +89,59 @@ class TMEW1QueryDataset(Dataset):
         return self._cache[idx]
 
 
+class PreCachedDataset(Dataset):
+    """Pre-generates all episodes and stacks them into contiguous GPU tensors.
+
+    Eliminates per-step CPU episode generation overhead entirely. The full
+    dataset lives on-device so batch fetches are just tensor slicing — no
+    host-to-device transfer during training.
+    """
+
+    def __init__(
+        self,
+        cfg: WorldConfig,
+        tier: CurriculumTier,
+        n_episodes: int,
+        base_seed: int,
+        num_queries: int = 4,
+        device: str = "cuda",
+    ):
+        import logging
+        log = logging.getLogger(__name__)
+        log.info("Pre-generating %d episodes for tier %d on CPU...", n_episodes, tier.tier)
+
+        # Generate all episodes on CPU first
+        all_tensors: list[Dict[str, Tensor]] = []
+        for i in range(n_episodes):
+            ep = generate_episode_with_diagnostics(
+                cfg, tier, seed=base_seed + i,
+                num_queries=num_queries,
+                enable_false_cue=tier.tier >= 2,
+            )
+            all_tensors.append(episode_to_diag_tensors(ep))
+
+        # Stack into contiguous tensors and move to device
+        keys = list(all_tensors[0].keys())
+        self._data: Dict[str, Tensor] = {}
+        for k in keys:
+            self._data[k] = torch.stack([t[k] for t in all_tensors], dim=0).to(device)
+        self._n = n_episodes
+        log.info("Pre-cached %d episodes on %s (%.1f MB)",
+                 n_episodes, device,
+                 sum(t.nbytes for t in self._data.values()) / 1e6)
+
+    def __len__(self) -> int:
+        return self._n
+
+    def __getitem__(self, idx: int) -> Dict[str, Tensor]:
+        return {k: v[idx] for k, v in self._data.items()}
+
+
+def precached_collate(batch: Sequence[Dict[str, Tensor]]) -> Dict[str, Tensor]:
+    """Collate for PreCachedDataset. Data is already on device, just stack."""
+    return {k: torch.stack([b[k] for b in batch], dim=0) for k in batch[0].keys()}
+
+
 # -----------------------------------------------------------------------------
 # Auxiliary holder head
 # -----------------------------------------------------------------------------
@@ -410,7 +463,6 @@ def run_curriculum(
     )
 
     scaler = GradScaler("cuda", enabled=tcfg.use_amp)
-    _use_workers = tcfg.num_workers > 0 and tcfg.device == "cuda"
 
     for tier in tiers:
         if tier.tier >= 2:
@@ -424,26 +476,22 @@ def run_curriculum(
 
         print(f"\n=== Tier {tier.tier} | modalities={tier.enabled_modalities} | T={tier.max_episode_length} | templates={tier.template_pool} ===")
 
-        train_ds = TMEW1QueryDataset(world_cfg, tier, tcfg.train_episodes_per_tier, base_seed=1000 * tier.tier, num_queries=num_queries)
-        val_ds = TMEW1QueryDataset(world_cfg, tier, tcfg.val_episodes, base_seed=9000 + 1000 * tier.tier, num_queries=num_queries)
+        train_ds = PreCachedDataset(world_cfg, tier, tcfg.train_episodes_per_tier, base_seed=1000 * tier.tier, num_queries=num_queries, device=tcfg.device)
+        val_ds = PreCachedDataset(world_cfg, tier, tcfg.val_episodes, base_seed=9000 + 1000 * tier.tier, num_queries=num_queries, device=tcfg.device)
         train_loader = DataLoader(
-            train_ds, batch_size=tcfg.batch_size, shuffle=True, collate_fn=collate_diag,
-            num_workers=tcfg.num_workers if _use_workers else 0,
-            pin_memory=_use_workers,
-            persistent_workers=_use_workers and tcfg.num_workers > 0,
+            train_ds, batch_size=tcfg.batch_size, shuffle=True, collate_fn=precached_collate,
+            num_workers=0, pin_memory=False,
         )
         val_loader = DataLoader(
-            val_ds, batch_size=tcfg.batch_size, shuffle=False, collate_fn=collate_diag,
-            num_workers=tcfg.num_workers if _use_workers else 0,
-            pin_memory=_use_workers,
-            persistent_workers=_use_workers and tcfg.num_workers > 0,
+            val_ds, batch_size=tcfg.batch_size, shuffle=False, collate_fn=precached_collate,
+            num_workers=0, pin_memory=False,
         )
 
         promoted = False
         for epoch in range(tcfg.epochs_per_tier):
             _accum_unlocks = 0  # accumulate force-unlocks between log events
             for step, batch in enumerate(train_loader):
-                batch = {k: v.to(tcfg.device) for k, v in batch.items()}
+                # Data is already on device from PreCachedDataset
                 stats = train_one_step(model, criterion, probe, query_head, holder_head, optimizer, batch, tcfg, tier.enabled_modalities, world_cfg.max_entities, scaler=scaler)
                 # Accumulate force-unlocks every step (not just log steps)
                 _step_report = summarize_controller_report(model._last_forward_report)
