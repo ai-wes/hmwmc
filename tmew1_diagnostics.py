@@ -297,8 +297,9 @@ def recall_by_difficulty(
     first_occluded_idx = EXTENDED_QUERY_TYPE_TO_IDX.get("which_entity_first_occluded", -1)
     chain2_fire_idx = EXTENDED_QUERY_TYPE_TO_IDX.get("did_chain2_fire", -1)
 
-    bucket_correct: Dict[str, List[int]] = {"0": [], "1": [], "2": [], "3+": []}
-    first_tagged_by_handoffs: Dict[str, List[int]] = {"0": [], "1": [], "2": [], "3+": []}
+    _handoff_keys = ["0", "1", "2", "3", "4", "5", "6+"]
+    bucket_correct: Dict[str, List[int]] = {k: [] for k in _handoff_keys}
+    first_tagged_by_handoffs: Dict[str, List[int]] = {k: [] for k in _handoff_keys}
     true_rule_by_falsecue: Dict[str, List[int]] = {"with_cue": [], "without_cue": []}
     temporal_ordering_correct: List[int] = []
     first_occluded_correct: List[int] = []
@@ -306,7 +307,7 @@ def recall_by_difficulty(
     entropy_samples: List[float] = []
 
     def bucket_for(n: int) -> str:
-        return "3+" if n >= 3 else str(n)
+        return "6+" if n >= 6 else str(n)
 
     for batch in loader:
         batch = {k: v.to(device) for k, v in batch.items()}
