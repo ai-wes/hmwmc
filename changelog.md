@@ -108,3 +108,27 @@ Shipped Level 1 Homeostatic Predictive Memory (HPM) as a new architectural modul
 - Full curriculum run once Tier 2 looks healthy. Target on Tier 3 diagnostics: handoff=2 >= 0.70, handoff=3+ >= 0.60.
 - Contingent on first result: bump `n_slots` to 4 for Level 2 and add an information-theoretic slot-differentiation loss.
 - Publishable ablation: disable the audio holder one-hot (set indices to zero) and retrain to test whether HPM recovers multi-hop from vision alone.
+
+
+## [2026-04-13 HPM integration(continued)]
+
+What's shipped. /home/claude/hpm.py contains the full HomeostaticPredictiveMemory module. Level 1 (n_slots=1, non-competitive) reproduces the handoff sketch exactly, and Level 2+ is live via config flags with no rewrite needed. Key design calls I made, beyond the handoff doc:
+
+Surprise source is intrinsic. Each slot has its own one-step-ahead predictor of the hidden state. e_t = ||predictor_s(h_{t-1}) - h_t||² averaged over dim. No coupling to external losses, no task-specific event detector, and per-slot predictors give each slot room to specialize under Level 2.
+Surprise semantics are correct. e_t attributes to step t (the step that surprised us), and g_t gates the write at step t. e_0 = 0 because there's no prior.
+Slot operations are fully vectorized via SlotLinear. Independent Linear-per-slot via stacked (n_slots, in, out) weight tensors and einsum. Runs O(1) slot-invariant per step, not O(n_slots) Python calls.
+PNN lineage is inlined, not imported. OPEN/CLOSING/LOCKED states per slot, driven by gate EMA. State-dependent gate gain replaces the "raise the threshold" framing from the proposal — cleaner gradient behavior. Force-unlock on |z| > critical_z, directly parallel to your MOEA force_unlock when local_stress exceeds threshold. Warmup window (first 50 steps) suppresses force-unlock while sigma stabilizes.
+Three read modes. concat (default), mean, attn. Switch between them without retraining structure.
+Diagnostics are rich. gate mean, |z| mean and max, err mean, write magnitude, per-state slot fractions, force-unlock count, μ and σ.
+
+Bug I caught and fixed in testing. First revision mutated self.slot_state in-place inside the forward loop, which broke autograd because nn.Embedding had saved that tensor for backward. Fixed by working on a local cur_state through the loop and committing to the buffer after.
+What's left and where to pick up next thread. I ran out of tool budget before finishing integration. Remaining work:
+
+Finish smoke-testing HPM standalone — verify the gradient path works end-to-end after the state-buffer fix I just applied.
+Integrate into homeostatic_multimodal_world_model_chunked.py. Add hpm_config: HPMConfig to WorldModelConfig. Instantiate self.hpm = HomeostaticPredictiveMemory(cfg.d_model, cfg.hpm_config) in the model. After the sequence is built (line 1531), call hpm_seq, hpm_diag = self.hpm(sequence) and add hpm_sequence and hpm_diagnostics fields to ForwardOutput. Do not concatenate into sequence itself — keep sequence pure so next-step prediction heads aren't disturbed.
+Wire into QueryHead in tmew1_run.py. In the three places augment_sequence_with_holder_audio is called, also concat output.hpm_sequence. Bump QueryHead's input dim by model.hpm.output_dim.
+Log HPM diagnostics in the step log block around line 354 of tmew1_run.py.
+Changelog entry.
+
+Start the next thread with: "HPM module is written and unit-tested in isolation. Pick up at integration step 2 — patching the main model file to instantiate HPM and add hpm_sequence to ForwardOutput." The file /home/claude/hpm.py is the canonical source — pull it across.
+Default config to use for first Tier 2 run: HPMConfig(n_slots=1, read_mode="concat", competitive=False) to validate Level 1 matches handoff-doc intent before going to Level 2.

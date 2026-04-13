@@ -393,6 +393,18 @@ def run_curriculum(
         if not promoted:
             print(f"  -> tier {tier.tier} did not reach promotion threshold; continuing anyway")
 
+        # Save checkpoint after completing each tier
+        ckpt_path = f"checkpoint_tier{tier.tier}.pt"
+        torch.save({
+            "tier": tier.tier,
+            "model": model.state_dict(),
+            "query_head": query_head.state_dict(),
+            "holder_head": holder_head.state_dict(),
+            "probe": probe.state_dict(),
+            "optimizer": optimizer.state_dict(),
+        }, ckpt_path)
+        print(f"  -> saved checkpoint to {ckpt_path}")
+
         run_diagnostic_report(model, query_head, world_cfg, tier, tcfg.device, n_episodes=256)
 
 
