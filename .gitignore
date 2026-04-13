@@ -1,0 +1,4 @@
+training_runs_logs/
+.history
+__pycache__/
+*.pyc
