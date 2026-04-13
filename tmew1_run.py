@@ -229,6 +229,28 @@ def train_one_step(
 
         total = losses.total + tcfg.aux_latent_weight * aux + q_loss + 0.3 * holder_loss
 
+    # ── NaN guard: skip backward + optimizer if loss exploded ──────────
+    if torch.isnan(total) or torch.isinf(total):
+        import logging as _log
+        _log.getLogger(__name__).warning(
+            "NaN/Inf loss detected (total=%.4g) — skipping backward, "
+            "running emergency_stabilize", float(total.item()) if not torch.isnan(total) else float("nan"),
+        )
+        optimizer.zero_grad(set_to_none=True)
+        if model.cfg.enable_online_homeostasis:
+            model.controller.emergency_stabilize()
+            # Force-unlock all layers so the model can recover
+            for pnn in model.controller.pnns:
+                pnn.force_unlock(model.controller.global_step, refractory_period=8)
+        with torch.no_grad():
+            rule_acc = (rule_logits.argmax(-1) == batch["latent_rule"]).float().mean().item()
+        return {
+            "total": float("nan"), "next_step": float("nan"),
+            "aux_latent": float("nan"), "latent_acc": rule_acc,
+            "q_loss": float("nan"), "holder_loss": float("nan"),
+            "holder_acc": holder_acc, **q_metrics,
+        }
+
     if scaler is not None:
         scaler.scale(total).backward()
         if tcfg.grad_clip > 0:
@@ -243,6 +265,18 @@ def train_one_step(
             params = list(model.parameters()) + list(probe.parameters()) + list(query_head.parameters()) + list(holder_head.parameters())
             nn.utils.clip_grad_norm_(params, tcfg.grad_clip)
         optimizer.step()
+
+    # ── Post-step NaN check: repair poisoned weights before next step ──
+    _has_nan = False
+    for p in model.parameters():
+        if p.data.isnan().any():
+            _has_nan = True
+            p.data.nan_to_num_(nan=0.0, posinf=1.0, neginf=-1.0)
+    if _has_nan:
+        import logging as _log
+        _log.getLogger(__name__).warning("NaN detected in model weights after optimizer.step — zeroed out")
+        if model.cfg.enable_online_homeostasis:
+            model.controller.emergency_stabilize()
 
     # controller_step mutates live Parameters, so defer it until autograd is done.
     if model.cfg.enable_online_homeostasis:

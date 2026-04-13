@@ -429,11 +429,11 @@ def build_model(world_cfg: WorldConfig) -> Tuple[HomeostaticMultimodalWorldModel
         num_memory_slots=32,
         num_episodic_slots=64,
         controller=ControllerConfig(
-            exploit_budget=10.0,
+            exploit_budget=40.0,
             unlock_stress_threshold=0.18,
             stress_threshold=0.30,
-            intervention_interval=4,
-            strategic_unlock_fraction=0.50,
+            intervention_interval=8,
+            strategic_unlock_fraction=0.25,
         ),
         enable_online_homeostasis=True,
     )

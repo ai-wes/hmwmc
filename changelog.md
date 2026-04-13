@@ -378,3 +378,51 @@ Zero-shot probe using a trained embedding so the accuracy number reflects retent
 Order of operations. Apply patches 1–5 first, run a smoke test to confirm shapes are right (python tmew1_run.py --smoke). If smoke passes, apply patches 6 and 7, then run the full curriculum.
 Expected behavior after patching. Handoff=1 should return to the 0.58–0.78 range from the earlier HPM-enabled run. Handoff=2 and 3 should climb above the pre-HPM baseline (0.35, 0.31). The zero-shot probe should either (a) stay near chance, in which case the color-change event is genuinely below HPM's surprise resolution and you have a clean scoping result, or (b) show some lift in the short-lag buckets, in which case HPM is doing weak generalization and you can push on sharpening the surprise signal.
 Either way, you'll have a clean, interpretable result instead of a measurement contaminated by broken wiring.
+
+## [2026-04-13 NaN explosion — scaling controller config with model size]
+
+### Incident
+
+Training run 6 (`d_model=256, num_layers=6`) hit permanent NaN at Tier 2 step 120. Model was unrecoverable. Full logs saved to `training_runs_logs/training_logs_6/training_logs_6_NAN_explosion.txt`.
+
+### Timeline from logs
+
+- **Tier 1** completed cleanly. Total score improved from 71% (s0010) to 95% (s0250). Promoted to Tier 2.
+- **Tier 2 s0010–s0110**: Normal training, all metrics healthy. Frequent force-unlocks (3-4 per logging window) but losses converging.
+- **Tier 2 s0120**: All 6 PNN layers simultaneously CLOSING (`pnn=C/C/C/C/C/C open=0`). Every loss is NaN. `stress=0.000` (stress field itself was NaN'd to zero). Model is dead.
+- **Tier 2 s0130–s0170**: NaN persists. Force-unlocks keep firing (5 unlocked at s0130) but can't recover because the weights themselves are poisoned.
+
+### Root cause
+
+**Controller config was not scaled when model doubled from 3 to 6 layers.** The kill chain:
+
+1. `exploit_budget=10.0` was sized for 3 layers. With 6 layers, each non-noop intervention drains budget, and `intervention_interval=4` with `strategic_unlock_fraction=0.50` meant the controller was unlocking 3 layers at a time and burning through budget in ~5 cycles.
+2. Between s0110 and s0120, the controller aggressively mutated parameters across all 6 layers simultaneously (4 unlocks logged in that window). The combined parameter perturbations cascaded through the 6-layer-deep recurrence (`forget_lambda * hidden + write_alpha * candidate`) and produced NaN in the forward pass.
+3. Once `total` was NaN, `total.backward()` produced NaN gradients. `clip_grad_norm_` returned NaN norm and clipped nothing. `optimizer.step()` wrote NaN into every model parameter. Permanent death — no recovery path existed.
+
+### Why this was invisible at 3 layers
+
+At `num_layers=3`, `exploit_budget=10.0` gave ~10 intervention cycles before budget exhaustion, and `strategic_unlock_fraction=0.50` meant at most 1-2 layers unlocked simultaneously. The perturbation depth was shallow enough (3 layers of recurrence) to stay numerically stable. At 6 layers, the same budget was consumed 2x faster, 3 layers unlocked at once, and 6 layers of recurrence amplified small perturbations into overflow.
+
+### Fixes applied
+
+**1. Scaled controller config in `tmew1_train.py`:**
+
+| Parameter | Before (3-layer) | After (6-layer) | Reasoning |
+|---|---|---|---|
+| `exploit_budget` | 10.0 | 40.0 | 6 layers drain budget ~2x faster; 4x headroom for safety |
+| `intervention_interval` | 4 | 8 | Slower cadence prevents mutation pileup |
+| `strategic_unlock_fraction` | 0.50 | 0.25 | Unlock at most 1-2 layers at a time, not 3 |
+
+**2. Added NaN safety net in `tmew1_run.py` `train_one_step`:**
+
+- **Pre-backward guard**: If `total` is NaN/Inf, skips `backward()` entirely, zeros gradients, calls `emergency_stabilize()`, force-unlocks all layers with `refractory_period=8`, and returns gracefully. Model survives.
+- **Post-step guard**: After `optimizer.step()`, scans all model parameters for NaN. If found, replaces with `nan_to_num_(nan=0.0)` and triggers `emergency_stabilize()`. Catches cases where gradients slip NaN into weights despite finite loss.
+
+### Scaling rule (for future reference)
+
+When increasing `num_layers`, the controller config must scale:
+- `exploit_budget` ≈ `num_layers × 6-8` (enough for each layer to get multiple interventions before exhaustion)
+- `intervention_interval` ≈ `num_layers + 2` (give the recurrence time to settle between interventions)
+- `strategic_unlock_fraction` ≈ `1 / num_layers` (never unlock more than ~1 layer simultaneously)
+- This is a **hard constraint** — the model will NaN without it, and there was previously no recovery mechanism.
