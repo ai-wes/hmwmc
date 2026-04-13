@@ -82,8 +82,8 @@ def _inject_false_cue(audio_vec: np.ndarray, t: int, false_cue_step: int, correc
     """Audio channels 5,6,7 carry the false-cue signal and its correction."""
     if t == false_cue_step:
         audio_vec[5] = 1.0      # initial misleading high-frequency burst
-    if t == correction_step:
-        audio_vec[6] = 1.0      # correction signal
+    if correction_step <= t < correction_step + 4:
+        audio_vec[6] = 1.0      # durable correction pulse
     if false_cue_step <= t < correction_step:
         audio_vec[7] = 0.4      # ambient "stale belief" hum
     return audio_vec

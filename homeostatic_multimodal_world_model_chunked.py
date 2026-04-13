@@ -1542,7 +1542,9 @@ class HomeostaticMultimodalWorldModel(nn.Module):
     def controller_step(self, loss_value: Tensor | float) -> Dict[str, Any]:
         if not self._last_layer_diagnostics:
             raise RuntimeError("controller_step called before a forward pass produced diagnostics.")
-        return self.controller.observe_and_act(self._last_layer_diagnostics, _as_float(loss_value))
+        report = self.controller.observe_and_act(self._last_layer_diagnostics, _as_float(loss_value))
+        self._last_forward_report = report
+        return report
 
     def emergency_stabilize(self) -> None:
         self.controller.emergency_stabilize()
