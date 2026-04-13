@@ -476,6 +476,19 @@ def evaluate(
         sums["latent_acc"] = sums.get("latent_acc", 0.0) + rule_acc * bs
         if "audio" in enabled and "holder_per_step" in batch:
             sums["holder_acc"] = sums.get("holder_acc", 0.0) + holder_acc * bs
+        # Per-modality loss parts
+        for mod_name, mod_loss in losses.parts.items():
+            k = f"loss/{mod_name}"
+            sums[k] = sums.get(k, 0.0) + float(mod_loss.item()) * bs
+        # Empirical text token entropy (marginal distribution over val set)
+        if "text" in enabled:
+            text_flat = text_tgt.reshape(-1)
+            text_flat = text_flat[text_flat != 0]  # exclude pad tokens
+            if text_flat.numel() > 0:
+                sums["_text_tokens"] = sums.get("_text_tokens", 0.0) + text_flat.numel()
+                for tok_id in text_flat.unique():
+                    k = f"_text_count_{int(tok_id.item())}"
+                    sums[k] = sums.get(k, 0.0) + float((text_flat == tok_id).sum().item())
         for k, v in qtype_metrics.items():
             sums[k] = sums.get(k, 0.0) + v * bs
             counts[k] = counts.get(k, 0) + bs
@@ -489,6 +502,20 @@ def evaluate(
     out = {"next_step": sums["next_step"] / max(1, n), "latent_acc": sums["latent_acc"] / max(1, n)}
     if "holder_acc" in sums:
         out["holder_acc"] = sums["holder_acc"] / max(1, n)
+    # Per-modality val losses
+    for mk in ("loss/text", "loss/vision", "loss/audio", "loss/numeric"):
+        if mk in sums:
+            out[mk] = sums[mk] / max(1, n)
+    # Empirical text entropy
+    if "_text_tokens" in sums and sums["_text_tokens"] > 0:
+        import math as _math
+        total_tokens = sums["_text_tokens"]
+        entropy = 0.0
+        for k, cnt in sums.items():
+            if k.startswith("_text_count_") and cnt > 0:
+                p = cnt / total_tokens
+                entropy -= p * _math.log(p)
+        out["text_entropy"] = entropy
     for k in sums:
         if k.startswith("qacc/"):
             out[k] = sums[k] / max(1, counts[k])
