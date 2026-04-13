@@ -243,7 +243,7 @@ class HomeostaticPredictiveMemory(nn.Module):
         # --- Batched precomputation ---
         # Predictions: predictor_s(h_{b,t}) -> shape (B, T, n_slots, D).
         h_flat = h_seq.reshape(B * T, D)
-        preds_flat = torch.einsum("bi,sio->bso", h_flat, self.next_h_predictor.weight) \
+        preds_flat = torch.einsum("bi,sio->bso", h_flat.detach(), self.next_h_predictor.weight) \
                      + self.next_h_predictor.bias.unsqueeze(0)
         preds = preds_flat.view(B, T, self.n_slots, D)
 

@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TMEW-1 Training Visualizer</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a1a; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; }
+
+#app { display: grid; grid-template-columns: 1fr 360px; grid-template-rows: 48px 1fr 220px; height: 100vh; }
+
+/* Header bar */
+#header {
+  grid-column: 1 / -1; background: #12122a; border-bottom: 1px solid #2a2a4a;
+  display: flex; align-items: center; padding: 0 20px; gap: 20px;
+}
+#header h1 { font-size: 16px; font-weight: 600; color: #7c8aff; letter-spacing: 1px; }
+#header .tag { background: #1e1e3a; border: 1px solid #3a3a5a; border-radius: 4px; padding: 2px 10px; font-size: 12px; }
+#header .tag.live { border-color: #4caf50; color: #4caf50; }
+#header .tag.waiting { border-color: #ff9800; color: #ff9800; }
+#connection-status { margin-left: auto; font-size: 12px; }
+
+/* 3D viewport */
+#viewport { position: relative; background: #0a0a1a; overflow: hidden; }
+#three-canvas { width: 100%; height: 100%; display: block; }
+#event-flash { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; opacity: 0; transition: opacity 0.15s; }
+#episode-info {
+  position: absolute; top: 12px; left: 12px; background: rgba(10,10,26,0.85);
+  border: 1px solid #2a2a4a; border-radius: 8px; padding: 10px 14px; font-size: 12px; line-height: 1.6;
+}
+#episode-info .label { color: #888; }
+#episode-info .val { color: #7c8aff; font-weight: 600; }
+#playback-bar {
+  position: absolute; bottom: 12px; left: 12px; right: 12px;
+  background: rgba(10,10,26,0.85); border: 1px solid #2a2a4a; border-radius: 8px; padding: 8px 14px;
+  display: flex; align-items: center; gap: 12px; font-size: 12px;
+}
+#timeline { flex: 1; height: 6px; background: #1e1e3a; border-radius: 3px; position: relative; cursor: pointer; }
+#timeline-fill { height: 100%; background: linear-gradient(90deg, #7c8aff, #4caf50); border-radius: 3px; width: 0%; transition: width 0.08s; }
+#timeline-events { position: absolute; top: -4px; left: 0; right: 0; height: 14px; }
+.timeline-marker { position: absolute; width: 8px; height: 8px; border-radius: 50%; top: 3px; transform: translateX(-50%); }
+.timeline-marker.trigger { background: #ff9800; }
+.timeline-marker.alarm { background: #f44336; }
+.timeline-marker.handoff { background: #4caf50; }
+.timeline-marker.chain2-trigger { background: #9c27b0; }
+.timeline-marker.chain2-fire { background: #e040fb; }
+.timeline-marker.occlusion { background: #607d8b; }
+#step-label { min-width: 60px; text-align: right; color: #888; }
+
+/* Right panel — metrics */
+#panel {
+  background: #0e0e22; border-left: 1px solid #2a2a4a; overflow-y: auto;
+  padding: 16px; display: flex; flex-direction: column; gap: 14px;
+}
+.panel-section { background: #12122a; border: 1px solid #1e1e3a; border-radius: 8px; padding: 12px; }
+.panel-section h3 { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+.metric-row { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; font-size: 13px; }
+.metric-name { color: #aaa; }
+.metric-val { font-weight: 600; font-variant-numeric: tabular-nums; }
+.metric-val.good { color: #4caf50; }
+.metric-val.medium { color: #ff9800; }
+.metric-val.bad { color: #f44336; }
+.mini-chart { width: 100%; height: 40px; margin-top: 4px; }
+
+/* Bottom — query results + charts */
+#bottom {
+  grid-column: 1 / -1; background: #0e0e22; border-top: 1px solid #2a2a4a;
+  display: flex; overflow: hidden;
+}
+#query-panel { flex: 0 0 420px; padding: 14px; overflow-y: auto; border-right: 1px solid #1e1e3a; }
+#query-panel h3 { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+.query-card {
+  background: #12122a; border: 1px solid #1e1e3a; border-radius: 6px; padding: 8px 12px;
+  margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 12px;
+}
+.query-card .qtype { color: #7c8aff; font-weight: 600; }
+.query-card .result { font-weight: 600; }
+.query-card .result.correct { color: #4caf50; }
+.query-card .result.wrong { color: #f44336; }
+.query-card .result.pending { color: #666; }
+.query-card .details { color: #888; font-size: 11px; }
+
+#charts-area { flex: 1; padding: 14px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.chart-box { background: #12122a; border: 1px solid #1e1e3a; border-radius: 6px; padding: 8px; position: relative; }
+.chart-box h4 { font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.chart-box canvas { width: 100%; height: calc(100% - 20px); }
+
+/* Legend / entity colors */
+.entity-legend { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.entity-chip { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #aaa; }
+.entity-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Header -->
+  <div id="header">
+    <h1>TMEW-1</h1>
+    <span class="tag" id="tier-tag">Tier —</span>
+    <span class="tag" id="template-tag">—</span>
+    <span class="tag" id="pnn-tag">PNN —</span>
+    <span id="connection-status" class="tag waiting">● Connecting…</span>
+  </div>
+
+  <!-- 3D Viewport -->
+  <div id="viewport">
+    <canvas id="three-canvas"></canvas>
+    <div id="event-flash"></div>
+    <div id="episode-info">
+      <span class="label">Template:</span> <span class="val" id="info-template">—</span><br>
+      <span class="label">Entities:</span> <span class="val" id="info-entities">—</span><br>
+      <span class="label">Rule:</span> <span class="val" id="info-rule">—</span><br>
+      <span class="label">Step:</span> <span class="val" id="info-step">—</span>
+    </div>
+    <div id="playback-bar">
+      <button id="btn-play" style="background:none;border:1px solid #3a3a5a;color:#e0e0e0;border-radius:4px;padding:2px 12px;cursor:pointer;font-size:12px;">▶</button>
+      <div id="timeline">
+        <div id="timeline-fill"></div>
+        <div id="timeline-events"></div>
+      </div>
+      <span id="step-label">0 / 0</span>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div id="panel">
+    <div class="panel-section">
+      <h3>Training Metrics</h3>
+      <div id="metrics-list"></div>
+    </div>
+    <div class="panel-section">
+      <h3>Accuracies</h3>
+      <div id="acc-list"></div>
+    </div>
+    <div class="panel-section">
+      <h3>Entities</h3>
+      <div class="entity-legend" id="entity-legend"></div>
+    </div>
+  </div>
+
+  <!-- Bottom -->
+  <div id="bottom">
+    <div id="query-panel">
+      <h3>Query Results</h3>
+      <div id="query-cards"></div>
+    </div>
+    <div id="charts-area">
+      <div class="chart-box"><h4>Total Loss</h4><canvas id="chart-total"></canvas></div>
+      <div class="chart-box"><h4>Next-Step Loss</h4><canvas id="chart-nextstep"></canvas></div>
+      <div class="chart-box"><h4>Query Accuracy</h4><canvas id="chart-qacc"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- Three.js -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js" type="module"></script>
+
+<script type="module">
+import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+
+// ─── CONFIG ──────────────────────────────────────────────────────────────
+const WS_URL = `ws://${location.hostname || 'localhost'}:8765`;
+const ENTITY_COLORS = [
+  0xff6b6b, // coral red
+  0x4ecdc4, // teal
+  0x45b7d1, // sky blue
+  0x96ceb4, // sage green
+  0xffeaa7, // light yellow
+  0xdda0dd, // plum
+];
+const ENTITY_COLOR_CSS = ['#ff6b6b','#4ecdc4','#45b7d1','#96ceb4','#ffeaa7','#dda0dd'];
+const RULE_NAMES = ['proximity-0','proximity-1','same-color-0','same-color-1','tagged-only-0','tagged-only-1'];
+
+// ─── STATE ───────────────────────────────────────────────────────────────
+let gridW = 16, gridH = 16;
+let frames = [];       // array of frame messages for current episode
+let queries = [];       // query results for current episode
+let currentFrame = 0;
+let playing = false;
+let playInterval = null;
+let episodeMeta = null;
+const metricsHistory = { total: [], next_step: [], entity_acc: [], binary_acc: [], holder_acc: [] };
+const MAX_HISTORY = 200;
+
+// ─── THREE.JS SETUP ─────────────────────────────────────────────────────
+const canvas = document.getElementById('three-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x0a0a1a, 0.015);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
+camera.position.set(8, 18, 22);
+
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(8, 0, 8);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.maxPolarAngle = Math.PI / 2.1;
+controls.update();
+
+// Lights
+const ambient = new THREE.AmbientLight(0x404060, 0.6);
+scene.add(ambient);
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight.position.set(10, 20, 10);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(1024, 1024);
+dirLight.shadow.camera.near = 0.5;
+dirLight.shadow.camera.far = 50;
+dirLight.shadow.camera.left = -20;
+dirLight.shadow.camera.right = 20;
+dirLight.shadow.camera.top = 20;
+dirLight.shadow.camera.bottom = -20;
+scene.add(dirLight);
+
+const pointLight = new THREE.PointLight(0x7c8aff, 0.4, 30);
+pointLight.position.set(8, 8, 8);
+scene.add(pointLight);
+
+// Grid floor
+function buildGrid(w, h) {
+  // Remove old grid
+  scene.children.filter(c => c.userData.isGrid).forEach(c => scene.remove(c));
+
+  const gridGeo = new THREE.PlaneGeometry(w, h, w, h);
+  const gridMat = new THREE.MeshStandardMaterial({
+    color: 0x0e0e22, metalness: 0.2, roughness: 0.9,
+  });
+  const floor = new THREE.Mesh(gridGeo, gridMat);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(w / 2, -0.01, h / 2);
+  floor.receiveShadow = true;
+  floor.userData.isGrid = true;
+  scene.add(floor);
+
+  // Grid lines
+  const linesMat = new THREE.LineBasicMaterial({ color: 0x1e1e3a, transparent: true, opacity: 0.5 });
+  for (let i = 0; i <= w; i++) {
+    const pts = [new THREE.Vector3(i, 0, 0), new THREE.Vector3(i, 0, h)];
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const line = new THREE.Line(geo, linesMat);
+    line.userData.isGrid = true;
+    scene.add(line);
+  }
+  for (let j = 0; j <= h; j++) {
+    const pts = [new THREE.Vector3(0, 0, j), new THREE.Vector3(w, 0, j)];
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const line = new THREE.Line(geo, linesMat);
+    line.userData.isGrid = true;
+    scene.add(line);
+  }
+
+  // Border glow
+  const borderGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(w, 0.01, h));
+  const borderMat = new THREE.LineBasicMaterial({ color: 0x2a2a5a });
+  const border = new THREE.LineSegments(borderGeo, borderMat);
+  border.position.set(w / 2, 0, h / 2);
+  border.userData.isGrid = true;
+  scene.add(border);
+}
+buildGrid(gridW, gridH);
+
+// Occluder mesh
+let occluderMesh = null;
+function buildOccluder(ox0, oy0, ox1, oy1) {
+  removeOccluder();
+  const w = ox1 - ox0 + 1;
+  const h = oy1 - oy0 + 1;
+  const geo = new THREE.BoxGeometry(w, 0.6, h);
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0x2a2a2a, transparent: true, opacity: 0.5, metalness: 0.3, roughness: 0.7,
+  });
+  occluderMesh = new THREE.Mesh(geo, mat);
+  occluderMesh.position.set(ox0 + w / 2, 0.3, oy0 + h / 2);
+  occluderMesh.castShadow = true;
+  scene.add(occluderMesh);
+}
+function removeOccluder() {
+  if (occluderMesh) { scene.remove(occluderMesh); occluderMesh = null; }
+}
+
+// ─── ENTITY MESHES ──────────────────────────────────────────────────────
+const entityMeshes = [];   // {group, body, glow, tokenOrb, label}
+const entityTargets = [];  // {x, z} target positions for lerp
+
+function createEntityMesh(id, colorHex) {
+  const group = new THREE.Group();
+
+  // Main body — rounded box approximation
+  const bodyGeo = new THREE.CylinderGeometry(0.35, 0.35, 0.8, 8);
+  const bodyMat = new THREE.MeshStandardMaterial({ color: colorHex, metalness: 0.3, roughness: 0.4 });
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  body.position.y = 0.4;
+  body.castShadow = true;
+  group.add(body);
+
+  // Glow ring (for tagged / events)
+  const glowGeo = new THREE.TorusGeometry(0.45, 0.06, 8, 24);
+  const glowMat = new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0 });
+  const glow = new THREE.Mesh(glowGeo, glowMat);
+  glow.rotation.x = -Math.PI / 2;
+  glow.position.y = 0.05;
+  group.add(glow);
+
+  // Token orb (only visible when holding token)
+  const orbGeo = new THREE.SphereGeometry(0.18, 16, 16);
+  const orbMat = new THREE.MeshStandardMaterial({
+    color: 0xffd700, emissive: 0xffa000, emissiveIntensity: 0.8, metalness: 0.8, roughness: 0.2,
+  });
+  const tokenOrb = new THREE.Mesh(orbGeo, orbMat);
+  tokenOrb.position.y = 1.1;
+  tokenOrb.visible = false;
+  group.add(tokenOrb);
+
+  // ID label (sprite)
+  const labelCanvas = document.createElement('canvas');
+  labelCanvas.width = 64; labelCanvas.height = 64;
+  const ctx = labelCanvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 40px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(id), 32, 32);
+  const tex = new THREE.CanvasTexture(labelCanvas);
+  const spriteMat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0.8 });
+  const sprite = new THREE.Sprite(spriteMat);
+  sprite.scale.set(0.4, 0.4, 1);
+  sprite.position.y = 1.5;
+  group.add(sprite);
+
+  scene.add(group);
+  return { group, body, glow, tokenOrb, id };
+}
+
+function ensureEntityMeshes(n) {
+  while (entityMeshes.length < n) {
+    const id = entityMeshes.length;
+    entityMeshes.push(createEntityMesh(id, ENTITY_COLORS[id % ENTITY_COLORS.length]));
+    entityTargets.push({ x: 0, z: 0 });
+  }
+  // hide extras
+  for (let i = 0; i < entityMeshes.length; i++) {
+    entityMeshes[i].group.visible = (i < n);
+  }
+}
+
+// ─── PARTICLE EFFECTS ────────────────────────────────────────────────────
+const particles = []; // {mesh, life, maxLife, vel}
+
+function spawnBurst(x, z, color, count = 12) {
+  for (let i = 0; i < count; i++) {
+    const geo = new THREE.SphereGeometry(0.08, 4, 4);
+    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x + 0.5, 0.5, z + 0.5);
+    scene.add(mesh);
+    const angle = (i / count) * Math.PI * 2;
+    const speed = 0.05 + Math.random() * 0.08;
+    particles.push({
+      mesh, life: 1.0, maxLife: 1.0,
+      vel: new THREE.Vector3(Math.cos(angle) * speed, 0.02 + Math.random() * 0.04, Math.sin(angle) * speed),
+    });
+  }
+}
+
+function spawnRing(x, z, color) {
+  const geo = new THREE.RingGeometry(0.1, 0.3, 32);
+  const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, side: THREE.DoubleSide });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.set(x + 0.5, 0.1, z + 0.5);
+  scene.add(mesh);
+  particles.push({ mesh, life: 1.0, maxLife: 1.0, vel: null, isRing: true, baseScale: 1 });
+}
+
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.life -= dt * 1.5;
+    if (p.life <= 0) {
+      scene.remove(p.mesh);
+      particles.splice(i, 1);
+      continue;
+    }
+    p.mesh.material.opacity = p.life;
+    if (p.isRing) {
+      const s = p.baseScale + (1 - p.life) * 4;
+      p.mesh.scale.set(s, s, s);
+    } else if (p.vel) {
+      p.mesh.position.add(p.vel);
+      p.vel.y -= 0.001; // gravity
+    }
+  }
+}
+
+// ─── ARC LINES (handoff visualization) ───────────────────────────────────
+const arcLines = [];
+
+function spawnArc(x1, z1, x2, z2, color) {
+  const curve = new THREE.QuadraticBezierCurve3(
+    new THREE.Vector3(x1 + 0.5, 0.6, z1 + 0.5),
+    new THREE.Vector3((x1 + x2) / 2 + 0.5, 2.5, (z1 + z2) / 2 + 0.5),
+    new THREE.Vector3(x2 + 0.5, 0.6, z2 + 0.5),
+  );
+  const pts = curve.getPoints(30);
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 1 });
+  const line = new THREE.Line(geo, mat);
+  scene.add(line);
+  arcLines.push({ line, life: 1.0 });
+}
+
+function updateArcs(dt) {
+  for (let i = arcLines.length - 1; i >= 0; i--) {
+    const a = arcLines[i];
+    a.life -= dt * 1.2;
+    if (a.life <= 0) {
+      scene.remove(a.line);
+      arcLines.splice(i, 1);
+    } else {
+      a.line.material.opacity = a.life;
+    }
+  }
+}
+
+// ─── FRAME RENDERING ─────────────────────────────────────────────────────
+function applyFrame(idx) {
+  if (idx < 0 || idx >= frames.length) return;
+  const f = frames[idx];
+  currentFrame = idx;
+
+  // Update timeline
+  const pct = frames.length > 1 ? (idx / (frames.length - 1)) * 100 : 0;
+  document.getElementById('timeline-fill').style.width = pct + '%';
+  document.getElementById('step-label').textContent = `${idx} / ${frames.length - 1}`;
+  document.getElementById('info-step').textContent = `${idx} / ${frames.length - 1}`;
+
+  ensureEntityMeshes(f.entities.length);
+
+  for (let i = 0; i < f.entities.length; i++) {
+    const e = f.entities[i];
+    const m = entityMeshes[i];
+
+    // Set target for lerp
+    entityTargets[i].x = e.x + 0.5;
+    entityTargets[i].z = e.y + 0.5; // y in grid → z in 3D
+
+    // Visibility / occlusion
+    if (!e.visible) {
+      m.body.material.transparent = true;
+      m.body.material.opacity = 0.15;
+      m.body.material.wireframe = true;
+    } else {
+      m.body.material.transparent = false;
+      m.body.material.opacity = 1;
+      m.body.material.wireframe = false;
+    }
+
+    // Tagged glow
+    if (e.tagged) {
+      m.glow.material.opacity = 0.6;
+      m.glow.material.color.set(0xff9800);
+    } else {
+      m.glow.material.opacity = 0;
+    }
+
+    // Token
+    m.tokenOrb.visible = e.holds_token;
+  }
+
+  // Events
+  if (f.trigger) {
+    const ents = f.entities;
+    // Find trigger pair (first two close entities)
+    for (let i = 0; i < ents.length; i++) {
+      if (ents[i].tagged) {
+        spawnBurst(ents[i].x, ents[i].y, 0xff9800, 8);
+        break;
+      }
+    }
+    flashScreen('#ff980040');
+  }
+  if (f.alarm_fire) {
+    // Big red burst at center
+    spawnRing(gridW / 2, gridH / 2, 0xf44336);
+    spawnBurst(gridW / 2, gridH / 2, 0xf44336, 20);
+    flashScreen('#f4433640');
+  }
+  if (f.chain2_trigger) {
+    flashScreen('#9c27b030');
+  }
+  if (f.chain2_fire) {
+    spawnRing(gridW / 2, gridH / 2, 0xe040fb);
+    spawnBurst(gridW / 2, gridH / 2, 0xe040fb, 16);
+    flashScreen('#e040fb30');
+  }
+  if (f.handoff && f.new_holder >= 0) {
+    // Arc from previous holder to new holder
+    const prev = f.entities.find(e => e.id !== f.new_holder && e.holds_token === false);
+    const next = f.entities.find(e => e.id === f.new_holder);
+    if (next) {
+      spawnArc(
+        prev ? prev.x : next.x, prev ? prev.y : next.y,
+        next.x, next.y, 0x4caf50,
+      );
+      spawnBurst(next.x, next.y, 0x4caf50, 6);
+    }
+    flashScreen('#4caf5020');
+  }
+}
+
+function flashScreen(color) {
+  const el = document.getElementById('event-flash');
+  el.style.background = color;
+  el.style.opacity = '1';
+  setTimeout(() => { el.style.opacity = '0'; }, 200);
+}
+
+// ─── PLAYBACK CONTROLS ──────────────────────────────────────────────────
+document.getElementById('btn-play').addEventListener('click', () => {
+  if (playing) { stopPlayback(); } else { startPlayback(); }
+});
+
+document.getElementById('timeline').addEventListener('click', (e) => {
+  const rect = e.currentTarget.getBoundingClientRect();
+  const pct = (e.clientX - rect.left) / rect.width;
+  const idx = Math.round(pct * (frames.length - 1));
+  applyFrame(Math.max(0, Math.min(frames.length - 1, idx)));
+});
+
+function startPlayback() {
+  if (frames.length === 0) return;
+  playing = true;
+  document.getElementById('btn-play').textContent = '⏸';
+  let idx = currentFrame;
+  playInterval = setInterval(() => {
+    idx++;
+    if (idx >= frames.length) { stopPlayback(); return; }
+    applyFrame(idx);
+  }, 120);
+}
+function stopPlayback() {
+  playing = false;
+  document.getElementById('btn-play').textContent = '▶';
+  if (playInterval) { clearInterval(playInterval); playInterval = null; }
+}
+
+// ─── TIMELINE MARKERS ────────────────────────────────────────────────────
+function buildTimelineMarkers() {
+  const container = document.getElementById('timeline-events');
+  container.innerHTML = '';
+  if (frames.length === 0) return;
+  frames.forEach((f, idx) => {
+    const pct = (idx / (frames.length - 1)) * 100;
+    if (f.trigger) addMarker(pct, 'trigger');
+    if (f.alarm_fire) addMarker(pct, 'alarm');
+    if (f.handoff) addMarker(pct, 'handoff');
+    if (f.chain2_trigger) addMarker(pct, 'chain2-trigger');
+    if (f.chain2_fire) addMarker(pct, 'chain2-fire');
+    if (f.occluded_ids && f.occluded_ids.length > 0) addMarker(pct, 'occlusion');
+  });
+  function addMarker(pct, cls) {
+    const el = document.createElement('div');
+    el.className = `timeline-marker ${cls}`;
+    el.style.left = pct + '%';
+    el.title = cls;
+    container.appendChild(el);
+  }
+}
+
+// ─── METRIC DISPLAY ─────────────────────────────────────────────────────
+const LOSS_METRICS = ['total','next_step','aux_latent','q_loss','holder_loss','stress'];
+const ACC_METRICS = ['latent_acc','holder_acc','entity_acc','binary_acc'];
+
+function updateMetricsPanel(data) {
+  const lossList = document.getElementById('metrics-list');
+  const accList = document.getElementById('acc-list');
+
+  lossList.innerHTML = LOSS_METRICS
+    .filter(k => data[k] !== undefined)
+    .map(k => {
+      const v = data[k];
+      const cls = v < 0.3 ? 'good' : v < 1.0 ? 'medium' : 'bad';
+      return `<div class="metric-row"><span class="metric-name">${k}</span><span class="metric-val ${cls}">${v.toFixed(4)}</span></div>`;
+    }).join('');
+
+  accList.innerHTML = ACC_METRICS
+    .filter(k => data[k] !== undefined)
+    .map(k => {
+      const v = data[k];
+      const cls = v > 0.8 ? 'good' : v > 0.5 ? 'medium' : 'bad';
+      return `<div class="metric-row"><span class="metric-name">${k}</span><span class="metric-val ${cls}">${(v * 100).toFixed(1)}%</span></div>`;
+    }).join('');
+
+  // Update header tags
+  if (data.tier !== undefined) document.getElementById('tier-tag').textContent = `Tier ${data.tier}`;
+  if (data.pnn) document.getElementById('pnn-tag').textContent = `PNN ${data.pnn}`;
+}
+
+// ─── QUERY CARDS ─────────────────────────────────────────────────────────
+const QTYPE_LABELS = {
+  'who_holds_token': '🎯 Who Holds Token',
+  'who_was_first_tagged': '🏷️ First Tagged',
+  'did_alarm_fire': '🔔 Alarm Fired?',
+  'which_entity_occluded': '👁️ Occluded Entity',
+  'did_trigger_before_alarm': '⏱️ Trigger Before Alarm?',
+  'which_entity_first_occluded': '👁️ First Occluded',
+  'did_chain2_fire': '⛓️ Chain 2 Fired?',
+  'what_was_true_rule': '🔍 True Rule?',
+};
+
+function renderQueryCards() {
+  const container = document.getElementById('query-cards');
+  container.innerHTML = queries.map(q => {
+    const label = QTYPE_LABELS[q.qtype] || q.qtype;
+    let resultText, resultClass;
+    if (q.prediction !== null && q.prediction !== undefined) {
+      resultClass = q.correct ? 'correct' : 'wrong';
+      if (q.is_binary) {
+        resultText = `${q.correct ? '✓' : '✗'} pred=${q.prediction ? 'Yes' : 'No'} truth=${q.target ? 'Yes' : 'No'}`;
+      } else {
+        resultText = `${q.correct ? '✓' : '✗'} pred=E${q.prediction} truth=E${q.target}`;
+      }
+    } else {
+      resultClass = 'pending';
+      if (q.is_binary) {
+        resultText = `truth=${q.target ? 'Yes' : 'No'}`;
+      } else {
+        resultText = `truth=E${q.target}`;
+      }
+    }
+    return `<div class="query-card">
+      <div><span class="qtype">${label}</span><br><span class="details">asked@step ${q.time_asked}</span></div>
+      <span class="result ${resultClass}">${resultText}</span>
+    </div>`;
+  }).join('');
+}
+
+// ─── MINI CHARTS ─────────────────────────────────────────────────────────
+function drawMiniChart(canvasId, data, color, label, invert = false) {
+  const c = document.getElementById(canvasId);
+  if (!c) return;
+  const ctx = c.getContext('2d');
+  const W = c.width = c.clientWidth * 2;
+  const H = c.height = c.clientHeight * 2;
+  ctx.clearRect(0, 0, W, H);
+
+  if (data.length < 2) return;
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+
+  ctx.beginPath();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  for (let i = 0; i < data.length; i++) {
+    const x = (i / (data.length - 1)) * W;
+    const y = H - ((data[i] - min) / range) * (H - 10) - 5;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Latest value
+  if (data.length > 0) {
+    const latest = data[data.length - 1];
+    ctx.fillStyle = '#e0e0e0';
+    ctx.font = `${Math.max(16, H * 0.15)}px sans-serif`;
+    ctx.textAlign = 'right';
+    ctx.fillText(latest.toFixed(4), W - 5, 20);
+  }
+}
+
+function updateCharts() {
+  drawMiniChart('chart-total', metricsHistory.total, '#f44336', 'Total');
+  drawMiniChart('chart-nextstep', metricsHistory.next_step, '#ff9800', 'Next-step');
+  const qData = metricsHistory.entity_acc.map((e, i) => {
+    const b = metricsHistory.binary_acc[i] || 0;
+    return (e + b) / 2;
+  });
+  drawMiniChart('chart-qacc', qData.length ? qData : [0], '#4caf50', 'Q Acc');
+}
+
+// ─── ENTITY LEGEND ───────────────────────────────────────────────────────
+function rebuildEntityLegend(n) {
+  const el = document.getElementById('entity-legend');
+  el.innerHTML = '';
+  for (let i = 0; i < n; i++) {
+    el.innerHTML += `<span class="entity-chip"><span class="entity-dot" style="background:${ENTITY_COLOR_CSS[i % 6]}"></span>E${i}</span>`;
+  }
+}
+
+// ─── WEBSOCKET ───────────────────────────────────────────────────────────
+let ws = null;
+let reconnectTimer = null;
+
+function connect() {
+  ws = new WebSocket(WS_URL);
+  ws.onopen = () => {
+    document.getElementById('connection-status').textContent = '● Connected';
+    document.getElementById('connection-status').className = 'tag live';
+  };
+  ws.onclose = () => {
+    document.getElementById('connection-status').textContent = '● Reconnecting…';
+    document.getElementById('connection-status').className = 'tag waiting';
+    reconnectTimer = setTimeout(connect, 2000);
+  };
+  ws.onerror = () => { ws.close(); };
+  ws.onmessage = (evt) => {
+    const msg = JSON.parse(evt.data);
+    handleMessage(msg);
+  };
+}
+
+function handleMessage(msg) {
+  switch (msg.type) {
+    case 'metrics':
+      updateMetricsPanel(msg);
+      // Push to history
+      for (const k of Object.keys(metricsHistory)) {
+        if (msg[k] !== undefined) {
+          metricsHistory[k].push(msg[k]);
+          if (metricsHistory[k].length > MAX_HISTORY) metricsHistory[k].shift();
+        }
+      }
+      updateCharts();
+      break;
+
+    case 'episode_start':
+      stopPlayback();
+      frames = [];
+      queries = [];
+      episodeMeta = msg;
+      gridW = msg.grid_w;
+      gridH = msg.grid_h;
+      buildGrid(gridW, gridH);
+      if (msg.occluder) buildOccluder(...msg.occluder); else removeOccluder();
+      camera.position.set(gridW / 2, gridH * 1.2, gridH * 1.4);
+      controls.target.set(gridW / 2, 0, gridH / 2);
+      controls.update();
+      ensureEntityMeshes(msg.num_entities);
+      rebuildEntityLegend(msg.num_entities);
+      document.getElementById('info-template').textContent = msg.template;
+      document.getElementById('info-entities').textContent = msg.num_entities;
+      document.getElementById('info-rule').textContent = RULE_NAMES[msg.latent_rule] || `rule-${msg.latent_rule}`;
+      document.getElementById('template-tag').textContent = msg.template;
+      document.getElementById('query-cards').innerHTML = '';
+      break;
+
+    case 'frame':
+      frames.push(msg);
+      // Auto-apply latest frame if not manually scrubbing
+      if (!playing) applyFrame(frames.length - 1);
+      break;
+
+    case 'query':
+      queries.push(msg);
+      renderQueryCards();
+      break;
+
+    case 'episode_end':
+      buildTimelineMarkers();
+      // Auto-play the episode
+      currentFrame = 0;
+      applyFrame(0);
+      setTimeout(startPlayback, 500);
+      break;
+  }
+}
+
+connect();
+
+// ─── RESIZE ──────────────────────────────────────────────────────────────
+function onResize() {
+  const vp = document.getElementById('viewport');
+  const w = vp.clientWidth;
+  const h = vp.clientHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', onResize);
+setTimeout(onResize, 50);
+new ResizeObserver(onResize).observe(document.getElementById('viewport'));
+
+// ─── ANIMATION LOOP ─────────────────────────────────────────────────────
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  controls.update();
+
+  // Lerp entity positions
+  for (let i = 0; i < entityMeshes.length; i++) {
+    if (!entityMeshes[i].group.visible) continue;
+    const g = entityMeshes[i].group;
+    const t = entityTargets[i];
+    g.position.x += (t.x - g.position.x) * 0.15;
+    g.position.z += (t.z - g.position.z) * 0.15;
+
+    // Bobbing token orb
+    if (entityMeshes[i].tokenOrb.visible) {
+      entityMeshes[i].tokenOrb.position.y = 1.1 + Math.sin(Date.now() * 0.004) * 0.1;
+      entityMeshes[i].tokenOrb.rotation.y += 0.02;
+    }
+  }
+
+  updateParticles(dt);
+  updateArcs(dt);
+  renderer.render(scene, camera);
+}
+animate();
+
+// ─── DEMO DATA (when no server is connected) ────────────────────────────
+// If no data arrives within 3 seconds, generate a demo episode
+setTimeout(() => {
+  if (frames.length === 0 && queries.length === 0 && metricsHistory.total.length === 0) {
+    document.getElementById('connection-status').textContent = '● Demo Mode';
+    document.getElementById('connection-status').className = 'tag waiting';
+    generateDemoData();
+  }
+}, 3000);
+
+function generateDemoData() {
+  const W = 16, H = 16, T = 24, N = 4;
+  handleMessage({
+    type: 'episode_start', template: 'handoff', tier: 1, T, grid_w: W, grid_h: H,
+    num_entities: N, latent_rule: 0, has_occluder: false, occluder: null,
+  });
+  const entities = [];
+  for (let i = 0; i < N; i++) {
+    entities.push({
+      id: i, x: 3 + i * 3, y: 4 + i * 2,
+      dx: (Math.random() > 0.5 ? 1 : -1),
+      dy: (Math.random() > 0.5 ? 1 : -1),
+    });
+  }
+  let holderId = 0;
+  for (let t = 0; t < T; t++) {
+    for (const e of entities) {
+      if (Math.random() < 0.15) { e.dx = [-1, 0, 1][Math.floor(Math.random() * 3)]; e.dy = [-1, 0, 1][Math.floor(Math.random() * 3)]; }
+      e.x = (e.x + e.dx + W) % W;
+      e.y = (e.y + e.dy + H) % H;
+    }
+    let hoff = false, newH = -1;
+    for (let i = 0; i < N; i++) {
+      for (let j = i + 1; j < N; j++) {
+        if (Math.abs(entities[i].x - entities[j].x) + Math.abs(entities[i].y - entities[j].y) <= 1) {
+          if (entities[i].id === holderId) { holderId = entities[j].id; hoff = true; newH = holderId; break; }
+          if (entities[j].id === holderId) { holderId = entities[i].id; hoff = true; newH = holderId; break; }
+        }
+      }
+      if (hoff) break;
+    }
+    handleMessage({
+      type: 'frame', t,
+      entities: entities.map(e => ({
+        id: e.id, x: e.x, y: e.y, color: e.id % 3,
+        tagged: t > 5 && e.id === 0, visible: true,
+        holds_token: e.id === holderId,
+      })),
+      trigger: t === 3, alarm_fire: t === 10,
+      alarm_countdown: t >= 3 && t < 10 ? 10 - t : 0,
+      chain2_trigger: false, chain2_fire: false, chain2_countdown: 0,
+      handoff: hoff, new_holder: newH, holder_id: holderId,
+      occluded_ids: [], handoff_count: 0,
+    });
+  }
+  handleMessage({ type: 'query', qtype: 'who_holds_token', target: holderId, time_asked: T - 1, is_binary: false, prediction: holderId, correct: true });
+  handleMessage({ type: 'query', qtype: 'did_alarm_fire', target: 1, time_asked: T - 1, is_binary: true, prediction: 1, correct: true });
+  handleMessage({ type: 'query', qtype: 'who_was_first_tagged', target: 0, time_asked: T - 1, is_binary: false, prediction: 2, correct: false });
+  handleMessage({ type: 'episode_end' });
+
+  // Demo metrics
+  for (let i = 0; i < 50; i++) {
+    const decay = Math.exp(-i * 0.05);
+    handleMessage({
+      type: 'metrics', step: i, tier: 1, epoch: 0, pnn: 'O/O/O',
+      total: 3.0 * decay + 0.5, next_step: 1.3 * decay + 0.04,
+      aux_latent: 1.7 * decay + 0.2, latent_acc: Math.min(1, 0.1 + i * 0.02),
+      q_loss: 0.6 * decay + 0.15, holder_loss: 0,
+      holder_acc: 0, entity_acc: Math.min(1, 0.3 + i * 0.015),
+      binary_acc: Math.min(1, 0.5 + i * 0.01), stress: 0.001 + Math.random() * 0.005,
+    });
+  }
+}
+</script>
+</body>
+</html>

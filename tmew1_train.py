@@ -392,6 +392,7 @@ class TrainConfig:
     grad_clip: float = 1.0
     aux_latent_weight: float = 0.5
     log_every: int = 25
+    warmup_steps: int = 5
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     seed: int = 0
 
@@ -572,11 +573,16 @@ def run_curriculum(world_cfg: WorldConfig, tcfg: TrainConfig, tiers: Sequence[Cu
         val_loader = DataLoader(val_ds, batch_size=tcfg.batch_size, shuffle=False, collate_fn=collate, num_workers=0)
 
         for epoch in range(tcfg.epochs_per_tier):
+            _accum_unlocks = 0
             for step, batch in enumerate(train_loader):
                 batch = {k: v.to(tcfg.device) for k, v in batch.items()}
                 stats = train_step(model, criterion, probe, optimizer, batch, tcfg, tier.enabled_modalities)
+                _step_report = summarize_controller_report(model._last_forward_report)
+                _accum_unlocks += _step_report.get("unlocked", 0)
+                if epoch == 0 and step < tcfg.warmup_steps:
+                    continue
                 if step % tcfg.log_every == 0:
-                    summary = summarize_controller_report(model._last_forward_report)
+                    summary = _step_report
                     step_metrics = {
                         "total": stats["total"],
                         "aux_latent": stats["aux_latent"],
@@ -585,12 +591,17 @@ def run_curriculum(world_cfg: WorldConfig, tcfg: TrainConfig, tiers: Sequence[Cu
                     stresses = summary.get("stresses") or []
                     if stresses:
                         step_metrics["stress"] = float(np.mean(np.asarray(stresses, dtype=np.float32)))
+                    pnn_states = summary.get("pnn_states") or []
+                    pnn_str = "/".join(s[0] for s in pnn_states) if pnn_states else ""
+                    n_open = sum(1 for s in pnn_states if s == "OPEN") if pnn_states else 0
+                    unlock_tag = f" (+{_accum_unlocks} unlocked)" if _accum_unlocks > 0 else ""
                     log_training_snapshot(
                         score_logger,
-                        step_label=f"tier{tier.tier} ep{epoch} s{step:04d} | unlocked={summary.get('unlocked', 0)}",
+                        step_label=f"tier{tier.tier} ep{epoch} s{step:04d} | pnn={pnn_str} open={n_open}{unlock_tag}",
                         metrics=step_metrics,
                         specs=specs,
                     )
+                    _accum_unlocks = 0
 
             val = evaluate(model, criterion, probe, val_loader, tcfg, tier.enabled_modalities)
             log_training_snapshot(

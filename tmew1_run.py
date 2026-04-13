@@ -48,6 +48,11 @@ from homeostatic_multimodal_world_model_chunked import (
     summarize_controller_report,
 )
 from score_logging import ScoreLogger, build_default_metric_specs, log_training_snapshot
+import tmew1_viz_server as viz
+
+
+# Module-level flag: set True when --viz is passed
+_VIZ_ENABLED = False
 
 
 # -----------------------------------------------------------------------------
@@ -348,11 +353,18 @@ def run_curriculum(
 
         promoted = False
         for epoch in range(tcfg.epochs_per_tier):
+            _accum_unlocks = 0  # accumulate force-unlocks between log events
             for step, batch in enumerate(train_loader):
                 batch = {k: v.to(tcfg.device) for k, v in batch.items()}
                 stats = train_one_step(model, criterion, probe, query_head, holder_head, optimizer, batch, tcfg, tier.enabled_modalities, world_cfg.max_entities)
+                # Accumulate force-unlocks every step (not just log steps)
+                _step_report = summarize_controller_report(model._last_forward_report)
+                _accum_unlocks += _step_report.get("unlocked", 0)
+                # Skip logging during warmup steps at the start of each tier
+                if epoch == 0 and step < tcfg.warmup_steps:
+                    continue
                 if step % tcfg.log_every == 0:
-                    summary = summarize_controller_report(model._last_forward_report)
+                    summary = _step_report
                     step_metrics = {
                         "total": stats["total"],
                         "next_step": stats["next_step"],
@@ -369,15 +381,20 @@ def run_curriculum(
                         step_metrics["stress"] = float(np.mean(np.asarray(stresses, dtype=np.float32)))
                     pnn_states = summary.get("pnn_states") or []
                     pnn_str = "/".join(s[0] for s in pnn_states) if pnn_states else ""
+                    n_open = sum(1 for s in pnn_states if s == "OPEN") if pnn_states else 0
+                    unlock_tag = f" (+{_accum_unlocks} unlocked)" if _accum_unlocks > 0 else ""
                     log_training_snapshot(
                         score_logger,
                         step_label=(
                             f"t{tier.tier} ep{epoch} s{step:04d}"
-                            f" | pnn={pnn_str} unlocked={summary.get('unlocked', 0)}"
+                            f" | pnn={pnn_str} open={n_open}{unlock_tag}"
                         ),
                         metrics=step_metrics,
                         specs=specs,
                     )
+                    _accum_unlocks = 0  # reset after logging
+                    if _VIZ_ENABLED:
+                        viz.send_metrics(step=step, tier=tier.tier, epoch=epoch, metrics=step_metrics, pnn_states=pnn_str)
 
             val = evaluate(model, criterion, probe, query_head, holder_head, val_loader, tcfg, tier.enabled_modalities, world_cfg.max_entities)
             log_training_snapshot(
@@ -408,6 +425,13 @@ def run_curriculum(
         print(f"  -> saved checkpoint to {ckpt_path}")
 
         run_diagnostic_report(model, query_head, world_cfg, tier, tcfg.device, n_episodes=256)
+
+        # Send a replay episode to the viz dashboard
+        if _VIZ_ENABLED:
+            viz.send_episode_replay(
+                world_cfg=world_cfg, tier=tier,
+                model=model, query_head=query_head, device=tcfg.device,
+            )
 
 
 # -----------------------------------------------------------------------------
@@ -441,12 +465,19 @@ def smoke_test() -> None:
 # Entry point
 # -----------------------------------------------------------------------------
 def main() -> None:
+    global _VIZ_ENABLED
     parser = argparse.ArgumentParser()
     parser.add_argument("--smoke", action="store_true", help="Run a 30-second smoke test")
+    parser.add_argument("--viz", action="store_true", help="Launch real-time 3D visualization dashboard (ws://0.0.0.0:8765)")
+    parser.add_argument("--viz-port", type=int, default=8765, help="WebSocket port for --viz")
     parser.add_argument("--epochs", type=int, default=4)
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--train-episodes", type=int, default=2048)
     args = parser.parse_args()
+
+    if args.viz:
+        _VIZ_ENABLED = True
+        viz.start_server(port=args.viz_port)
 
     if args.smoke:
         smoke_test()
