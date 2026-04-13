@@ -393,6 +393,7 @@ class TrainConfig:
     aux_latent_weight: float = 0.5
     log_every: int = 10
     warmup_steps: int = 5
+    modality_warmup_steps: int = 200     # ramp new-modality loss weight 0→1 over this many steps
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     seed: int = 0
     use_amp: bool = torch.cuda.is_available()   # mixed-precision (float16)
@@ -438,7 +439,7 @@ def build_model(world_cfg: WorldConfig) -> Tuple[HomeostaticMultimodalWorldModel
         enable_online_homeostasis=True,
     )
     model = HomeostaticMultimodalWorldModel(cfg)
-    criterion = MultimodalPredictionLoss(cfg, LossWeights(text=1.0, numeric=1.0, audio=1.0, vision=1.0))
+    criterion = MultimodalPredictionLoss(cfg, LossWeights(text=0.3, numeric=1.0, audio=1.0, vision=1.0))
     probe = LatentRuleProbe(cfg.d_model, world_cfg.num_latent_rules)
     return model, criterion, probe
 

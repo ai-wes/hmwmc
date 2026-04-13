@@ -1648,7 +1648,7 @@ class MultimodalPredictionLoss(nn.Module):
         if output.text_logits is not None and text_targets is not None:
             logits = output.text_logits.reshape(-1, output.text_logits.size(-1))
             target = text_targets.reshape(-1)
-            parts["text"] = F.cross_entropy(logits, target, ignore_index=self.cfg.modality.text_pad_id)
+            parts["text"] = F.cross_entropy(logits, target, ignore_index=self.cfg.modality.text_pad_id, label_smoothing=0.05)
             total = total + self.weights.text * parts["text"]
 
         if output.numeric_pred is not None and numeric_targets is not None:

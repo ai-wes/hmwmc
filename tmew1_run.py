@@ -15,7 +15,7 @@ from typing import Optional
 import argparse
 import random
 from dataclasses import replace
-from typing import Dict, Sequence
+from typing import Dict, Sequence, Tuple
 import numpy as np
 import torch
 from torch import Tensor, nn
@@ -228,8 +228,19 @@ def train_one_step(
     enabled: Sequence[str],
     holder_feature_dim: int,
     scaler: GradScaler | None = None,
+    tier_step: int = 0,
+    prev_tier_modalities: Sequence[str] = (),
 ) -> Dict[str, float]:
     optimizer.zero_grad(set_to_none=True)
+
+    # ── Modality warmup: ramp loss weight for newly-introduced modalities ──
+    _new_modalities = set(enabled) - set(prev_tier_modalities)
+    _saved_weights: Dict[str, float] = {}
+    if _new_modalities and tcfg.modality_warmup_steps > 0:
+        warmup_factor = min(1.0, tier_step / tcfg.modality_warmup_steps)
+        for mod in _new_modalities:
+            _saved_weights[mod] = getattr(criterion.weights, mod)
+            setattr(criterion.weights, mod, _saved_weights[mod] * warmup_factor)
 
     vision_in, vision_tgt = shift_targets(batch["vision"])
     audio_in, audio_tgt = shift_targets(batch["audio"])
@@ -251,6 +262,10 @@ def train_one_step(
             audio_targets=audio_tgt if "audio" in enabled else None,
             numeric_targets=numeric_tgt if "numeric" in enabled else None,
         )
+
+        # Restore base loss weights after computing loss (so warmup is per-call)
+        for mod, base_w in _saved_weights.items():
+            setattr(criterion.weights, mod, base_w)
 
         rule_logits = probe(output.sequence)
         aux = nn.functional.cross_entropy(rule_logits, batch["latent_rule"])
@@ -310,6 +325,30 @@ def train_one_step(
             scaler.unscale_(optimizer)
             params = list(model.parameters()) + list(probe.parameters()) + list(query_head.parameters()) + list(holder_head.parameters())
             nn.utils.clip_grad_norm_(params, tcfg.grad_clip)
+        else:
+            scaler.unscale_(optimizer)
+            params = list(model.parameters()) + list(probe.parameters()) + list(query_head.parameters()) + list(holder_head.parameters())
+
+        # ── Fix #3: Pre-step finite-grad check ─────────────────────────
+        grads_finite = all(
+            p.grad is None or torch.isfinite(p.grad).all()
+            for p in params
+        )
+        if not grads_finite:
+            import logging as _log
+            _log.getLogger(__name__).warning(
+                "Non-finite grads detected — skipping optimizer.step()"
+            )
+            optimizer.zero_grad(set_to_none=True)
+            scaler.update()  # still update scaler so it can back off the scale
+            with torch.no_grad():
+                rule_acc = (rule_logits.argmax(-1) == batch["latent_rule"]).float().mean().item()
+            return {
+                "total": float(total.item()), "next_step": float(losses.parts.get("text", losses.parts.get("vision", total)).item()),
+                "aux_latent": float(aux.item()), "latent_acc": rule_acc,
+                "q_loss": float(q_loss.item()), "holder_loss": float(holder_loss.item()),
+                "holder_acc": holder_acc, "skipped_step": True, **q_metrics,
+            }
         scaler.step(optimizer)
         scaler.update()
     else:
@@ -317,17 +356,45 @@ def train_one_step(
         if tcfg.grad_clip > 0:
             params = list(model.parameters()) + list(probe.parameters()) + list(query_head.parameters()) + list(holder_head.parameters())
             nn.utils.clip_grad_norm_(params, tcfg.grad_clip)
+        else:
+            params = list(model.parameters()) + list(probe.parameters()) + list(query_head.parameters()) + list(holder_head.parameters())
+
+        # ── Fix #3 (non-scaler path): Pre-step finite-grad check ──────
+        grads_finite = all(
+            p.grad is None or torch.isfinite(p.grad).all()
+            for p in params
+        )
+        if not grads_finite:
+            import logging as _log
+            _log.getLogger(__name__).warning(
+                "Non-finite grads detected — skipping optimizer.step()"
+            )
+            optimizer.zero_grad(set_to_none=True)
+            with torch.no_grad():
+                rule_acc = (rule_logits.argmax(-1) == batch["latent_rule"]).float().mean().item()
+            return {
+                "total": float(total.item()), "next_step": float(losses.parts.get("text", losses.parts.get("vision", total)).item()),
+                "aux_latent": float(aux.item()), "latent_acc": rule_acc,
+                "q_loss": float(q_loss.item()), "holder_loss": float(holder_loss.item()),
+                "holder_acc": holder_acc, "skipped_step": True, **q_metrics,
+            }
         optimizer.step()
 
-    # ── Post-step NaN check: repair poisoned weights before next step ──
+    # ── Post-step NaN check: repair poisoned weights + reset Adam state ──
     _has_nan = False
     for p in model.parameters():
-        if p.data.isnan().any():
+        if p.data.isnan().any() or p.data.isinf().any():
             _has_nan = True
             p.data.nan_to_num_(nan=0.0, posinf=1.0, neginf=-1.0)
+            # Fix #4: Reset Adam moment buffers for this param so recovery is possible
+            if p in optimizer.state:
+                optimizer.state[p] = {}
     if _has_nan:
         import logging as _log
-        _log.getLogger(__name__).warning("NaN detected in model weights after optimizer.step — zeroed out")
+        _log.getLogger(__name__).warning(
+            "NaN/Inf detected in model weights after optimizer.step — "
+            "zeroed weights AND reset Adam state for affected params"
+        )
         if model.cfg.enable_online_homeostasis:
             model.controller.emergency_stabilize()
 
@@ -464,6 +531,7 @@ def run_curriculum(
 
     scaler = GradScaler("cuda", enabled=tcfg.use_amp)
 
+    prev_tier_modalities: Tuple[str, ...] = ()
     for tier in tiers:
         if tier.tier >= 2:
             boosted_templates = list(tier.template_pool)
@@ -475,6 +543,37 @@ def run_curriculum(
             tier = replace(tier, template_pool=tuple(boosted_templates))
 
         print(f"\n=== Tier {tier.tier} | modalities={tier.enabled_modalities} | T={tier.max_episode_length} | templates={tier.template_pool} ===")
+
+        # ── Fix #2: Reset Adam state + GradScaler at tier boundary ──────
+        new_mods = set(tier.enabled_modalities) - set(prev_tier_modalities)
+        if new_mods:
+            # Identify params belonging to newly-activated modality encoders/heads
+            _new_param_ids: set = set()
+            for mod_name in new_mods:
+                encoder = getattr(model, f"{mod_name}_encoder", None)
+                head = getattr(model, f"{mod_name}_head", None)
+                if encoder is not None:
+                    for p in encoder.parameters():
+                        _new_param_ids.add(id(p))
+                if head is not None:
+                    # Re-init the head with smaller std to cap initial logit magnitudes
+                    nn.init.normal_(head.weight, std=0.02)
+                    if head.bias is not None:
+                        nn.init.zeros_(head.bias)
+                    for p in head.parameters():
+                        _new_param_ids.add(id(p))
+            # Clear Adam moment buffers for those params
+            _cleared = 0
+            for p in optimizer.state:
+                if id(p) in _new_param_ids and optimizer.state[p]:
+                    optimizer.state[p] = {}
+                    _cleared += 1
+            if _cleared:
+                print(f"  -> reset Adam state for {_cleared} params in new modalities: {new_mods}")
+            # Reset GradScaler so stale scale factor from previous tier doesn't cause issues
+            scaler = GradScaler("cuda", enabled=tcfg.use_amp)
+
+        tier_step = 0  # running step counter within this tier (for modality warmup)
 
         train_ds = PreCachedDataset(world_cfg, tier, tcfg.train_episodes_per_tier, base_seed=1000 * tier.tier, num_queries=num_queries, device=tcfg.device)
         val_ds = PreCachedDataset(world_cfg, tier, tcfg.val_episodes, base_seed=9000 + 1000 * tier.tier, num_queries=num_queries, device=tcfg.device)
@@ -492,7 +591,8 @@ def run_curriculum(
             _accum_unlocks = 0  # accumulate force-unlocks between log events
             for step, batch in enumerate(train_loader):
                 # Data is already on device from PreCachedDataset
-                stats = train_one_step(model, criterion, probe, query_head, holder_head, optimizer, batch, tcfg, tier.enabled_modalities, world_cfg.max_entities, scaler=scaler)
+                stats = train_one_step(model, criterion, probe, query_head, holder_head, optimizer, batch, tcfg, tier.enabled_modalities, world_cfg.max_entities, scaler=scaler, tier_step=tier_step, prev_tier_modalities=prev_tier_modalities)
+                tier_step += 1
                 # Accumulate force-unlocks every step (not just log steps)
                 _step_report = summarize_controller_report(model._last_forward_report)
                 _accum_unlocks += _step_report.get("unlocked", 0)
@@ -547,6 +647,8 @@ def run_curriculum(
 
         if not promoted:
             print(f"  -> tier {tier.tier} did not reach promotion threshold; continuing anyway")
+
+        prev_tier_modalities = tier.enabled_modalities
 
         # Save checkpoint after completing each tier
         ckpt_path = f"checkpoint_tier{tier.tier}.pt"
