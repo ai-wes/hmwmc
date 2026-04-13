@@ -19,6 +19,7 @@ from typing import Dict, Sequence
 import numpy as np
 import torch
 from torch import Tensor, nn
+from torch.amp import GradScaler, autocast
 from torch.utils.data import Dataset, DataLoader
 
 from tmew1_train import (
@@ -59,28 +60,33 @@ _VIZ_ENABLED = False
 # Dataset that emits query-augmented episodes
 # -----------------------------------------------------------------------------
 class TMEW1QueryDataset(Dataset):
+    """Generates episodes on first access and caches them for fast repeated epochs."""
     def __init__(self, cfg: WorldConfig, tier: CurriculumTier, n_episodes: int, base_seed: int, num_queries: int = 4):
         self.cfg = cfg
         self.tier = tier
         self.n = n_episodes
         self.base_seed = base_seed
         self.num_queries = num_queries
+        self._cache: Dict[int, Dict[str, Tensor]] = {}
 
     def set_tier(self, tier: CurriculumTier) -> None:
         self.tier = tier
+        self._cache.clear()
 
     def __len__(self) -> int:
         return self.n
 
     def __getitem__(self, idx: int) -> Dict[str, Tensor]:
-        ep = generate_episode_with_diagnostics(
-            self.cfg,
-            self.tier,
-            seed=self.base_seed + idx,
-            num_queries=self.num_queries,
-            enable_false_cue=self.tier.tier >= 2,
-        )
-        return episode_to_diag_tensors(ep)
+        if idx not in self._cache:
+            ep = generate_episode_with_diagnostics(
+                self.cfg,
+                self.tier,
+                seed=self.base_seed + idx,
+                num_queries=self.num_queries,
+                enable_false_cue=self.tier.tier >= 2,
+            )
+            self._cache[idx] = episode_to_diag_tensors(ep)
+        return self._cache[idx]
 
 
 # -----------------------------------------------------------------------------
@@ -148,6 +154,7 @@ def train_one_step(
     tcfg: TrainConfig,
     enabled: Sequence[str],
     holder_feature_dim: int,
+    scaler: GradScaler | None = None,
 ) -> Dict[str, float]:
     optimizer.zero_grad(set_to_none=True)
 
@@ -156,56 +163,66 @@ def train_one_step(
     numeric_in, numeric_tgt = shift_targets(batch["numeric"])
     text_in, text_tgt = shift_targets(batch["text"])
 
-    output: ForwardOutput = model(
-        text_tokens=text_in if "text" in enabled else None,
-        vision=vision_in if "vision" in enabled else None,
-        audio=audio_in if "audio" in enabled else None,
-        numeric=numeric_in if "numeric" in enabled else None,
-    )
-
-    losses: LossOutput = criterion(
-        output,
-        text_targets=text_tgt if "text" in enabled else None,
-        vision_targets=vision_tgt if "vision" in enabled else None,
-        audio_targets=audio_tgt if "audio" in enabled else None,
-        numeric_targets=numeric_tgt if "numeric" in enabled else None,
-    )
-
-    rule_logits = probe(output.sequence)
-    aux = nn.functional.cross_entropy(rule_logits, batch["latent_rule"])
-
-    q_loss, q_metrics = query_train_step_addon(
-        augment_sequence_with_holder_audio(
-            output.sequence,
-            batch.get("audio"),
-            max_entities=holder_feature_dim,
-            use_audio="audio" in enabled,
-        ),
-        query_head,
-        batch,
-        query_type_to_idx=EXTENDED_QUERY_TYPE_TO_IDX,
-        weight=0.5,
-    )
-
-    holder_loss = torch.zeros((), device=output.sequence.device)
-    holder_acc = 0.0
-    if "audio" in enabled and "holder_per_step" in batch:
-        holder_logits = holder_head(output.sequence)
-        holder_targets = batch["holder_per_step"][:, :-1]
-        holder_loss = nn.functional.cross_entropy(
-            holder_logits.reshape(-1, holder_logits.size(-1)),
-            holder_targets.reshape(-1),
+    with autocast(device_type="cuda", enabled=tcfg.use_amp):
+        output: ForwardOutput = model(
+            text_tokens=text_in if "text" in enabled else None,
+            vision=vision_in if "vision" in enabled else None,
+            audio=audio_in if "audio" in enabled else None,
+            numeric=numeric_in if "numeric" in enabled else None,
         )
-        with torch.no_grad():
-            holder_acc = (holder_logits.argmax(-1) == holder_targets).float().mean().item()
 
-    total = losses.total + tcfg.aux_latent_weight * aux + q_loss + 0.3 * holder_loss
+        losses: LossOutput = criterion(
+            output,
+            text_targets=text_tgt if "text" in enabled else None,
+            vision_targets=vision_tgt if "vision" in enabled else None,
+            audio_targets=audio_tgt if "audio" in enabled else None,
+            numeric_targets=numeric_tgt if "numeric" in enabled else None,
+        )
 
-    total.backward()
-    if tcfg.grad_clip > 0:
-        params = list(model.parameters()) + list(probe.parameters()) + list(query_head.parameters()) + list(holder_head.parameters())
-        nn.utils.clip_grad_norm_(params, tcfg.grad_clip)
-    optimizer.step()
+        rule_logits = probe(output.sequence)
+        aux = nn.functional.cross_entropy(rule_logits, batch["latent_rule"])
+
+        q_loss, q_metrics = query_train_step_addon(
+            augment_sequence_with_holder_audio(
+                output.sequence,
+                batch.get("audio"),
+                max_entities=holder_feature_dim,
+                use_audio="audio" in enabled,
+            ),
+            query_head,
+            batch,
+            query_type_to_idx=EXTENDED_QUERY_TYPE_TO_IDX,
+            weight=0.5,
+        )
+
+        holder_loss = torch.zeros((), device=output.sequence.device)
+        holder_acc = 0.0
+        if "audio" in enabled and "holder_per_step" in batch:
+            holder_logits = holder_head(output.sequence)
+            holder_targets = batch["holder_per_step"][:, :-1]
+            holder_loss = nn.functional.cross_entropy(
+                holder_logits.reshape(-1, holder_logits.size(-1)),
+                holder_targets.reshape(-1),
+            )
+            with torch.no_grad():
+                holder_acc = (holder_logits.argmax(-1) == holder_targets).float().mean().item()
+
+        total = losses.total + tcfg.aux_latent_weight * aux + q_loss + 0.3 * holder_loss
+
+    if scaler is not None:
+        scaler.scale(total).backward()
+        if tcfg.grad_clip > 0:
+            scaler.unscale_(optimizer)
+            params = list(model.parameters()) + list(probe.parameters()) + list(query_head.parameters()) + list(holder_head.parameters())
+            nn.utils.clip_grad_norm_(params, tcfg.grad_clip)
+        scaler.step(optimizer)
+        scaler.update()
+    else:
+        total.backward()
+        if tcfg.grad_clip > 0:
+            params = list(model.parameters()) + list(probe.parameters()) + list(query_head.parameters()) + list(holder_head.parameters())
+            nn.utils.clip_grad_norm_(params, tcfg.grad_clip)
+        optimizer.step()
 
     # controller_step mutates live Parameters, so defer it until autograd is done.
     if model.cfg.enable_online_homeostasis:
@@ -256,19 +273,20 @@ def evaluate(
         numeric_in, numeric_tgt = shift_targets(batch["numeric"])
         text_in, text_tgt = shift_targets(batch["text"])
 
-        output = model(
-            text_tokens=text_in if "text" in enabled else None,
-            vision=vision_in if "vision" in enabled else None,
-            audio=audio_in if "audio" in enabled else None,
-            numeric=numeric_in if "numeric" in enabled else None,
-        )
-        losses = criterion(
-            output,
-            text_targets=text_tgt if "text" in enabled else None,
-            vision_targets=vision_tgt if "vision" in enabled else None,
-            audio_targets=audio_tgt if "audio" in enabled else None,
-            numeric_targets=numeric_tgt if "numeric" in enabled else None,
-        )
+        with autocast(device_type="cuda", enabled=tcfg.use_amp):
+            output = model(
+                text_tokens=text_in if "text" in enabled else None,
+                vision=vision_in if "vision" in enabled else None,
+                audio=audio_in if "audio" in enabled else None,
+                numeric=numeric_in if "numeric" in enabled else None,
+            )
+            losses = criterion(
+                output,
+                text_targets=text_tgt if "text" in enabled else None,
+                vision_targets=vision_tgt if "vision" in enabled else None,
+                audio_targets=audio_tgt if "audio" in enabled else None,
+                numeric_targets=numeric_tgt if "numeric" in enabled else None,
+            )
         rule_logits = probe(output.sequence)
         rule_acc = (rule_logits.argmax(-1) == batch["latent_rule"]).float().mean().item()
         qtype_metrics = per_qtype_accuracy(output.sequence, query_head, batch, holder_feature_dim, enabled)
@@ -334,6 +352,9 @@ def run_curriculum(
         weight_decay=tcfg.weight_decay,
     )
 
+    scaler = GradScaler("cuda", enabled=tcfg.use_amp)
+    _use_workers = tcfg.num_workers > 0 and tcfg.device == "cuda"
+
     for tier in tiers:
         if tier.tier >= 2:
             boosted_templates = list(tier.template_pool)
@@ -348,15 +369,25 @@ def run_curriculum(
 
         train_ds = TMEW1QueryDataset(world_cfg, tier, tcfg.train_episodes_per_tier, base_seed=1000 * tier.tier, num_queries=num_queries)
         val_ds = TMEW1QueryDataset(world_cfg, tier, tcfg.val_episodes, base_seed=9000 + 1000 * tier.tier, num_queries=num_queries)
-        train_loader = DataLoader(train_ds, batch_size=tcfg.batch_size, shuffle=True, collate_fn=collate_diag, num_workers=0)
-        val_loader = DataLoader(val_ds, batch_size=tcfg.batch_size, shuffle=False, collate_fn=collate_diag, num_workers=0)
+        train_loader = DataLoader(
+            train_ds, batch_size=tcfg.batch_size, shuffle=True, collate_fn=collate_diag,
+            num_workers=tcfg.num_workers if _use_workers else 0,
+            pin_memory=_use_workers,
+            persistent_workers=_use_workers and tcfg.num_workers > 0,
+        )
+        val_loader = DataLoader(
+            val_ds, batch_size=tcfg.batch_size, shuffle=False, collate_fn=collate_diag,
+            num_workers=tcfg.num_workers if _use_workers else 0,
+            pin_memory=_use_workers,
+            persistent_workers=_use_workers and tcfg.num_workers > 0,
+        )
 
         promoted = False
         for epoch in range(tcfg.epochs_per_tier):
             _accum_unlocks = 0  # accumulate force-unlocks between log events
             for step, batch in enumerate(train_loader):
                 batch = {k: v.to(tcfg.device) for k, v in batch.items()}
-                stats = train_one_step(model, criterion, probe, query_head, holder_head, optimizer, batch, tcfg, tier.enabled_modalities, world_cfg.max_entities)
+                stats = train_one_step(model, criterion, probe, query_head, holder_head, optimizer, batch, tcfg, tier.enabled_modalities, world_cfg.max_entities, scaler=scaler)
                 # Accumulate force-unlocks every step (not just log steps)
                 _step_report = summarize_controller_report(model._last_forward_report)
                 _accum_unlocks += _step_report.get("unlocked", 0)
@@ -471,8 +502,10 @@ def main() -> None:
     parser.add_argument("--viz", action="store_true", help="Launch real-time 3D visualization dashboard (ws://0.0.0.0:8765)")
     parser.add_argument("--viz-port", type=int, default=8765, help="WebSocket port for --viz")
     parser.add_argument("--epochs", type=int, default=4)
-    parser.add_argument("--batch-size", type=int, default=8)
+    parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--train-episodes", type=int, default=2048)
+    parser.add_argument("--no-amp", action="store_true", help="Disable mixed-precision training")
+    parser.add_argument("--workers", type=int, default=2, help="DataLoader worker processes")
     args = parser.parse_args()
 
     if args.viz:
@@ -488,6 +521,8 @@ def main() -> None:
         batch_size=args.batch_size,
         train_episodes_per_tier=args.train_episodes,
         epochs_per_tier=args.epochs,
+        use_amp=not args.no_amp and torch.cuda.is_available(),
+        num_workers=args.workers,
     )
     run_curriculum(world_cfg, tcfg)
 
