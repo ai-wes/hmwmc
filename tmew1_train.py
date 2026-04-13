@@ -51,13 +51,13 @@ class WorldConfig:
     grid_h: int = 16
     grid_w: int = 16
     vision_channels: int = 3
-    audio_dim: int = 16
-    numeric_dim: int = 6
+    audio_dim: int = 24
+    numeric_dim: int = 10
     text_vocab_size: int = 64
     text_seq_len: int = 1               # one symbolic token per step
-    max_entities: int = 3
-    episode_length: int = 32
-    num_latent_rules: int = 4           # latent_state classification target
+    max_entities: int = 6
+    episode_length: int = 64
+    num_latent_rules: int = 6           # latent_state classification target
     occlusion_prob: float = 0.25
     noise_std: float = 0.02
 
@@ -74,9 +74,9 @@ class CurriculumTier:
 
 
 DEFAULT_TIERS: Tuple[CurriculumTier, ...] = (
-    CurriculumTier(1, 16, ("vision", "numeric"), ("trigger_delay",), 3, False, 0.70),
-    CurriculumTier(2, 24, ("vision", "numeric", "audio"), ("trigger_delay", "occlusion_identity"), 6, True, 0.65),
-    CurriculumTier(3, 32, ("vision", "numeric", "audio", "text"), ("trigger_delay", "occlusion_identity"), 10, True, 1.01),
+    CurriculumTier(1, 24, ("vision", "numeric"), ("trigger_delay",), 3, False, 0.70),
+    CurriculumTier(2, 48, ("vision", "numeric", "audio"), ("trigger_delay", "occlusion_identity", "multi_chain"), 8, True, 0.65),
+    CurriculumTier(3, 64, ("vision", "numeric", "audio", "text"), ("trigger_delay", "occlusion_identity", "multi_chain"), 12, True, 1.01),
 )
 
 
@@ -103,11 +103,19 @@ class WorldState:
     alarm_fired: bool
     occluder: Optional[Tuple[int, int, int, int]]  # x0,y0,x1,y1 or None
     rng: random.Random
+    # --- second causal chain (multi_chain template) ---
+    chain2_alarm_in: int = -1
+    chain2_alarm_fired: bool = False
+    chain2_trigger_pair: Optional[Tuple[int, int]] = None  # entity ids that triggered chain 2
 
 
 def _make_world(cfg: WorldConfig, template: str, max_delay: int, allow_occlusion: bool, seed: int) -> WorldState:
     rng = random.Random(seed)
-    n = rng.randint(2, cfg.max_entities)
+    # Active entities: 2-4 that participate in causal chains
+    n_active = rng.randint(2, min(4, cfg.max_entities))
+    # Distractor entities: fill up to max_entities with some randomness
+    n_distractor = rng.randint(0, cfg.max_entities - n_active)
+    n = n_active + n_distractor
     entities: List[Entity] = []
     for i in range(n):
         entities.append(
@@ -121,7 +129,7 @@ def _make_world(cfg: WorldConfig, template: str, max_delay: int, allow_occlusion
             )
         )
     occluder = None
-    if allow_occlusion and template == "occlusion_identity" and rng.random() < cfg.occlusion_prob + 0.4:
+    if allow_occlusion and template in ("occlusion_identity", "multi_chain") and rng.random() < cfg.occlusion_prob + 0.4:
         ox = rng.randint(3, cfg.grid_w - 6)
         oy = rng.randint(3, cfg.grid_h - 6)
         occluder = (ox, oy, ox + 3, oy + 3)
@@ -137,7 +145,10 @@ def _make_world(cfg: WorldConfig, template: str, max_delay: int, allow_occlusion
 
 def _step_world(state: WorldState, cfg: WorldConfig, t: int, template: str, max_delay: int) -> Dict[str, Any]:
     """Advance the world one step. Returns event dict for the renderers."""
-    events: Dict[str, Any] = {"trigger": False, "alarm_fire": False, "occluded_ids": []}
+    events: Dict[str, Any] = {
+        "trigger": False, "alarm_fire": False, "occluded_ids": [],
+        "chain2_trigger": False, "chain2_fire": False,
+    }
 
     for e in state.entities:
         e.x = (e.x + e.dx) % cfg.grid_w
@@ -146,12 +157,25 @@ def _step_world(state: WorldState, cfg: WorldConfig, t: int, template: str, max_
             e.dx = state.rng.choice([-1, 0, 1])
             e.dy = state.rng.choice([-1, 0, 1])
 
-    # Trigger condition: two entities within distance 1, and not yet fired.
+    # --- Conditional trigger rules based on active_rule ---
+    # Rule 0-1: proximity trigger (classic) — any two entities within distance 1
+    # Rule 2-3: same-color trigger — two entities of the same color within distance 2
+    # Rule 4-5: tagged-only trigger — only fires if a tagged entity is involved
+    def _check_trigger_condition(a: Entity, b: Entity) -> bool:
+        rule = state.active_rule
+        if rule <= 1:
+            return abs(a.x - b.x) + abs(a.y - b.y) <= 1
+        elif rule <= 3:
+            return a.color == b.color and abs(a.x - b.x) + abs(a.y - b.y) <= 2
+        else:  # rule 4-5
+            return (a.tagged or b.tagged) and abs(a.x - b.x) + abs(a.y - b.y) <= 1
+
+    # Chain 1: primary alarm
     if not state.alarm_fired and state.alarm_in < 0:
         for i in range(len(state.entities)):
             for j in range(i + 1, len(state.entities)):
                 a, b = state.entities[i], state.entities[j]
-                if abs(a.x - b.x) + abs(a.y - b.y) <= 1:
+                if _check_trigger_condition(a, b):
                     state.alarm_in = state.rng.randint(2, max_delay)
                     events["trigger"] = True
                     a.tagged = True
@@ -164,6 +188,29 @@ def _step_world(state: WorldState, cfg: WorldConfig, t: int, template: str, max_
         if state.alarm_in == 0:
             state.alarm_fired = True
             events["alarm_fire"] = True
+
+    # Chain 2: secondary causal chain (multi_chain template only)
+    if template == "multi_chain":
+        if not state.chain2_alarm_fired and state.chain2_alarm_in < 0:
+            # Second chain uses a different pair — scan from the end
+            for i in range(len(state.entities) - 1, 0, -1):
+                for j in range(i - 1, -1, -1):
+                    a, b = state.entities[i], state.entities[j]
+                    # chain2 always uses simple proximity, independent of active_rule
+                    if abs(a.x - b.x) + abs(a.y - b.y) <= 1:
+                        # Avoid double-firing if chain1 already used this pair this step
+                        if not events["trigger"] or (a.id != state.entities[0].id):
+                            state.chain2_alarm_in = state.rng.randint(2, max(3, max_delay // 2))
+                            state.chain2_trigger_pair = (a.id, b.id)
+                            events["chain2_trigger"] = True
+                            break
+                if events["chain2_trigger"]:
+                    break
+        if state.chain2_alarm_in > 0:
+            state.chain2_alarm_in -= 1
+            if state.chain2_alarm_in == 0:
+                state.chain2_alarm_fired = True
+                events["chain2_fire"] = True
 
     if state.occluder is not None:
         ox0, oy0, ox1, oy1 = state.occluder
@@ -202,6 +249,7 @@ def _render_audio(
     current_holder_id: Optional[int] = None,
 ) -> np.ndarray:
     vec = np.zeros(cfg.audio_dim, dtype=np.float32)
+    # Chain 1 audio signals
     if events.get("trigger"):
         vec[0] = 1.0                    # high tone marks armed state
     if state.alarm_in > 0:
@@ -211,11 +259,18 @@ def _render_audio(
     if events.get("handoff"):
         vec[3] = 1.0                    # token changed hands this step
         vec[4] = 1.0                    # duplicate handoff event bit for a cleaner write cue
+    # Chain 2 audio signals (channels 14-15)
+    if events.get("chain2_trigger"):
+        vec[14] = 1.0
+    if events.get("chain2_fire"):
+        vec[15] = 1.0
+    # Holder identity channels at 8+entity_id
     new_holder_id = events.get("new_holder_id", -1)
     if 0 <= new_holder_id < cfg.max_entities and (8 + new_holder_id) < cfg.audio_dim:
         vec[8 + new_holder_id] = 1.0
     if current_holder_id is not None and 0 <= current_holder_id < cfg.max_entities and (8 + current_holder_id) < cfg.audio_dim:
         vec[8 + current_holder_id] = max(vec[8 + current_holder_id], 0.3)
+    # Ambient noise
     vec[5:8] = np.random.normal(0, 0.05, 3).astype(np.float32)
     return vec
 
@@ -228,16 +283,26 @@ def _render_numeric(state: WorldState, cfg: WorldConfig) -> np.ndarray:
     vec[3] = float(state.active_rule) / max(1, cfg.num_latent_rules - 1)
     vec[4] = float(any(e.tagged for e in state.entities))
     vec[5] = 1.0 if state.occluder is not None else 0.0
+    # Expanded channels for multi-chain + distractor awareness
+    vec[6] = float(len(state.entities)) / max(1, cfg.max_entities)   # entity count (includes distractors)
+    vec[7] = float(state.chain2_alarm_in) / 10.0 if state.chain2_alarm_in > 0 else 0.0
+    vec[8] = 1.0 if state.chain2_alarm_fired else 0.0
+    vec[9] = float(sum(1 for e in state.entities if e.tagged)) / max(1, len(state.entities))  # fraction tagged
     return vec
 
 
 def _render_text(state: WorldState, cfg: WorldConfig, events: Dict[str, Any]) -> np.ndarray:
     # Single token per step. Vocab layout:
-    # 0 = pad, 1 = quiet, 2 = trigger, 3 = countdown, 4 = fire, 5 = occluded
+    # 0 = pad, 1 = quiet, 2 = trigger, 3 = countdown, 4 = fire, 5 = occluded,
+    # 6 = chain2_trigger, 7 = chain2_fire
     if events.get("alarm_fire"):
         tok = 4
+    elif events.get("chain2_fire"):
+        tok = 7
     elif events.get("trigger"):
         tok = 2
+    elif events.get("chain2_trigger"):
+        tok = 6
     elif state.alarm_in > 0:
         tok = 3
     elif events.get("occluded_ids"):

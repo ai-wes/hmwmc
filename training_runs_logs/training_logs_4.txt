@@ -1,0 +1,947 @@
+
+=== Tier 1 | modalities=('vision', 'numeric') | T=16 | templates=('trigger_delay',) ===
+10:38:24 | INFO | === t1 ep0 s0000 | pnn=O/O/O unlocked=0 ===
+10:38:24 | INFO | total: raw=2.442153 | score= 51.16% | band=medium
+10:38:24 | INFO | next_step: raw=1.187331 | score=  0.00% | band=bad
+10:38:24 | INFO | aux_latent: raw=1.489348 | score= 25.53% | band=low-medium
+10:38:24 | INFO | latent_acc: raw=0.125000 | score= 12.50% | band=bad
+10:38:24 | INFO | q_loss: raw=0.510148 | score= 74.49% | band=medium-high
+10:38:24 | INFO | holder_loss: raw=0.000000 | score=100.00% | band=good
+10:38:24 | INFO | holder_acc: raw=0.000000 | score=  0.00% | band=bad
+10:38:24 | INFO | entity_acc: raw=0.035714 | score=  3.57% | band=bad
+10:38:24 | INFO | binary_acc: raw=0.750000 | score= 75.00% | band=medium-high
+10:38:24 | INFO | stress: raw=0.001395 | score= 99.07% | band=good
+10:38:35 | INFO | === t1 ep0 s0025 | pnn=O/O/O unlocked=0 ===
+10:38:35 | INFO | total: raw=0.884234 | score= 82.32% | band=good
+10:38:35 | INFO | next_step: raw=0.088504 | score= 82.30% | band=good
+10:38:35 | INFO | aux_latent: raw=1.399735 | score= 30.01% | band=low-medium
+10:38:35 | INFO | latent_acc: raw=0.250000 | score= 25.00% | band=low-medium
+10:38:35 | INFO | q_loss: raw=0.095863 | score= 95.21% | band=good
+10:38:35 | INFO | holder_loss: raw=0.000000 | score=100.00% | band=good
+10:38:35 | INFO | holder_acc: raw=0.000000 | score=  0.00% | band=bad
+10:38:35 | INFO | entity_acc: raw=1.000000 | score=100.00% | band=good
+10:38:35 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:38:35 | INFO | stress: raw=0.015801 | score= 89.47% | band=good
+10:38:44 | INFO | === t1 ep0 s0050 | pnn=C/O/O unlocked=0 ===
+10:38:44 | INFO | total: raw=0.979293 | score= 80.41% | band=good
+10:38:44 | INFO | next_step: raw=0.050811 | score= 89.84% | band=good
+10:38:44 | INFO | aux_latent: raw=1.339882 | score= 33.01% | band=low-medium
+10:38:44 | INFO | latent_acc: raw=0.375000 | score= 37.50% | band=low-medium
+10:38:44 | INFO | q_loss: raw=0.258541 | score= 87.07% | band=good
+10:38:44 | INFO | holder_loss: raw=0.000000 | score=100.00% | band=good
+10:38:44 | INFO | holder_acc: raw=0.000000 | score=  0.00% | band=bad
+10:38:44 | INFO | entity_acc: raw=0.952381 | score= 95.24% | band=good
+10:38:44 | INFO | binary_acc: raw=0.545455 | score= 54.55% | band=medium
+10:38:44 | INFO | stress: raw=0.011900 | score= 92.07% | band=good
+10:38:54 | INFO | === t1 ep0 s0075 | pnn=C/O/O unlocked=0 ===
+10:38:54 | INFO | total: raw=0.995108 | score= 80.10% | band=good
+10:38:54 | INFO | next_step: raw=0.048825 | score= 90.23% | band=good
+10:38:54 | INFO | aux_latent: raw=1.149173 | score= 42.54% | band=medium
+10:38:54 | INFO | latent_acc: raw=0.500000 | score= 50.00% | band=medium
+10:38:54 | INFO | q_loss: raw=0.371696 | score= 81.42% | band=good
+10:38:54 | INFO | holder_loss: raw=0.000000 | score=100.00% | band=good
+10:38:54 | INFO | holder_acc: raw=0.000000 | score=  0.00% | band=bad
+10:38:54 | INFO | entity_acc: raw=0.800000 | score= 80.00% | band=good
+10:38:54 | INFO | binary_acc: raw=0.333333 | score= 33.33% | band=low-medium
+10:38:54 | INFO | stress: raw=0.005154 | score= 96.56% | band=good
+10:39:05 | INFO | === t1 ep0 s0100 | pnn=C/O/O unlocked=0 ===
+10:39:05 | INFO | total: raw=0.478490 | score= 90.43% | band=good
+10:39:05 | INFO | next_step: raw=0.048686 | score= 90.26% | band=good
+10:39:05 | INFO | aux_latent: raw=0.642589 | score= 67.87% | band=medium-high
+10:39:05 | INFO | latent_acc: raw=0.625000 | score= 62.50% | band=medium-high
+10:39:05 | INFO | q_loss: raw=0.108509 | score= 94.57% | band=good
+10:39:05 | INFO | holder_loss: raw=0.000000 | score=100.00% | band=good
+10:39:05 | INFO | holder_acc: raw=0.000000 | score=  0.00% | band=bad
+10:39:05 | INFO | entity_acc: raw=0.923077 | score= 92.31% | band=good
+10:39:05 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:39:05 | INFO | stress: raw=0.013401 | score= 91.07% | band=good
+10:39:15 | INFO | === t1 ep0 s0125 | pnn=C/O/O unlocked=0 ===
+10:39:15 | INFO | total: raw=0.391635 | score= 92.17% | band=good
+10:39:15 | INFO | next_step: raw=0.053089 | score= 89.38% | band=good
+10:39:15 | INFO | aux_latent: raw=0.216690 | score= 89.17% | band=good
+10:39:15 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:39:15 | INFO | q_loss: raw=0.230201 | score= 88.49% | band=good
+10:39:15 | INFO | holder_loss: raw=0.000000 | score=100.00% | band=good
+10:39:15 | INFO | holder_acc: raw=0.000000 | score=  0.00% | band=bad
+10:39:15 | INFO | entity_acc: raw=0.777778 | score= 77.78% | band=medium-high
+10:39:15 | INFO | binary_acc: raw=0.800000 | score= 80.00% | band=good
+10:39:15 | INFO | stress: raw=0.008676 | score= 94.22% | band=good
+10:39:26 | INFO | === t1 ep0 s0150 | pnn=L/O/C unlocked=0 ===
+10:39:26 | INFO | total: raw=0.121153 | score= 97.58% | band=good
+10:39:26 | INFO | next_step: raw=0.030407 | score= 93.92% | band=good
+10:39:26 | INFO | aux_latent: raw=0.129214 | score= 93.54% | band=good
+10:39:26 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:39:26 | INFO | q_loss: raw=0.026139 | score= 98.69% | band=good
+10:39:26 | INFO | holder_loss: raw=0.000000 | score=100.00% | band=good
+10:39:26 | INFO | holder_acc: raw=0.000000 | score=  0.00% | band=bad
+10:39:26 | INFO | entity_acc: raw=0.961538 | score= 96.15% | band=good
+10:39:26 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:39:26 | INFO | stress: raw=0.019547 | score= 86.97% | band=good
+10:39:36 | INFO | === t1 ep0 s0175 | pnn=O/O/O unlocked=0 ===
+10:39:36 | INFO | total: raw=0.269655 | score= 94.61% | band=good
+10:39:36 | INFO | next_step: raw=0.033707 | score= 93.26% | band=good
+10:39:36 | INFO | aux_latent: raw=0.059104 | score= 97.04% | band=good
+10:39:36 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:39:36 | INFO | q_loss: raw=0.206396 | score= 89.68% | band=good
+10:39:36 | INFO | holder_loss: raw=0.000000 | score=100.00% | band=good
+10:39:36 | INFO | holder_acc: raw=0.000000 | score=  0.00% | band=bad
+10:39:36 | INFO | entity_acc: raw=0.772727 | score= 77.27% | band=medium-high
+10:39:36 | INFO | binary_acc: raw=0.900000 | score= 90.00% | band=good
+10:39:36 | INFO | stress: raw=0.010408 | score= 93.06% | band=good
+10:39:47 | INFO | === t1 ep0 s0200 | pnn=O/O/C unlocked=0 ===
+10:39:47 | INFO | total: raw=0.154858 | score= 96.90% | band=good
+10:39:47 | INFO | next_step: raw=0.034327 | score= 93.13% | band=good
+10:39:47 | INFO | aux_latent: raw=0.031530 | score= 98.42% | band=good
+10:39:47 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:39:47 | INFO | q_loss: raw=0.104766 | score= 94.76% | band=good
+10:39:47 | INFO | holder_loss: raw=0.000000 | score=100.00% | band=good
+10:39:47 | INFO | holder_acc: raw=0.000000 | score=  0.00% | band=bad
+10:39:47 | INFO | entity_acc: raw=0.920000 | score= 92.00% | band=good
+10:39:47 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:39:47 | INFO | stress: raw=0.010157 | score= 93.23% | band=good
+Pruned 6 old nodes (gen < 17).
+10:39:57 | INFO | === t1 ep0 s0225 | pnn=O/C/O unlocked=0 ===
+10:39:57 | INFO | total: raw=0.040159 | score= 99.20% | band=good
+10:39:57 | INFO | next_step: raw=0.020614 | score= 95.88% | band=good
+10:39:57 | INFO | aux_latent: raw=0.019453 | score= 99.03% | band=good
+10:39:57 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:39:57 | INFO | q_loss: raw=0.009818 | score= 99.51% | band=good
+10:39:57 | INFO | holder_loss: raw=0.000000 | score=100.00% | band=good
+10:39:57 | INFO | holder_acc: raw=0.000000 | score=  0.00% | band=bad
+10:39:57 | INFO | entity_acc: raw=1.000000 | score=100.00% | band=good
+10:39:57 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:39:57 | INFO | stress: raw=0.028470 | score= 81.02% | band=good
+Pruned 6 old nodes (gen < 29).
+Pruned 6 old nodes (gen < 41).
+10:40:07 | INFO | === t1 ep0 s0250 | pnn=O/O/L unlocked=0 ===
+10:40:07 | INFO | total: raw=0.055504 | score= 98.89% | band=good
+10:40:07 | INFO | next_step: raw=0.020492 | score= 95.90% | band=good
+10:40:07 | INFO | aux_latent: raw=0.014528 | score= 99.27% | band=good
+10:40:07 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:40:07 | INFO | q_loss: raw=0.027747 | score= 98.61% | band=good
+10:40:07 | INFO | holder_loss: raw=0.000000 | score=100.00% | band=good
+10:40:07 | INFO | holder_acc: raw=0.000000 | score=  0.00% | band=bad
+10:40:07 | INFO | entity_acc: raw=1.000000 | score=100.00% | band=good
+10:40:07 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:40:07 | INFO | stress: raw=0.003352 | score= 97.77% | band=good
+Pruned 6 old nodes (gen < 53).
+10:40:15 | INFO | === [val] t1 ep0 ===
+10:40:15 | INFO | next_step: raw=0.018216 | score= 96.36% | band=good
+10:40:15 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:40:15 | INFO | qacc/who_holds_token: raw=0.768616 | score= 76.86% | band=medium-high
+10:40:15 | INFO | qacc/who_was_first_tagged: raw=0.927140 | score= 92.71% | band=good
+10:40:15 | INFO | qacc/did_alarm_fire: raw=1.000000 | score=100.00% | band=good
+10:40:15 | INFO | qacc/which_entity_occluded: raw=1.000000 | score=100.00% | band=good
+  -> promoting from tier 1
+  -> saved checkpoint to checkpoint_tier1.pt
+
+  ===== Diagnostics =====
+  mean_episodic_read_entropy: 2.086
+  who_holds_token by handoffs:
+    handoffs= 0  acc=1.000  n=164
+    handoffs= 1  acc=0.000  n=33
+    handoffs= 2  acc=0.571  n=7
+    handoffs=3+  acc=0.000  n=7
+  who_was_first_tagged by handoffs:
+    handoffs= 0  acc=0.943  n=194
+    handoffs= 1  acc=0.976  n=41
+    handoffs= 2  acc=1.000  n=5
+    handoffs=3+  acc=1.000  n=12
+  what_was_true_rule (belief revision):
+        with_cue  acc=0.200  n=100
+
+
+=== Tier 2 | modalities=('vision', 'numeric', 'audio') | T=24 | templates=('trigger_delay', 'occlusion_identity', 'handoff', 'handoff', 'handoff', 'false_cue', 'false_cue') ===
+10:40:21 | INFO | === t2 ep0 s0000 | pnn=O/O/O unlocked=0 ===
+10:40:21 | INFO | total: raw=2.057361 | score= 58.85% | band=medium
+10:40:21 | INFO | next_step: raw=0.791705 | score=  0.00% | band=bad
+10:40:21 | INFO | aux_latent: raw=1.345716 | score= 32.71% | band=low-medium
+10:40:21 | INFO | latent_acc: raw=0.125000 | score= 12.50% | band=bad
+10:40:21 | INFO | q_loss: raw=0.301632 | score= 84.92% | band=good
+10:40:21 | INFO | holder_loss: raw=0.970551 | score= 51.47% | band=medium
+10:40:21 | INFO | holder_acc: raw=0.418478 | score= 41.85% | band=medium
+10:40:21 | INFO | entity_acc: raw=0.608696 | score= 60.87% | band=medium-high
+10:40:21 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:40:21 | INFO | stress: raw=0.003307 | score= 97.80% | band=good
+Pruned 6 old nodes (gen < 65).
+Pruned 6 old nodes (gen < 77).
+10:40:37 | INFO | === t2 ep0 s0025 | pnn=O/O/C unlocked=1 ===
+10:40:37 | INFO | total: raw=0.532198 | score= 89.36% | band=good
+10:40:37 | INFO | next_step: raw=0.108658 | score= 78.27% | band=medium-high
+10:40:37 | INFO | aux_latent: raw=0.028765 | score= 98.56% | band=good
+10:40:37 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:40:37 | INFO | q_loss: raw=0.211830 | score= 89.41% | band=good
+10:40:37 | INFO | holder_loss: raw=0.657760 | score= 67.11% | band=medium-high
+10:40:37 | INFO | holder_acc: raw=0.706522 | score= 70.65% | band=medium-high
+10:40:37 | INFO | entity_acc: raw=0.727273 | score= 72.73% | band=medium-high
+10:40:37 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:40:37 | INFO | stress: raw=0.005790 | score= 96.14% | band=good
+Pruned 6 old nodes (gen < 89).
+Pruned 6 old nodes (gen < 101).
+10:40:53 | INFO | === t2 ep0 s0050 | pnn=O/O/O unlocked=0 ===
+10:40:53 | INFO | total: raw=0.518060 | score= 89.64% | band=good
+10:40:53 | INFO | next_step: raw=0.056614 | score= 88.68% | band=good
+10:40:53 | INFO | aux_latent: raw=0.018966 | score= 99.05% | band=good
+10:40:53 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:40:53 | INFO | q_loss: raw=0.170155 | score= 91.49% | band=good
+10:40:53 | INFO | holder_loss: raw=0.939361 | score= 53.03% | band=medium
+10:40:53 | INFO | holder_acc: raw=0.586957 | score= 58.70% | band=medium
+10:40:53 | INFO | entity_acc: raw=0.708333 | score= 70.83% | band=medium-high
+10:40:53 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:40:53 | INFO | stress: raw=0.006417 | score= 95.72% | band=good
+Pruned 6 old nodes (gen < 113).
+Pruned 6 old nodes (gen < 125).
+10:41:08 | INFO | === t2 ep0 s0075 | pnn=O/C/O unlocked=0 ===
+10:41:08 | INFO | total: raw=0.451639 | score= 90.97% | band=good
+10:41:08 | INFO | next_step: raw=0.079824 | score= 84.04% | band=good
+10:41:08 | INFO | aux_latent: raw=0.013902 | score= 99.30% | band=good
+10:41:08 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:41:08 | INFO | q_loss: raw=0.167983 | score= 91.60% | band=good
+10:41:08 | INFO | holder_loss: raw=0.656270 | score= 67.19% | band=medium-high
+10:41:08 | INFO | holder_acc: raw=0.657609 | score= 65.76% | band=medium-high
+10:41:08 | INFO | entity_acc: raw=0.680000 | score= 68.00% | band=medium-high
+10:41:08 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:41:08 | INFO | stress: raw=0.008018 | score= 94.65% | band=good
+Pruned 6 old nodes (gen < 137).
+Pruned 6 old nodes (gen < 149).
+10:41:25 | INFO | === t2 ep0 s0100 | pnn=O/C/O unlocked=0 ===
+10:41:25 | INFO | total: raw=0.326912 | score= 93.46% | band=good
+10:41:25 | INFO | next_step: raw=0.056337 | score= 88.73% | band=good
+10:41:25 | INFO | aux_latent: raw=0.026718 | score= 98.66% | band=good
+10:41:25 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:41:25 | INFO | q_loss: raw=0.157947 | score= 92.10% | band=good
+10:41:25 | INFO | holder_loss: raw=0.330897 | score= 83.46% | band=good
+10:41:25 | INFO | holder_acc: raw=0.934783 | score= 93.48% | band=good
+10:41:25 | INFO | entity_acc: raw=0.640000 | score= 64.00% | band=medium-high
+10:41:25 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:41:25 | INFO | stress: raw=0.011228 | score= 92.51% | band=good
+Pruned 6 old nodes (gen < 161).
+Pruned 6 old nodes (gen < 173).
+10:41:40 | INFO | === t2 ep0 s0125 | pnn=O/C/O unlocked=0 ===
+10:41:40 | INFO | total: raw=0.406192 | score= 91.88% | band=good
+10:41:40 | INFO | next_step: raw=0.053018 | score= 89.40% | band=good
+10:41:40 | INFO | aux_latent: raw=0.006173 | score= 99.69% | band=good
+10:41:40 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:41:40 | INFO | q_loss: raw=0.182443 | score= 90.88% | band=good
+10:41:40 | INFO | holder_loss: raw=0.558816 | score= 72.06% | band=medium-high
+10:41:40 | INFO | holder_acc: raw=0.804348 | score= 80.43% | band=good
+10:41:40 | INFO | entity_acc: raw=0.769231 | score= 76.92% | band=medium-high
+10:41:40 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:41:40 | INFO | stress: raw=0.009666 | score= 93.56% | band=good
+Pruned 6 old nodes (gen < 185).
+Pruned 6 old nodes (gen < 197).
+10:41:55 | INFO | === t2 ep0 s0150 | pnn=O/C/O unlocked=0 ===
+10:41:55 | INFO | total: raw=0.322464 | score= 93.55% | band=good
+10:41:55 | INFO | next_step: raw=0.063094 | score= 87.38% | band=good
+10:41:55 | INFO | aux_latent: raw=0.004750 | score= 99.76% | band=good
+10:41:55 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:41:55 | INFO | q_loss: raw=0.113727 | score= 94.31% | band=good
+10:41:55 | INFO | holder_loss: raw=0.477560 | score= 76.12% | band=medium-high
+10:41:55 | INFO | holder_acc: raw=0.750000 | score= 75.00% | band=medium-high
+10:41:55 | INFO | entity_acc: raw=0.851852 | score= 85.19% | band=good
+10:41:55 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:41:55 | INFO | stress: raw=0.005855 | score= 96.10% | band=good
+Pruned 6 old nodes (gen < 209).
+Pruned 6 old nodes (gen < 221).
+10:42:11 | INFO | === t2 ep0 s0175 | pnn=O/L/O unlocked=1 ===
+10:42:11 | INFO | total: raw=0.288779 | score= 94.22% | band=good
+10:42:11 | INFO | next_step: raw=0.049166 | score= 90.17% | band=good
+10:42:11 | INFO | aux_latent: raw=0.013579 | score= 99.32% | band=good
+10:42:11 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:42:11 | INFO | q_loss: raw=0.154972 | score= 92.25% | band=good
+10:42:11 | INFO | holder_loss: raw=0.259507 | score= 87.02% | band=good
+10:42:11 | INFO | holder_acc: raw=0.885870 | score= 88.59% | band=good
+10:42:11 | INFO | entity_acc: raw=0.857143 | score= 85.71% | band=good
+10:42:11 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:42:11 | INFO | stress: raw=0.009611 | score= 93.59% | band=good
+Pruned 6 old nodes (gen < 233).
+Pruned 6 old nodes (gen < 245).
+Pruned 6 old nodes (gen < 257).
+10:42:27 | INFO | === t2 ep0 s0200 | pnn=O/L/O unlocked=0 ===
+10:42:27 | INFO | total: raw=0.249082 | score= 95.02% | band=good
+10:42:27 | INFO | next_step: raw=0.054321 | score= 89.14% | band=good
+10:42:27 | INFO | aux_latent: raw=0.004436 | score= 99.78% | band=good
+10:42:27 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:42:27 | INFO | q_loss: raw=0.144616 | score= 92.77% | band=good
+10:42:27 | INFO | holder_loss: raw=0.159755 | score= 92.01% | band=good
+10:42:27 | INFO | holder_acc: raw=0.967391 | score= 96.74% | band=good
+10:42:27 | INFO | entity_acc: raw=0.863636 | score= 86.36% | band=good
+10:42:27 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:42:27 | INFO | stress: raw=0.009093 | score= 93.94% | band=good
+Pruned 6 old nodes (gen < 269).
+Pruned 6 old nodes (gen < 281).
+10:42:42 | INFO | === t2 ep0 s0225 | pnn=O/C/O unlocked=0 ===
+10:42:42 | INFO | total: raw=0.061622 | score= 98.77% | band=good
+10:42:42 | INFO | next_step: raw=0.026426 | score= 94.71% | band=good
+10:42:42 | INFO | aux_latent: raw=0.002892 | score= 99.86% | band=good
+10:42:42 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:42:42 | INFO | q_loss: raw=0.026014 | score= 98.70% | band=good
+10:42:42 | INFO | holder_loss: raw=0.025787 | score= 98.71% | band=good
+10:42:42 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:42:42 | INFO | entity_acc: raw=1.000000 | score=100.00% | band=good
+10:42:42 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:42:42 | INFO | stress: raw=0.019085 | score= 87.28% | band=good
+Pruned 6 old nodes (gen < 293).
+Pruned 6 old nodes (gen < 305).
+10:42:58 | INFO | === t2 ep0 s0250 | pnn=O/O/O unlocked=0 ===
+10:42:58 | INFO | total: raw=0.283471 | score= 94.33% | band=good
+10:42:58 | INFO | next_step: raw=0.054658 | score= 89.07% | band=good
+10:42:58 | INFO | aux_latent: raw=0.009898 | score= 99.51% | band=good
+10:42:58 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:42:58 | INFO | q_loss: raw=0.197329 | score= 90.13% | band=good
+10:42:58 | INFO | holder_loss: raw=0.088452 | score= 95.58% | band=good
+10:42:58 | INFO | holder_acc: raw=0.989130 | score= 98.91% | band=good
+10:42:58 | INFO | entity_acc: raw=0.769231 | score= 76.92% | band=medium-high
+10:42:58 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:42:58 | INFO | stress: raw=0.008163 | score= 94.56% | band=good
+10:43:09 | INFO | === [val] t2 ep0 ===
+10:43:09 | INFO | next_step: raw=0.039747 | score= 92.05% | band=good
+10:43:09 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:43:09 | INFO | holder_acc: raw=0.984035 | score= 98.40% | band=good
+10:43:09 | INFO | qacc/who_holds_token: raw=0.939645 | score= 93.96% | band=good
+10:43:09 | INFO | qacc/who_was_first_tagged: raw=0.921834 | score= 92.18% | band=good
+10:43:09 | INFO | qacc/did_alarm_fire: raw=0.962093 | score= 96.21% | band=good
+10:43:09 | INFO | qacc/which_entity_occluded: raw=0.923702 | score= 92.37% | band=good
+10:43:09 | INFO | qacc/what_was_true_rule: raw=0.818182 | score= 81.82% | band=good
+  -> promoting from tier 2
+  -> saved checkpoint to checkpoint_tier2.pt
+
+  ===== Diagnostics =====
+  mean_episodic_read_entropy: 1.956
+  who_holds_token by handoffs:
+    handoffs= 0  acc=1.000  n=84
+    handoffs= 1  acc=0.804  n=102
+    handoffs= 2  acc=0.870  n=23
+    handoffs=3+  acc=0.500  n=16
+  who_was_first_tagged by handoffs:
+    handoffs= 0  acc=0.963  n=108
+    handoffs= 1  acc=0.879  n=99
+    handoffs= 2  acc=0.963  n=27
+    handoffs=3+  acc=1.000  n=15
+  what_was_true_rule (belief revision):
+        with_cue  acc=0.847  n=59
+
+
+=== Tier 3 | modalities=('vision', 'numeric', 'audio', 'text') | T=32 | templates=('trigger_delay', 'occlusion_identity', 'handoff', 'handoff', 'handoff', 'false_cue', 'false_cue') ===
+10:43:18 | INFO | === t3 ep0 s0000 | pnn=O/O/O unlocked=0 ===
+10:43:18 | INFO | total: raw=4.234316 | score= 15.31% | band=bad
+10:43:18 | INFO | next_step: raw=4.044320 | score=  0.00% | band=bad
+10:43:18 | INFO | aux_latent: raw=0.058983 | score= 97.05% | band=good
+10:43:18 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:43:18 | INFO | q_loss: raw=0.127982 | score= 93.60% | band=good
+10:43:18 | INFO | holder_loss: raw=0.108411 | score= 94.58% | band=good
+10:43:18 | INFO | holder_acc: raw=0.975806 | score= 97.58% | band=good
+10:43:18 | INFO | entity_acc: raw=0.761905 | score= 76.19% | band=medium-high
+10:43:18 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:43:18 | INFO | stress: raw=0.001158 | score= 99.23% | band=good
+Pruned 6 old nodes (gen < 317).
+Pruned 6 old nodes (gen < 329).
+10:43:39 | INFO | === t3 ep0 s0025 | pnn=L/L/O unlocked=0 ===
+10:43:39 | INFO | total: raw=0.751494 | score= 84.97% | band=good
+10:43:39 | INFO | next_step: raw=0.572041 | score=  0.00% | band=bad
+10:43:39 | INFO | aux_latent: raw=0.085475 | score= 95.73% | band=good
+10:43:39 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:43:39 | INFO | q_loss: raw=0.116741 | score= 94.16% | band=good
+10:43:39 | INFO | holder_loss: raw=0.066583 | score= 96.67% | band=good
+10:43:39 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:43:39 | INFO | entity_acc: raw=0.833333 | score= 83.33% | band=good
+10:43:39 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:43:39 | INFO | stress: raw=0.002436 | score= 98.38% | band=good
+Pruned 6 old nodes (gen < 341).
+Pruned 6 old nodes (gen < 353).
+10:44:00 | INFO | === t3 ep0 s0050 | pnn=L/L/O unlocked=0 ===
+10:44:00 | INFO | total: raw=0.714912 | score= 85.70% | band=good
+10:44:00 | INFO | next_step: raw=0.493865 | score=  1.23% | band=bad
+10:44:00 | INFO | aux_latent: raw=0.070232 | score= 96.49% | band=good
+10:44:00 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:44:00 | INFO | q_loss: raw=0.159751 | score= 92.01% | band=good
+10:44:00 | INFO | holder_loss: raw=0.087266 | score= 95.64% | band=good
+10:44:00 | INFO | holder_acc: raw=0.995968 | score= 99.60% | band=good
+10:44:00 | INFO | entity_acc: raw=0.791667 | score= 79.17% | band=medium-high
+10:44:00 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:44:00 | INFO | stress: raw=0.005034 | score= 96.64% | band=good
+Pruned 6 old nodes (gen < 365).
+Pruned 6 old nodes (gen < 377).
+10:44:21 | INFO | === t3 ep0 s0075 | pnn=O/O/O unlocked=1 ===
+10:44:21 | INFO | total: raw=0.526794 | score= 89.46% | band=good
+10:44:21 | INFO | next_step: raw=0.256164 | score= 48.77% | band=medium
+10:44:21 | INFO | aux_latent: raw=0.053547 | score= 97.32% | band=good
+10:44:21 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:44:21 | INFO | q_loss: raw=0.220897 | score= 88.96% | band=good
+10:44:21 | INFO | holder_loss: raw=0.076534 | score= 96.17% | band=good
+10:44:21 | INFO | holder_acc: raw=0.987903 | score= 98.79% | band=good
+10:44:21 | INFO | entity_acc: raw=0.833333 | score= 83.33% | band=good
+10:44:21 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:44:21 | INFO | stress: raw=0.007314 | score= 95.12% | band=good
+Pruned 6 old nodes (gen < 389).
+Pruned 6 old nodes (gen < 401).
+Pruned 6 old nodes (gen < 413).
+10:44:42 | INFO | === t3 ep0 s0100 | pnn=O/O/O unlocked=0 ===
+10:44:42 | INFO | total: raw=0.290775 | score= 94.18% | band=good
+10:44:42 | INFO | next_step: raw=0.185013 | score= 63.00% | band=medium-high
+10:44:42 | INFO | aux_latent: raw=0.022010 | score= 98.90% | band=good
+10:44:42 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:44:42 | INFO | q_loss: raw=0.080180 | score= 95.99% | band=good
+10:44:42 | INFO | holder_loss: raw=0.048587 | score= 97.57% | band=good
+10:44:42 | INFO | holder_acc: raw=0.991935 | score= 99.19% | band=good
+10:44:42 | INFO | entity_acc: raw=0.818182 | score= 81.82% | band=good
+10:44:42 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:44:42 | INFO | stress: raw=0.015047 | score= 89.97% | band=good
+Pruned 6 old nodes (gen < 425).
+Pruned 6 old nodes (gen < 437).
+10:45:03 | INFO | === t3 ep0 s0125 | pnn=O/O/O unlocked=1 ===
+10:45:03 | INFO | total: raw=0.248297 | score= 95.03% | band=good
+10:45:03 | INFO | next_step: raw=0.148562 | score= 70.29% | band=medium-high
+10:45:03 | INFO | aux_latent: raw=0.009399 | score= 99.53% | band=good
+10:45:03 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:45:03 | INFO | q_loss: raw=0.077277 | score= 96.14% | band=good
+10:45:03 | INFO | holder_loss: raw=0.059197 | score= 97.04% | band=good
+10:45:03 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:45:03 | INFO | entity_acc: raw=0.954545 | score= 95.45% | band=good
+10:45:03 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:45:03 | INFO | stress: raw=0.017971 | score= 88.02% | band=good
+Pruned 6 old nodes (gen < 449).
+Pruned 6 old nodes (gen < 461).
+10:45:24 | INFO | === t3 ep0 s0150 | pnn=O/O/O unlocked=0 ===
+10:45:24 | INFO | total: raw=0.377241 | score= 92.46% | band=good
+10:45:24 | INFO | next_step: raw=0.235388 | score= 52.92% | band=medium
+10:45:24 | INFO | aux_latent: raw=0.009504 | score= 99.52% | band=good
+10:45:24 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:45:24 | INFO | q_loss: raw=0.110027 | score= 94.50% | band=good
+10:45:24 | INFO | holder_loss: raw=0.090249 | score= 95.49% | band=good
+10:45:24 | INFO | holder_acc: raw=0.983871 | score= 98.39% | band=good
+10:45:24 | INFO | entity_acc: raw=0.809524 | score= 80.95% | band=good
+10:45:24 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:45:24 | INFO | stress: raw=0.016132 | score= 89.25% | band=good
+Pruned 5 old nodes (gen < 473).
+Pruned 6 old nodes (gen < 485).
+10:45:45 | INFO | === t3 ep0 s0175 | pnn=C/L/O unlocked=0 ===
+10:45:45 | INFO | total: raw=0.294383 | score= 94.11% | band=good
+10:45:45 | INFO | next_step: raw=0.141632 | score= 71.67% | band=medium-high
+10:45:45 | INFO | aux_latent: raw=0.010393 | score= 99.48% | band=good
+10:45:45 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:45:45 | INFO | q_loss: raw=0.133599 | score= 93.32% | band=good
+10:45:45 | INFO | holder_loss: raw=0.046518 | score= 97.67% | band=good
+10:45:45 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:45:45 | INFO | entity_acc: raw=0.884615 | score= 88.46% | band=good
+10:45:45 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:45:45 | INFO | stress: raw=0.018304 | score= 87.80% | band=good
+Pruned 6 old nodes (gen < 497).
+Pruned 6 old nodes (gen < 509).
+10:46:06 | INFO | === t3 ep0 s0200 | pnn=C/O/O unlocked=0 ===
+10:46:06 | INFO | total: raw=0.296279 | score= 94.07% | band=good
+10:46:06 | INFO | next_step: raw=0.197396 | score= 60.52% | band=medium-high
+10:46:06 | INFO | aux_latent: raw=0.004855 | score= 99.76% | band=good
+10:46:06 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:46:06 | INFO | q_loss: raw=0.071684 | score= 96.42% | band=good
+10:46:06 | INFO | holder_loss: raw=0.082570 | score= 95.87% | band=good
+10:46:06 | INFO | holder_acc: raw=0.979839 | score= 97.98% | band=good
+10:46:06 | INFO | entity_acc: raw=0.909091 | score= 90.91% | band=good
+10:46:06 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:46:06 | INFO | stress: raw=0.022918 | score= 84.72% | band=good
+Pruned 6 old nodes (gen < 521).
+Pruned 6 old nodes (gen < 533).
+10:46:27 | INFO | === t3 ep0 s0225 | pnn=O/O/O unlocked=0 ===
+10:46:27 | INFO | total: raw=0.380420 | score= 92.39% | band=good
+10:46:27 | INFO | next_step: raw=0.244047 | score= 51.19% | band=medium
+10:46:27 | INFO | aux_latent: raw=0.004869 | score= 99.76% | band=good
+10:46:27 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:46:27 | INFO | q_loss: raw=0.100823 | score= 94.96% | band=good
+10:46:27 | INFO | holder_loss: raw=0.110384 | score= 94.48% | band=good
+10:46:27 | INFO | holder_acc: raw=0.979839 | score= 97.98% | band=good
+10:46:27 | INFO | entity_acc: raw=0.826087 | score= 82.61% | band=good
+10:46:27 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:46:27 | INFO | stress: raw=0.027570 | score= 81.62% | band=good
+Pruned 6 old nodes (gen < 545).
+Pruned 6 old nodes (gen < 557).
+10:46:48 | INFO | === t3 ep0 s0250 | pnn=O/L/O unlocked=0 ===
+10:46:48 | INFO | total: raw=0.224958 | score= 95.50% | band=good
+10:46:48 | INFO | next_step: raw=0.189193 | score= 62.16% | band=medium-high
+10:46:48 | INFO | aux_latent: raw=0.001940 | score= 99.90% | band=good
+10:46:48 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:46:48 | INFO | q_loss: raw=0.016900 | score= 99.16% | band=good
+10:46:48 | INFO | holder_loss: raw=0.059653 | score= 97.02% | band=good
+10:46:48 | INFO | holder_acc: raw=0.975806 | score= 97.58% | band=good
+10:46:48 | INFO | entity_acc: raw=1.000000 | score=100.00% | band=good
+10:46:48 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:46:48 | INFO | stress: raw=0.042181 | score= 71.88% | band=medium-high
+10:47:03 | INFO | === [val] t3 ep0 ===
+10:47:03 | INFO | next_step: raw=0.182780 | score= 63.44% | band=medium-high
+10:47:03 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:47:03 | INFO | holder_acc: raw=0.988155 | score= 98.82% | band=good
+10:47:03 | INFO | qacc/who_holds_token: raw=0.844171 | score= 84.42% | band=good
+10:47:03 | INFO | qacc/who_was_first_tagged: raw=0.891405 | score= 89.14% | band=good
+10:47:03 | INFO | qacc/did_alarm_fire: raw=1.000000 | score=100.00% | band=good
+10:47:03 | INFO | qacc/which_entity_occluded: raw=0.979514 | score= 97.95% | band=good
+10:47:03 | INFO | qacc/what_was_true_rule: raw=1.000000 | score=100.00% | band=good
+Pruned 6 old nodes (gen < 569).
+10:47:04 | INFO | === t3 ep1 s0000 | pnn=C/O/O unlocked=1 ===
+10:47:04 | INFO | total: raw=0.337902 | score= 93.24% | band=good
+10:47:04 | INFO | next_step: raw=0.218179 | score= 56.36% | band=medium
+10:47:04 | INFO | aux_latent: raw=0.001548 | score= 99.92% | band=good
+10:47:04 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:47:04 | INFO | q_loss: raw=0.108468 | score= 94.58% | band=good
+10:47:04 | INFO | holder_loss: raw=0.034938 | score= 98.25% | band=good
+10:47:04 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:47:04 | INFO | entity_acc: raw=0.857143 | score= 85.71% | band=good
+10:47:04 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:47:04 | INFO | stress: raw=0.019534 | score= 86.98% | band=good
+Pruned 6 old nodes (gen < 581).
+Pruned 6 old nodes (gen < 593).
+10:47:24 | INFO | === t3 ep1 s0025 | pnn=C/L/O unlocked=0 ===
+10:47:24 | INFO | total: raw=0.122123 | score= 97.56% | band=good
+10:47:24 | INFO | next_step: raw=0.105604 | score= 78.88% | band=medium-high
+10:47:24 | INFO | aux_latent: raw=0.002153 | score= 99.89% | band=good
+10:47:24 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:47:24 | INFO | q_loss: raw=0.012894 | score= 99.36% | band=good
+10:47:24 | INFO | holder_loss: raw=0.008497 | score= 99.58% | band=good
+10:47:24 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:47:24 | INFO | entity_acc: raw=1.000000 | score=100.00% | band=good
+10:47:24 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:47:24 | INFO | stress: raw=0.034458 | score= 77.03% | band=medium-high
+Pruned 6 old nodes (gen < 605).
+Pruned 6 old nodes (gen < 617).
+10:47:46 | INFO | === t3 ep1 s0050 | pnn=O/L/O unlocked=0 ===
+10:47:46 | INFO | total: raw=0.197669 | score= 96.05% | band=good
+10:47:46 | INFO | next_step: raw=0.106117 | score= 78.78% | band=medium-high
+10:47:46 | INFO | aux_latent: raw=0.002126 | score= 99.89% | band=good
+10:47:46 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:47:46 | INFO | q_loss: raw=0.081133 | score= 95.94% | band=good
+10:47:46 | INFO | holder_loss: raw=0.031184 | score= 98.44% | band=good
+10:47:46 | INFO | holder_acc: raw=0.995968 | score= 99.60% | band=good
+10:47:46 | INFO | entity_acc: raw=0.884615 | score= 88.46% | band=good
+10:47:46 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:47:46 | INFO | stress: raw=0.023033 | score= 84.64% | band=good
+Pruned 6 old nodes (gen < 629).
+Pruned 6 old nodes (gen < 641).
+10:48:07 | INFO | === t3 ep1 s0075 | pnn=O/L/O unlocked=0 ===
+10:48:07 | INFO | total: raw=0.319832 | score= 93.60% | band=good
+10:48:07 | INFO | next_step: raw=0.231032 | score= 53.79% | band=medium
+10:48:07 | INFO | aux_latent: raw=0.002750 | score= 99.86% | band=good
+10:48:07 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:48:07 | INFO | q_loss: raw=0.074742 | score= 96.26% | band=good
+10:48:07 | INFO | holder_loss: raw=0.042277 | score= 97.89% | band=good
+10:48:07 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:48:07 | INFO | entity_acc: raw=0.880000 | score= 88.00% | band=good
+10:48:07 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:48:07 | INFO | stress: raw=0.048361 | score= 67.76% | band=medium-high
+Pruned 6 old nodes (gen < 653).
+Pruned 6 old nodes (gen < 665).
+10:48:29 | INFO | === t3 ep1 s0100 | pnn=O/L/O unlocked=0 ===
+10:48:29 | INFO | total: raw=0.321545 | score= 93.57% | band=good
+10:48:29 | INFO | next_step: raw=0.241037 | score= 51.79% | band=medium
+10:48:29 | INFO | aux_latent: raw=0.002526 | score= 99.87% | band=good
+10:48:29 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:48:29 | INFO | q_loss: raw=0.076848 | score= 96.16% | band=good
+10:48:29 | INFO | holder_loss: raw=0.007989 | score= 99.60% | band=good
+10:48:29 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:48:29 | INFO | entity_acc: raw=0.920000 | score= 92.00% | band=good
+10:48:29 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:48:29 | INFO | stress: raw=0.034330 | score= 77.11% | band=medium-high
+Pruned 6 old nodes (gen < 677).
+Pruned 6 old nodes (gen < 689).
+10:48:50 | INFO | === t3 ep1 s0125 | pnn=O/C/O unlocked=0 ===
+10:48:50 | INFO | total: raw=0.195126 | score= 96.10% | band=good
+10:48:50 | INFO | next_step: raw=0.147046 | score= 70.59% | band=medium-high
+10:48:50 | INFO | aux_latent: raw=0.001045 | score= 99.95% | band=good
+10:48:50 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:48:50 | INFO | q_loss: raw=0.042514 | score= 97.87% | band=good
+10:48:50 | INFO | holder_loss: raw=0.016811 | score= 99.16% | band=good
+10:48:50 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:48:50 | INFO | entity_acc: raw=0.960000 | score= 96.00% | band=good
+10:48:50 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:48:50 | INFO | stress: raw=0.063676 | score= 57.55% | band=medium
+Pruned 6 old nodes (gen < 701).
+Pruned 6 old nodes (gen < 713).
+10:49:11 | INFO | === t3 ep1 s0150 | pnn=O/O/O unlocked=0 ===
+10:49:11 | INFO | total: raw=0.200313 | score= 95.99% | band=good
+10:49:11 | INFO | next_step: raw=0.147354 | score= 70.53% | band=medium-high
+10:49:11 | INFO | aux_latent: raw=0.002644 | score= 99.87% | band=good
+10:49:11 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:49:11 | INFO | q_loss: raw=0.045842 | score= 97.71% | band=good
+10:49:11 | INFO | holder_loss: raw=0.019315 | score= 99.03% | band=good
+10:49:11 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:49:11 | INFO | entity_acc: raw=0.961538 | score= 96.15% | band=good
+10:49:11 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:49:11 | INFO | stress: raw=0.028776 | score= 80.82% | band=good
+Pruned 6 old nodes (gen < 725).
+Pruned 6 old nodes (gen < 737).
+10:49:33 | INFO | === t3 ep1 s0175 | pnn=O/O/O unlocked=0 ===
+10:49:33 | INFO | total: raw=0.376600 | score= 92.47% | band=good
+10:49:33 | INFO | next_step: raw=0.167872 | score= 66.43% | band=medium-high
+10:49:33 | INFO | aux_latent: raw=0.002168 | score= 99.89% | band=good
+10:49:33 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:49:33 | INFO | q_loss: raw=0.205413 | score= 89.73% | band=good
+10:49:33 | INFO | holder_loss: raw=0.007435 | score= 99.63% | band=good
+10:49:33 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:49:33 | INFO | entity_acc: raw=0.857143 | score= 85.71% | band=good
+10:49:33 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:49:33 | INFO | stress: raw=0.018690 | score= 87.54% | band=good
+Pruned 6 old nodes (gen < 749).
+Pruned 6 old nodes (gen < 761).
+10:49:54 | INFO | === t3 ep1 s0200 | pnn=O/O/O unlocked=0 ===
+10:49:54 | INFO | total: raw=0.237183 | score= 95.26% | band=good
+10:49:54 | INFO | next_step: raw=0.214837 | score= 57.03% | band=medium
+10:49:54 | INFO | aux_latent: raw=0.001546 | score= 99.92% | band=good
+10:49:54 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:49:54 | INFO | q_loss: raw=0.019298 | score= 99.04% | band=good
+10:49:54 | INFO | holder_loss: raw=0.007582 | score= 99.62% | band=good
+10:49:54 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:49:54 | INFO | entity_acc: raw=0.952381 | score= 95.24% | band=good
+10:49:54 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:49:54 | INFO | stress: raw=0.090376 | score= 39.75% | band=low-medium
+Pruned 6 old nodes (gen < 773).
+Pruned 6 old nodes (gen < 785).
+10:50:15 | INFO | === t3 ep1 s0225 | pnn=O/L/O unlocked=0 ===
+10:50:15 | INFO | total: raw=0.166111 | score= 96.68% | band=good
+10:50:15 | INFO | next_step: raw=0.113902 | score= 77.22% | band=medium-high
+10:50:15 | INFO | aux_latent: raw=0.000699 | score= 99.97% | band=good
+10:50:15 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:50:15 | INFO | q_loss: raw=0.050611 | score= 97.47% | band=good
+10:50:15 | INFO | holder_loss: raw=0.004159 | score= 99.79% | band=good
+10:50:15 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:50:15 | INFO | entity_acc: raw=0.964286 | score= 96.43% | band=good
+10:50:15 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:50:15 | INFO | stress: raw=0.063963 | score= 57.36% | band=medium
+Pruned 6 old nodes (gen < 797).
+Pruned 6 old nodes (gen < 809).
+10:50:36 | INFO | === t3 ep1 s0250 | pnn=L/L/O unlocked=0 ===
+10:50:36 | INFO | total: raw=0.276235 | score= 94.48% | band=good
+10:50:36 | INFO | next_step: raw=0.182035 | score= 63.59% | band=medium-high
+10:50:36 | INFO | aux_latent: raw=0.001701 | score= 99.91% | band=good
+10:50:36 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:50:36 | INFO | q_loss: raw=0.090895 | score= 95.46% | band=good
+10:50:36 | INFO | holder_loss: raw=0.008180 | score= 99.59% | band=good
+10:50:36 | INFO | holder_acc: raw=0.995968 | score= 99.60% | band=good
+10:50:36 | INFO | entity_acc: raw=0.923077 | score= 92.31% | band=good
+10:50:36 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:50:36 | INFO | stress: raw=0.027627 | score= 81.58% | band=good
+Pruned 6 old nodes (gen < 821).
+10:50:51 | INFO | === [val] t3 ep1 ===
+10:50:51 | INFO | next_step: raw=0.154203 | score= 69.16% | band=medium-high
+10:50:51 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:50:51 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:50:51 | INFO | qacc/who_holds_token: raw=0.849193 | score= 84.92% | band=good
+10:50:51 | INFO | qacc/who_was_first_tagged: raw=0.891405 | score= 89.14% | band=good
+10:50:51 | INFO | qacc/did_alarm_fire: raw=1.000000 | score=100.00% | band=good
+10:50:51 | INFO | qacc/which_entity_occluded: raw=0.979514 | score= 97.95% | band=good
+10:50:51 | INFO | qacc/what_was_true_rule: raw=1.000000 | score=100.00% | band=good
+10:50:52 | INFO | === t3 ep2 s0000 | pnn=O/O/O unlocked=0 ===
+10:50:52 | INFO | total: raw=0.179287 | score= 96.41% | band=good
+10:50:52 | INFO | next_step: raw=0.143814 | score= 71.24% | band=medium-high
+10:50:52 | INFO | aux_latent: raw=0.001171 | score= 99.94% | band=good
+10:50:52 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:50:52 | INFO | q_loss: raw=0.030299 | score= 98.49% | band=good
+10:50:52 | INFO | holder_loss: raw=0.015295 | score= 99.24% | band=good
+10:50:52 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:50:52 | INFO | entity_acc: raw=1.000000 | score=100.00% | band=good
+10:50:52 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:50:52 | INFO | stress: raw=0.070307 | score= 53.13% | band=medium
+Pruned 6 old nodes (gen < 833).
+Pruned 6 old nodes (gen < 845).
+10:51:13 | INFO | === t3 ep2 s0025 | pnn=O/O/O unlocked=0 ===
+10:51:13 | INFO | total: raw=0.271969 | score= 94.56% | band=good
+10:51:13 | INFO | next_step: raw=0.182810 | score= 63.44% | band=medium-high
+10:51:13 | INFO | aux_latent: raw=0.014066 | score= 99.30% | band=good
+10:51:13 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:51:13 | INFO | q_loss: raw=0.074478 | score= 96.28% | band=good
+10:51:13 | INFO | holder_loss: raw=0.025494 | score= 98.73% | band=good
+10:51:13 | INFO | holder_acc: raw=0.995968 | score= 99.60% | band=good
+10:51:13 | INFO | entity_acc: raw=0.920000 | score= 92.00% | band=good
+10:51:13 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:51:13 | INFO | stress: raw=0.036124 | score= 75.92% | band=medium-high
+Pruned 6 old nodes (gen < 857).
+Pruned 6 old nodes (gen < 869).
+10:51:35 | INFO | === t3 ep2 s0050 | pnn=O/O/O unlocked=0 ===
+10:51:35 | INFO | total: raw=0.250748 | score= 94.99% | band=good
+10:51:35 | INFO | next_step: raw=0.189920 | score= 62.02% | band=medium-high
+10:51:35 | INFO | aux_latent: raw=0.005023 | score= 99.75% | band=good
+10:51:35 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:51:35 | INFO | q_loss: raw=0.056096 | score= 97.20% | band=good
+10:51:35 | INFO | holder_loss: raw=0.007399 | score= 99.63% | band=good
+10:51:35 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:51:35 | INFO | entity_acc: raw=0.863636 | score= 86.36% | band=good
+10:51:35 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:51:35 | INFO | stress: raw=0.024749 | score= 83.50% | band=good
+Pruned 6 old nodes (gen < 881).
+Pruned 6 old nodes (gen < 893).
+10:51:56 | INFO | === t3 ep2 s0075 | pnn=O/O/O unlocked=0 ===
+10:51:56 | INFO | total: raw=0.307016 | score= 93.86% | band=good
+10:51:56 | INFO | next_step: raw=0.194646 | score= 61.07% | band=medium-high
+10:51:56 | INFO | aux_latent: raw=0.000441 | score= 99.98% | band=good
+10:51:56 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:51:56 | INFO | q_loss: raw=0.109480 | score= 94.53% | band=good
+10:51:56 | INFO | holder_loss: raw=0.008899 | score= 99.56% | band=good
+10:51:56 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:51:56 | INFO | entity_acc: raw=0.862069 | score= 86.21% | band=good
+10:51:56 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:51:56 | INFO | stress: raw=0.022561 | score= 84.96% | band=good
+Pruned 6 old nodes (gen < 905).
+Pruned 6 old nodes (gen < 917).
+10:52:17 | INFO | === t3 ep2 s0100 | pnn=O/O/O unlocked=0 ===
+10:52:17 | INFO | total: raw=0.176673 | score= 96.47% | band=good
+10:52:17 | INFO | next_step: raw=0.107810 | score= 78.44% | band=medium-high
+10:52:17 | INFO | aux_latent: raw=0.000322 | score= 99.98% | band=good
+10:52:17 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:52:17 | INFO | q_loss: raw=0.062139 | score= 96.89% | band=good
+10:52:17 | INFO | holder_loss: raw=0.021876 | score= 98.91% | band=good
+10:52:17 | INFO | holder_acc: raw=0.995968 | score= 99.60% | band=good
+10:52:17 | INFO | entity_acc: raw=0.954545 | score= 95.45% | band=good
+10:52:17 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:52:17 | INFO | stress: raw=0.062941 | score= 58.04% | band=medium
+Pruned 6 old nodes (gen < 929).
+Pruned 6 old nodes (gen < 941).
+10:52:38 | INFO | === t3 ep2 s0125 | pnn=C/O/O unlocked=0 ===
+10:52:38 | INFO | total: raw=0.162444 | score= 96.75% | band=good
+10:52:38 | INFO | next_step: raw=0.118087 | score= 76.38% | band=medium-high
+10:52:38 | INFO | aux_latent: raw=0.000440 | score= 99.98% | band=good
+10:52:38 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:52:38 | INFO | q_loss: raw=0.042042 | score= 97.90% | band=good
+10:52:38 | INFO | holder_loss: raw=0.006986 | score= 99.65% | band=good
+10:52:38 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:52:38 | INFO | entity_acc: raw=1.000000 | score=100.00% | band=good
+10:52:38 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:52:38 | INFO | stress: raw=0.038122 | score= 74.59% | band=medium-high
+Pruned 6 old nodes (gen < 953).
+Pruned 6 old nodes (gen < 965).
+10:52:59 | INFO | === t3 ep2 s0150 | pnn=L/O/O unlocked=0 ===
+10:52:59 | INFO | total: raw=0.117655 | score= 97.65% | band=good
+10:52:59 | INFO | next_step: raw=0.071643 | score= 85.67% | band=good
+10:52:59 | INFO | aux_latent: raw=0.000949 | score= 99.95% | band=good
+10:52:59 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:52:59 | INFO | q_loss: raw=0.044318 | score= 97.78% | band=good
+10:52:59 | INFO | holder_loss: raw=0.004065 | score= 99.80% | band=good
+10:52:59 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:52:59 | INFO | entity_acc: raw=0.961538 | score= 96.15% | band=good
+10:52:59 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:52:59 | INFO | stress: raw=0.080812 | score= 46.13% | band=medium
+Pruned 6 old nodes (gen < 977).
+Pruned 6 old nodes (gen < 989).
+10:53:20 | INFO | === t3 ep2 s0175 | pnn=O/O/O unlocked=0 ===
+10:53:20 | INFO | total: raw=0.225086 | score= 95.50% | band=good
+10:53:20 | INFO | next_step: raw=0.189023 | score= 62.20% | band=medium-high
+10:53:20 | INFO | aux_latent: raw=0.000800 | score= 99.96% | band=good
+10:53:20 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:53:20 | INFO | q_loss: raw=0.026889 | score= 98.66% | band=good
+10:53:20 | INFO | holder_loss: raw=0.029248 | score= 98.54% | band=good
+10:53:20 | INFO | holder_acc: raw=0.991935 | score= 99.19% | band=good
+10:53:20 | INFO | entity_acc: raw=1.000000 | score=100.00% | band=good
+10:53:20 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:53:20 | INFO | stress: raw=0.076852 | score= 48.77% | band=medium
+Pruned 6 old nodes (gen < 1001).
+Pruned 6 old nodes (gen < 1013).
+Pruned 6 old nodes (gen < 1025).
+10:53:40 | INFO | === t3 ep2 s0200 | pnn=L/C/O unlocked=0 ===
+10:53:40 | INFO | total: raw=0.142471 | score= 97.15% | band=good
+10:53:40 | INFO | next_step: raw=0.115911 | score= 76.82% | band=medium-high
+10:53:40 | INFO | aux_latent: raw=0.000570 | score= 99.97% | band=good
+10:53:40 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:53:40 | INFO | q_loss: raw=0.023842 | score= 98.81% | band=good
+10:53:40 | INFO | holder_loss: raw=0.008113 | score= 99.59% | band=good
+10:53:40 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:53:40 | INFO | entity_acc: raw=0.909091 | score= 90.91% | band=good
+10:53:40 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:53:40 | INFO | stress: raw=0.087497 | score= 41.67% | band=medium
+Pruned 6 old nodes (gen < 1037).
+Pruned 6 old nodes (gen < 1049).
+10:54:01 | INFO | === t3 ep2 s0225 | pnn=O/C/O unlocked=0 ===
+10:54:01 | INFO | total: raw=0.099669 | score= 98.01% | band=good
+10:54:01 | INFO | next_step: raw=0.068374 | score= 86.33% | band=good
+10:54:01 | INFO | aux_latent: raw=0.000465 | score= 99.98% | band=good
+10:54:01 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:54:01 | INFO | q_loss: raw=0.027649 | score= 98.62% | band=good
+10:54:01 | INFO | holder_loss: raw=0.011376 | score= 99.43% | band=good
+10:54:01 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:54:01 | INFO | entity_acc: raw=0.960000 | score= 96.00% | band=good
+10:54:01 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:54:01 | INFO | stress: raw=0.054237 | score= 63.84% | band=medium-high
+Pruned 6 old nodes (gen < 1061).
+Pruned 6 old nodes (gen < 1073).
+10:54:22 | INFO | === t3 ep2 s0250 | pnn=O/O/O unlocked=0 ===
+10:54:22 | INFO | total: raw=0.344120 | score= 93.12% | band=good
+10:54:22 | INFO | next_step: raw=0.246357 | score= 50.73% | band=medium
+10:54:22 | INFO | aux_latent: raw=0.005470 | score= 99.73% | band=good
+10:54:22 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:54:22 | INFO | q_loss: raw=0.093928 | score= 95.30% | band=good
+10:54:22 | INFO | holder_loss: raw=0.003667 | score= 99.82% | band=good
+10:54:22 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:54:22 | INFO | entity_acc: raw=0.862069 | score= 86.21% | band=good
+10:54:22 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:54:22 | INFO | stress: raw=0.075126 | score= 49.92% | band=medium
+10:54:37 | INFO | === [val] t3 ep2 ===
+10:54:37 | INFO | next_step: raw=0.130319 | score= 73.94% | band=medium-high
+10:54:37 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:54:37 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:54:37 | INFO | qacc/who_holds_token: raw=0.853099 | score= 85.31% | band=good
+10:54:37 | INFO | qacc/who_was_first_tagged: raw=0.891405 | score= 89.14% | band=good
+10:54:37 | INFO | qacc/did_alarm_fire: raw=1.000000 | score=100.00% | band=good
+10:54:37 | INFO | qacc/which_entity_occluded: raw=0.977778 | score= 97.78% | band=good
+10:54:37 | INFO | qacc/what_was_true_rule: raw=1.000000 | score=100.00% | band=good
+10:54:38 | INFO | === t3 ep3 s0000 | pnn=C/O/O unlocked=0 ===
+10:54:38 | INFO | total: raw=0.331501 | score= 93.37% | band=good
+10:54:38 | INFO | next_step: raw=0.167892 | score= 66.42% | band=medium-high
+10:54:38 | INFO | aux_latent: raw=0.001338 | score= 99.93% | band=good
+10:54:38 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:54:38 | INFO | q_loss: raw=0.158684 | score= 92.07% | band=good
+10:54:38 | INFO | holder_loss: raw=0.014186 | score= 99.29% | band=good
+10:54:38 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:54:38 | INFO | entity_acc: raw=0.880000 | score= 88.00% | band=good
+10:54:38 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:54:38 | INFO | stress: raw=0.046401 | score= 69.07% | band=medium-high
+Pruned 6 old nodes (gen < 1085).
+Pruned 6 old nodes (gen < 1097).
+10:54:59 | INFO | === t3 ep3 s0025 | pnn=L/O/O unlocked=0 ===
+10:54:59 | INFO | total: raw=0.154221 | score= 96.92% | band=good
+10:54:59 | INFO | next_step: raw=0.106265 | score= 78.75% | band=medium-high
+10:54:59 | INFO | aux_latent: raw=0.001391 | score= 99.93% | band=good
+10:54:59 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:54:59 | INFO | q_loss: raw=0.045673 | score= 97.72% | band=good
+10:54:59 | INFO | holder_loss: raw=0.005294 | score= 99.74% | band=good
+10:54:59 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:54:59 | INFO | entity_acc: raw=0.960000 | score= 96.00% | band=good
+10:54:59 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:54:59 | INFO | stress: raw=0.052259 | score= 65.16% | band=medium-high
+Pruned 6 old nodes (gen < 1109).
+Pruned 6 old nodes (gen < 1121).
+10:55:20 | INFO | === t3 ep3 s0050 | pnn=C/O/O unlocked=0 ===
+10:55:20 | INFO | total: raw=0.333940 | score= 93.32% | band=good
+10:55:20 | INFO | next_step: raw=0.233945 | score= 53.21% | band=medium
+10:55:20 | INFO | aux_latent: raw=0.004254 | score= 99.79% | band=good
+10:55:20 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:55:20 | INFO | q_loss: raw=0.095751 | score= 95.21% | band=good
+10:55:20 | INFO | holder_loss: raw=0.007057 | score= 99.65% | band=good
+10:55:20 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:55:20 | INFO | entity_acc: raw=0.875000 | score= 87.50% | band=good
+10:55:20 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:55:20 | INFO | stress: raw=0.066388 | score= 55.74% | band=medium
+Pruned 6 old nodes (gen < 1133).
+Pruned 6 old nodes (gen < 1145).
+10:55:41 | INFO | === t3 ep3 s0075 | pnn=L/O/O unlocked=0 ===
+10:55:41 | INFO | total: raw=0.146860 | score= 97.06% | band=good
+10:55:41 | INFO | next_step: raw=0.085372 | score= 82.93% | band=good
+10:55:41 | INFO | aux_latent: raw=0.000434 | score= 99.98% | band=good
+10:55:41 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:55:41 | INFO | q_loss: raw=0.059787 | score= 97.01% | band=good
+10:55:41 | INFO | holder_loss: raw=0.004947 | score= 99.75% | band=good
+10:55:41 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:55:41 | INFO | entity_acc: raw=0.880000 | score= 88.00% | band=good
+10:55:41 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:55:41 | INFO | stress: raw=0.051925 | score= 65.38% | band=medium-high
+Pruned 6 old nodes (gen < 1157).
+Pruned 6 old nodes (gen < 1169).
+Pruned 6 old nodes (gen < 1181).
+10:56:02 | INFO | === t3 ep3 s0100 | pnn=O/O/O unlocked=0 ===
+10:56:02 | INFO | total: raw=0.146175 | score= 97.08% | band=good
+10:56:02 | INFO | next_step: raw=0.096403 | score= 80.72% | band=good
+10:56:02 | INFO | aux_latent: raw=0.000402 | score= 99.98% | band=good
+10:56:02 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:56:02 | INFO | q_loss: raw=0.048375 | score= 97.58% | band=good
+10:56:02 | INFO | holder_loss: raw=0.003988 | score= 99.80% | band=good
+10:56:02 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:56:02 | INFO | entity_acc: raw=0.925926 | score= 92.59% | band=good
+10:56:02 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:56:02 | INFO | stress: raw=0.067209 | score= 55.19% | band=medium
+Pruned 6 old nodes (gen < 1193).
+Pruned 6 old nodes (gen < 1205).
+10:56:24 | INFO | === t3 ep3 s0125 | pnn=C/C/O unlocked=0 ===
+10:56:24 | INFO | total: raw=0.207589 | score= 95.85% | band=good
+10:56:24 | INFO | next_step: raw=0.071029 | score= 85.79% | band=good
+10:56:24 | INFO | aux_latent: raw=0.000465 | score= 99.98% | band=good
+10:56:24 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:56:24 | INFO | q_loss: raw=0.134554 | score= 93.27% | band=good
+10:56:24 | INFO | holder_loss: raw=0.005913 | score= 99.70% | band=good
+10:56:24 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:56:24 | INFO | entity_acc: raw=0.869565 | score= 86.96% | band=good
+10:56:24 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:56:24 | INFO | stress: raw=0.054124 | score= 63.92% | band=medium-high
+Pruned 6 old nodes (gen < 1217).
+Pruned 6 old nodes (gen < 1229).
+10:56:44 | INFO | === t3 ep3 s0150 | pnn=L/O/O unlocked=0 ===
+10:56:44 | INFO | total: raw=0.245293 | score= 95.09% | band=good
+10:56:44 | INFO | next_step: raw=0.168108 | score= 66.38% | band=medium-high
+10:56:44 | INFO | aux_latent: raw=0.000932 | score= 99.95% | band=good
+10:56:44 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:56:44 | INFO | q_loss: raw=0.070622 | score= 96.47% | band=good
+10:56:44 | INFO | holder_loss: raw=0.020326 | score= 98.98% | band=good
+10:56:44 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:56:44 | INFO | entity_acc: raw=0.880000 | score= 88.00% | band=good
+10:56:44 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:56:44 | INFO | stress: raw=0.049218 | score= 67.19% | band=medium-high
+Pruned 6 old nodes (gen < 1241).
+Pruned 6 old nodes (gen < 1253).
+10:57:05 | INFO | === t3 ep3 s0175 | pnn=L/O/O unlocked=0 ===
+10:57:05 | INFO | total: raw=0.238418 | score= 95.23% | band=good
+10:57:05 | INFO | next_step: raw=0.143440 | score= 71.31% | band=medium-high
+10:57:05 | INFO | aux_latent: raw=0.000389 | score= 99.98% | band=good
+10:57:05 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:57:05 | INFO | q_loss: raw=0.093506 | score= 95.32% | band=good
+10:57:05 | INFO | holder_loss: raw=0.004261 | score= 99.79% | band=good
+10:57:05 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:57:05 | INFO | entity_acc: raw=0.821429 | score= 82.14% | band=good
+10:57:05 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:57:05 | INFO | stress: raw=0.070671 | score= 52.89% | band=medium
+Pruned 6 old nodes (gen < 1265).
+Pruned 5 old nodes (gen < 1277).
+10:57:26 | INFO | === t3 ep3 s0200 | pnn=O/O/O unlocked=0 ===
+10:57:26 | INFO | total: raw=0.303502 | score= 93.93% | band=good
+10:57:26 | INFO | next_step: raw=0.051316 | score= 89.74% | band=good
+10:57:26 | INFO | aux_latent: raw=0.452758 | score= 77.36% | band=medium-high
+10:57:26 | INFO | latent_acc: raw=0.875000 | score= 87.50% | band=good
+10:57:26 | INFO | q_loss: raw=0.024739 | score= 98.76% | band=good
+10:57:26 | INFO | holder_loss: raw=0.003561 | score= 99.82% | band=good
+10:57:26 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:57:26 | INFO | entity_acc: raw=0.960000 | score= 96.00% | band=good
+10:57:26 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:57:26 | INFO | stress: raw=0.052001 | score= 65.33% | band=medium-high
+Pruned 6 old nodes (gen < 1289).
+Pruned 6 old nodes (gen < 1301).
+10:57:47 | INFO | === t3 ep3 s0225 | pnn=O/O/O unlocked=0 ===
+10:57:47 | INFO | total: raw=0.194894 | score= 96.10% | band=good
+10:57:47 | INFO | next_step: raw=0.130200 | score= 73.96% | band=medium-high
+10:57:47 | INFO | aux_latent: raw=0.000955 | score= 99.95% | band=good
+10:57:47 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:57:47 | INFO | q_loss: raw=0.063535 | score= 96.82% | band=good
+10:57:47 | INFO | holder_loss: raw=0.002273 | score= 99.89% | band=good
+10:57:47 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:57:47 | INFO | entity_acc: raw=0.954545 | score= 95.45% | band=good
+10:57:47 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:57:47 | INFO | stress: raw=0.066553 | score= 55.63% | band=medium
+Pruned 6 old nodes (gen < 1313).
+Pruned 6 old nodes (gen < 1325).
+10:58:08 | INFO | === t3 ep3 s0250 | pnn=O/O/O unlocked=0 ===
+10:58:08 | INFO | total: raw=0.227571 | score= 95.45% | band=good
+10:58:08 | INFO | next_step: raw=0.134558 | score= 73.09% | band=medium-high
+10:58:08 | INFO | aux_latent: raw=0.000428 | score= 99.98% | band=good
+10:58:08 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:58:08 | INFO | q_loss: raw=0.090135 | score= 95.49% | band=good
+10:58:08 | INFO | holder_loss: raw=0.008884 | score= 99.56% | band=good
+10:58:08 | INFO | holder_acc: raw=1.000000 | score=100.00% | band=good
+10:58:08 | INFO | entity_acc: raw=0.892857 | score= 89.29% | band=good
+10:58:08 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+10:58:08 | INFO | stress: raw=0.057173 | score= 61.88% | band=medium-high
+10:58:23 | INFO | === [val] t3 ep3 ===
+10:58:23 | INFO | next_step: raw=0.120987 | score= 75.80% | band=medium-high
+10:58:23 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+10:58:23 | INFO | holder_acc: raw=0.999874 | score= 99.99% | band=good
+10:58:23 | INFO | qacc/who_holds_token: raw=0.861470 | score= 86.15% | band=good
+10:58:23 | INFO | qacc/who_was_first_tagged: raw=0.891405 | score= 89.14% | band=good
+10:58:23 | INFO | qacc/did_alarm_fire: raw=1.000000 | score=100.00% | band=good
+10:58:23 | INFO | qacc/which_entity_occluded: raw=0.966414 | score= 96.64% | band=good
+10:58:23 | INFO | qacc/what_was_true_rule: raw=1.000000 | score=100.00% | band=good
+  -> tier 3 did not reach promotion threshold; continuing anyway
+  -> saved checkpoint to checkpoint_tier3.pt
+
+  ===== Diagnostics =====
+  mean_episodic_read_entropy: 2.589
+  who_holds_token by handoffs:
+    handoffs= 0  acc=1.000  n=74
+    handoffs= 1  acc=0.864  n=103
+    handoffs= 2  acc=0.889  n=27
+    handoffs=3+  acc=0.774  n=31
+  who_was_first_tagged by handoffs:
+    handoffs= 0  acc=0.957  n=93
+    handoffs= 1  acc=0.777  n=112
+    handoffs= 2  acc=0.966  n=29
+    handoffs=3+  acc=1.000  n=31
+  what_was_true_rule (belief revision):
+        with_cue  acc=1.000  n=55

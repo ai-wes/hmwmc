@@ -248,6 +248,9 @@ def build_default_metric_specs() -> dict[str, MetricSpec]:
         "qacc/did_alarm_fire": MetricSpec(ScoreDirection.HIGHER_IS_BETTER, 0.0, 1.0),
         "qacc/which_entity_occluded": MetricSpec(ScoreDirection.HIGHER_IS_BETTER, 0.0, 1.0),
         "qacc/what_was_true_rule": MetricSpec(ScoreDirection.HIGHER_IS_BETTER, 0.0, 1.0),
+        "qacc/did_trigger_before_alarm": MetricSpec(ScoreDirection.HIGHER_IS_BETTER, 0.0, 1.0),
+        "qacc/which_entity_first_occluded": MetricSpec(ScoreDirection.HIGHER_IS_BETTER, 0.0, 1.0),
+        "qacc/did_chain2_fire": MetricSpec(ScoreDirection.HIGHER_IS_BETTER, 0.0, 1.0),
     }
 
 

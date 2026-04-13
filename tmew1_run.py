@@ -334,7 +334,9 @@ def run_curriculum(
             boosted_templates = list(tier.template_pool)
             if "handoff" not in boosted_templates:
                 boosted_templates.append("handoff")
-            boosted_templates.extend(["handoff", "handoff", "false_cue", "false_cue"])
+            if "multi_chain" not in boosted_templates:
+                boosted_templates.append("multi_chain")
+            boosted_templates.extend(["handoff", "handoff", "false_cue", "false_cue", "multi_chain"])
             tier = replace(tier, template_pool=tuple(boosted_templates))
 
         print(f"\n=== Tier {tier.tier} | modalities={tier.enabled_modalities} | T={tier.max_episode_length} | templates={tier.template_pool} ===")
@@ -414,7 +416,7 @@ def run_curriculum(
 def smoke_test() -> None:
     """30-second end-to-end pipeline check. Tiny config, single tier, two batches."""
     print("Running smoke test...")
-    world_cfg = WorldConfig(grid_h=8, grid_w=8, episode_length=12, max_entities=2)
+    world_cfg = WorldConfig(grid_h=8, grid_w=8, episode_length=16, max_entities=4, audio_dim=24, numeric_dim=10, num_latent_rules=6)
     tcfg = TrainConfig(
         batch_size=2,
         train_episodes_per_tier=4,
@@ -424,9 +426,9 @@ def smoke_test() -> None:
     )
     smoke_tier = CurriculumTier(
         tier=1,
-        max_episode_length=12,
+        max_episode_length=16,
         enabled_modalities=("vision", "numeric", "audio"),
-        template_pool=("trigger_delay", "handoff"),
+        template_pool=("trigger_delay", "handoff", "multi_chain"),
         max_delay=3,
         occlusion=False,
         promote_at_accuracy=1.01,

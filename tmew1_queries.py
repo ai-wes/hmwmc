@@ -49,6 +49,9 @@ QUERY_TYPES: Tuple[str, ...] = (
     "who_was_first_tagged",     # answer: entity id
     "did_alarm_fire",           # answer: 0/1
     "which_entity_occluded",    # answer: entity id (or -1 if none)
+    "did_trigger_before_alarm", # answer: 0/1 — temporal ordering
+    "which_entity_first_occluded",  # answer: entity id — who was occluded earliest
+    "did_chain2_fire",          # answer: 0/1 — second causal chain
 )
 
 QUERY_TYPE_TO_IDX: Dict[str, int] = {q: i for i, q in enumerate(QUERY_TYPES)}
@@ -92,7 +95,10 @@ def _step_world_with_handoff(
     max_delay: int,
 ) -> Dict[str, Any]:
     """Drop-in for _step_world that also tracks token transfers."""
-    events: Dict[str, Any] = {"trigger": False, "alarm_fire": False, "occluded_ids": [], "handoff": False}
+    events: Dict[str, Any] = {
+        "trigger": False, "alarm_fire": False, "occluded_ids": [],
+        "handoff": False, "chain2_trigger": False, "chain2_fire": False,
+    }
 
     for e in state.entities:
         e.x = (e.x + e.dx) % cfg.grid_w
@@ -114,12 +120,22 @@ def _step_world_with_handoff(
                 events["new_holder_id"] = e.id
                 break
 
-    # Trigger / alarm logic, identical to base template.
+    # --- Conditional trigger rules based on active_rule ---
+    def _check_trigger_condition(a: Entity, b: Entity) -> bool:
+        rule = state.active_rule
+        if rule <= 1:
+            return abs(a.x - b.x) + abs(a.y - b.y) <= 1
+        elif rule <= 3:
+            return a.color == b.color and abs(a.x - b.x) + abs(a.y - b.y) <= 2
+        else:  # rule 4-5
+            return (a.tagged or b.tagged) and abs(a.x - b.x) + abs(a.y - b.y) <= 1
+
+    # Chain 1: primary alarm
     if not state.alarm_fired and state.alarm_in < 0:
         for i in range(len(state.entities)):
             for j in range(i + 1, len(state.entities)):
                 a, b = state.entities[i], state.entities[j]
-                if abs(a.x - b.x) + abs(a.y - b.y) <= 1:
+                if _check_trigger_condition(a, b):
                     state.alarm_in = state.rng.randint(2, max_delay)
                     events["trigger"] = True
                     a.tagged = True
@@ -134,6 +150,25 @@ def _step_world_with_handoff(
         if state.alarm_in == 0:
             state.alarm_fired = True
             events["alarm_fire"] = True
+
+    # Chain 2 (multi_chain support — always uses simple proximity)
+    if not state.chain2_alarm_fired and state.chain2_alarm_in < 0:
+        for i in range(len(state.entities) - 1, 0, -1):
+            for j in range(i - 1, -1, -1):
+                a, b = state.entities[i], state.entities[j]
+                if abs(a.x - b.x) + abs(a.y - b.y) <= 1:
+                    if not events["trigger"] or (a.id != state.entities[0].id):
+                        state.chain2_alarm_in = state.rng.randint(2, max(3, max_delay // 2))
+                        state.chain2_trigger_pair = (a.id, b.id)
+                        events["chain2_trigger"] = True
+                        break
+            if events["chain2_trigger"]:
+                break
+    if state.chain2_alarm_in > 0:
+        state.chain2_alarm_in -= 1
+        if state.chain2_alarm_in == 0:
+            state.chain2_alarm_fired = True
+            events["chain2_fire"] = True
 
     if state.occluder is not None:
         ox0, oy0, ox1, oy1 = state.occluder
@@ -163,7 +198,10 @@ def generate_episode_with_queries(
     text = np.zeros((T, 1), dtype=np.int64)
 
     last_occluded_id = -1
+    first_occluded_id = -1
     fired_at = -1
+    trigger_at = -1
+    chain2_fired_at = -1
     event_history: List[Dict[str, Any]] = []
 
     for t in range(T):
@@ -175,8 +213,14 @@ def generate_episode_with_queries(
         text[t] = _render_text(state, cfg, events)
         if events["occluded_ids"]:
             last_occluded_id = events["occluded_ids"][0]
+            if first_occluded_id < 0:
+                first_occluded_id = events["occluded_ids"][0]
         if events.get("alarm_fire") and fired_at < 0:
             fired_at = t
+        if events.get("trigger") and trigger_at < 0:
+            trigger_at = t
+        if events.get("chain2_fire") and chain2_fired_at < 0:
+            chain2_fired_at = t
 
     # Guarantee at least one handoff in handoff-template episodes so the model
     # can't solve the query by memorising the prior "entity 0 always holds it."
@@ -214,6 +258,16 @@ def generate_episode_with_queries(
         elif qtype == "which_entity_occluded":
             target = max(0, last_occluded_id)
             queries.append(Query(qtype, target, time_asked, is_binary=False))
+        elif qtype == "did_trigger_before_alarm":
+            # Was the trigger observed before the alarm by query time?
+            target = 1 if (trigger_at >= 0 and fired_at >= 0 and trigger_at < fired_at and fired_at <= time_asked) else 0
+            queries.append(Query(qtype, target, time_asked, is_binary=True))
+        elif qtype == "which_entity_first_occluded":
+            target = max(0, first_occluded_id)
+            queries.append(Query(qtype, target, time_asked, is_binary=False))
+        elif qtype == "did_chain2_fire":
+            target = 1 if chain2_fired_at >= 0 and chain2_fired_at <= time_asked else 0
+            queries.append(Query(qtype, target, time_asked, is_binary=True))
 
     return EpisodeWithQueries(
         vision=vision,

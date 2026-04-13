@@ -132,3 +132,112 @@ Changelog entry.
 
 Start the next thread with: "HPM module is written and unit-tested in isolation. Pick up at integration step 2 — patching the main model file to instantiate HPM and add hpm_sequence to ForwardOutput." The file /home/claude/hpm.py is the canonical source — pull it across.
 Default config to use for first Tier 2 run: HPMConfig(n_slots=1, read_mode="concat", competitive=False) to validate Level 1 matches handoff-doc intent before going to Level 2.
+
+## [2026-04-13 HPM integration(completed results)]
+
+training_logs_4.txt contains the full logs from the first HPM-enabled training run. The run completed all three curriculum tiers without incident, and the final diagnostics show substantial improvements across the board, with no regressions.
+
+All regressions are fixed and metrics are at new all-time highs:
+
+Metric	Regressed (logs 3)	Previous Best	Now (logs 4)
+what_was_true_rule with_cue	0.200	1.000	1.000 ✅
+who_holds_token handoffs=1	0.000	0.636	0.864 ✅
+who_holds_token handoffs=2	0.571	0.143	0.889 ✅
+who_holds_token handoffs=3+	0.000	0.429	0.774 ✅
+Belief revision is back to perfect. Handoff tracking across all bucket counts is substantially better than ever — the single-hop case jumped from 0.636 to 0.864, and even the hardest 3+ handoff bucket went from 0.429 to 0.774. The holder_acc in training is effectively 100% throughout Tier 3 as well.
+
+
+### Scaling Roadmap 
+Good question. Let me assess the current architecture's scale and identify concrete scaling axes. 
+
+
+### Current Scale (Baseline)
+
+| Component | Current Value |
+|---|---|
+| `d_model` | 256 |
+| `num_layers` | 6 |
+| `latent_dim` | 1024 (256×4) |
+| Grid | 16×16, 3 channels |
+| Entities | max 3 |
+| Episodes | max 32 steps |
+| Text | 1 token/step, vocab 64 |
+| Latent rules | 4 |
+| Memory slots | 8 working + 16 episodic |
+| HPM slots | 4 |
+| Templates | `trigger_delay`, `occlusion_identity` |
+
+This is **toy-scale** — probably ~2-5M parameters. Everything the model currently solves is within short-horizon, low-entity-count, single-causal-chain reasoning. Here's how to push it:
+
+---
+
+### Phase 1: Harder Tasks (Same Model Size)
+
+This is the highest-leverage next step — the model has headroom it hasn't been forced to use yet.
+
+**1a. Richer world dynamics:**
+- **More entities**: 3 → 6-8. Forces the model to track more objects simultaneously, making handoff/occlusion harder.
+- **Multi-chain causality**: Right now there's one trigger → alarm chain. Add a second independent causal chain (e.g., entity collision → color-change after delay). The model must track two independent countdowns.
+- **Conditional rules**: The `active_rule` is currently a label — make it actually change world dynamics (e.g., rule 0 = alarm fires immediately, rule 1 = alarm fires only if tagged entity is visible, rule 2 = alarm fires only after 2nd proximity event). This forces genuine *rule inference*.
+- **Handoff chains**: Token can pass through 3-4+ holders before query, with distractors.
+
+**1b. New query types:**
+- **Temporal ordering**: "Did X happen before Y?" 
+- **Counterfactual**: "What would the holder be if handoff #2 hadn't occurred?"
+- **Relational**: "Which entity was closest to entity X when the alarm fired?"
+- **Negation**: "Which entity was never occluded?"
+
+**1c. Longer episodes**: 32 → 64 → 128 steps. This stresses working memory and HPM slot management — the model needs to retain information over much longer horizons.
+
+---
+
+### Phase 2: Scale the Model
+
+Once harder tasks start plateauing at current scale:
+
+| Parameter | Current | Medium | Large |
+|---|---|---|---|
+| `d_model` | 256 | 512 | 1024 |
+| `num_layers` | 6 | 12 | 24 |
+| `latent_multiplier` | 4 | 4 | 4 |
+| `num_cohorts` | 8 | 16 | 32 |
+| `num_memory_slots` | 8 | 16 | 32 |
+| `num_episodic_slots` | 16 | 32 | 64 |
+| `HPM slots` | 4 | 8 | 16 |
+| `text_seq_len` | 1 | 4 | 16 |
+| `text_vocab_size` | 64 | 256 | 1024+ |
+| Grid | 16×16 | 32×32 | 64×64 |
+| Est. params | ~3M | ~25M | ~200M |
+
+Key: **scale model only when tasks demand it**. If the 256-dim model can't solve 8-entity, 128-step, multi-chain episodes after sufficient training, that's the signal to scale.
+
+---
+
+### Phase 3: Toward Multimodal Reasoning
+
+This is where the architecture transitions from a toy world model to a foundation for real intelligence:
+
+**3a. Rich text modality**: Replace the single-token-per-step symbolic encoding with actual natural language. The text encoder becomes a small language model (or adapter to a pretrained one). Episodes include text descriptions like "Entity 2 moved behind the wall" — forcing cross-modal grounding.
+
+**3b. Communication channel**: Add a "communication" modality where the model must *produce* text tokens at certain steps (not just predict next-step). This is the basis for inner monologue / chain-of-thought — the model writes to a scratchpad and reads it back.
+
+**3c. Planning horizon**: Add goal-conditioned queries — "What sequence of events would cause entity X to reach position Y?" Requires the model to simulate forward, not just recall.
+
+**3d. Hierarchical world model**: The current architecture is flat (one sequence). For real-world reasoning, you need hierarchy — low-level sensor prediction + high-level abstract state tracking. The HPM + episodic memory already have this flavor; formalize it into explicit levels.
+
+---
+
+### Recommended Immediate Next Step
+
+Phase 1a is the cheapest, most informative thing to do right now. Want me to implement it? Specifically:
+
+1. **Bump `max_entities` to 6**, add distractor entities that move but don't participate in causal chains
+2. **Add a `multi_chain` template** — two independent trigger→effect chains in the same episode  
+3. **Add conditional rules** — the `active_rule` integer actually determines which trigger condition fires the alarm
+4. **Extend episode length** to 64 for Tier 2+ 
+5. **Add temporal ordering queries** ("did_trigger_before_alarm", "which_entity_first_occluded")
+
+This forces the model to actually *use* its memory architecture rather than getting by with simple pattern matching — and it requires zero parameter increase. 
+
+Completed: *Propose scaling roadmap* (4/4)
+

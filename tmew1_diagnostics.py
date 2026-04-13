@@ -122,7 +122,10 @@ def generate_episode_with_diagnostics(
     text = np.zeros((T, 1), dtype=np.int64)
 
     fired_at = -1
+    trigger_at = -1
+    chain2_fired_at = -1
     last_occluded_id = -1
+    first_occluded_id = -1
     occlusion_steps = 0
     holder_per_step = np.zeros((T,), dtype=np.int64)
     event_history: List[Dict[str, Any]] = []
@@ -147,8 +150,14 @@ def generate_episode_with_diagnostics(
 
         if events.get("alarm_fire") and fired_at < 0:
             fired_at = t
+        if events.get("trigger") and trigger_at < 0:
+            trigger_at = t
+        if events.get("chain2_fire") and chain2_fired_at < 0:
+            chain2_fired_at = t
         if events.get("occluded_ids"):
             last_occluded_id = events["occluded_ids"][0]
+            if first_occluded_id < 0:
+                first_occluded_id = events["occluded_ids"][0]
             occlusion_steps += 1
 
     # Build queries - same logic as tmew1_queries but with the new query type added
@@ -186,6 +195,14 @@ def generate_episode_with_diagnostics(
             queries.append(Query(qtype, max(0, last_occluded_id), time_asked, is_binary=False))
         elif qtype == "what_was_true_rule":
             queries.append(Query(qtype, true_rule, time_asked, is_binary=False))
+        elif qtype == "did_trigger_before_alarm":
+            target = 1 if (trigger_at >= 0 and fired_at >= 0 and trigger_at < fired_at and fired_at <= time_asked) else 0
+            queries.append(Query(qtype, target, time_asked, is_binary=True))
+        elif qtype == "which_entity_first_occluded":
+            queries.append(Query(qtype, max(0, first_occluded_id), time_asked, is_binary=False))
+        elif qtype == "did_chain2_fire":
+            target = 1 if chain2_fired_at >= 0 and chain2_fired_at <= time_asked else 0
+            queries.append(Query(qtype, target, time_asked, is_binary=True))
 
     return EpisodeWithDiagnostics(
         vision=vision,
@@ -276,10 +293,16 @@ def recall_by_difficulty(
     holds_idx = EXTENDED_QUERY_TYPE_TO_IDX["who_holds_token"]
     first_tagged_idx = EXTENDED_QUERY_TYPE_TO_IDX["who_was_first_tagged"]
     true_rule_idx = EXTENDED_QUERY_TYPE_TO_IDX.get("what_was_true_rule", -1)
+    trigger_before_alarm_idx = EXTENDED_QUERY_TYPE_TO_IDX.get("did_trigger_before_alarm", -1)
+    first_occluded_idx = EXTENDED_QUERY_TYPE_TO_IDX.get("which_entity_first_occluded", -1)
+    chain2_fire_idx = EXTENDED_QUERY_TYPE_TO_IDX.get("did_chain2_fire", -1)
 
     bucket_correct: Dict[str, List[int]] = {"0": [], "1": [], "2": [], "3+": []}
     first_tagged_by_handoffs: Dict[str, List[int]] = {"0": [], "1": [], "2": [], "3+": []}
     true_rule_by_falsecue: Dict[str, List[int]] = {"with_cue": [], "without_cue": []}
+    temporal_ordering_correct: List[int] = []
+    first_occluded_correct: List[int] = []
+    chain2_fire_correct: List[int] = []
     entropy_samples: List[float] = []
 
     def bucket_for(n: int) -> str:
@@ -332,6 +355,12 @@ def recall_by_difficulty(
                 elif qtype == true_rule_idx and true_rule_idx >= 0:
                     key = "with_cue" if had_cue else "without_cue"
                     true_rule_by_falsecue[key].append(correct)
+                elif qtype == trigger_before_alarm_idx and trigger_before_alarm_idx >= 0:
+                    temporal_ordering_correct.append(correct)
+                elif qtype == first_occluded_idx and first_occluded_idx >= 0:
+                    first_occluded_correct.append(correct)
+                elif qtype == chain2_fire_idx and chain2_fire_idx >= 0:
+                    chain2_fire_correct.append(correct)
 
     model.train()
     query_head.train()
@@ -346,6 +375,9 @@ def recall_by_difficulty(
         "who_holds_token_by_handoffs": summarize(bucket_correct),
         "who_was_first_tagged_by_handoffs": summarize(first_tagged_by_handoffs),
         "what_was_true_rule_by_falsecue": summarize(true_rule_by_falsecue),
+        "did_trigger_before_alarm": {"acc": (sum(temporal_ordering_correct) / len(temporal_ordering_correct)) if temporal_ordering_correct else None, "n": len(temporal_ordering_correct)},
+        "which_entity_first_occluded": {"acc": (sum(first_occluded_correct) / len(first_occluded_correct)) if first_occluded_correct else None, "n": len(first_occluded_correct)},
+        "did_chain2_fire": {"acc": (sum(chain2_fire_correct) / len(chain2_fire_correct)) if chain2_fire_correct else None, "n": len(chain2_fire_correct)},
         "mean_episodic_read_entropy": float(np.mean(entropy_samples)) if entropy_samples else None,
     }
 
@@ -378,6 +410,15 @@ def format_diagnostics(report: Dict[str, Any]) -> str:
     for k, v in report["what_was_true_rule_by_falsecue"].items():
         if v["n"] > 0:
             lines.append(f"    {k:>12s}  acc={_color_val(v['acc'], acc_spec)}  n={v['n']}")
+    # New query types
+    for key, label in [
+        ("did_trigger_before_alarm", "temporal ordering (trigger<alarm)"),
+        ("which_entity_first_occluded", "first occluded entity"),
+        ("did_chain2_fire", "chain2 fire"),
+    ]:
+        entry = report.get(key)
+        if entry and entry.get("n", 0) > 0:
+            lines.append(f"  {label}:  acc={_color_val(entry['acc'], acc_spec)}  n={entry['n']}")
     lines.append("")
     return "\n".join(lines)
 
