@@ -131,7 +131,7 @@ def generate_episode_with_diagnostics(
 
         events = _step_world_with_handoff(state, handoff, cfg, t, tier.max_delay)
         vision[t] = _render_vision(state, cfg)
-        audio[t] = _render_audio(state, cfg, events)
+        audio[t] = _render_audio(state, cfg, events, current_holder_id=handoff.holder_id)
         audio[t] = _inject_false_cue(audio[t], t, false_cue_step, correction_step)
         numeric[t] = _render_numeric(state, cfg)
         text[t] = _render_text(state, cfg, events)

@@ -1005,25 +1005,36 @@ class HomeostaticController:
         self.global_step: int = 0
         self.last_action_report: List[Dict[str, Any]] = []
 
+    @staticmethod
+    def _safe_metric(value: Any, default: float = 0.0) -> float:
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return float(default)
+        return parsed if math.isfinite(parsed) else float(default)
+
     def _stress_bin(self, stress: float) -> int:
-        return int(np.clip(math.floor(stress * 5.0), 0, 4))
+        safe_stress = max(0.0, self._safe_metric(stress, default=0.0))
+        return int(np.clip(math.floor(safe_stress * 5.0), 0, 4))
 
     def _quantize_bin(self, value: float, bins: int = 5, vmax: float = 1.0) -> int:
-        value = float(np.clip(value, 0.0, vmax))
+        safe_value = max(0.0, self._safe_metric(value, default=0.0))
+        value = float(np.clip(safe_value, 0.0, vmax))
         return int(min(bins - 1, math.floor((value / max(vmax, 1e-8)) * bins)))
 
     def _make_signature(self, layer_idx: int, action: str, diag: Mapping[str, float], stress: float) -> str:
-        density = self._quantize_bin(float(diag.get("density_a", 0.0)), bins=5, vmax=0.5)
-        residual = self._quantize_bin(float(diag.get("residual_ratio", 0.0)), bins=5, vmax=2.0)
-        stale = self._quantize_bin(float(diag.get("stale_ratio", 0.0)), bins=5, vmax=3.0)
+        density = self._quantize_bin(self._safe_metric(diag.get("density_a", 0.0)), bins=5, vmax=0.5)
+        residual = self._quantize_bin(self._safe_metric(diag.get("residual_ratio", 0.0)), bins=5, vmax=2.0)
+        stale = self._quantize_bin(self._safe_metric(diag.get("stale_ratio", 0.0)), bins=5, vmax=3.0)
         return f"L{layer_idx}:{action}:S{self._stress_bin(stress)}:D{density}:R{residual}:T{stale}"
 
     def _score_layer(self, diag: Mapping[str, float], global_loss: float) -> float:
-        density_a = float(diag.get("density_a", 0.0))
-        density_b = float(diag.get("density_b", 0.0))
-        residual_ratio = float(diag.get("residual_ratio", 0.0))
-        stale_ratio = float(diag.get("stale_ratio", 0.0))
-        attn_entropy = float(diag.get("attn_entropy", 0.0))
+        density_a = self._safe_metric(diag.get("density_a", 0.0))
+        density_b = self._safe_metric(diag.get("density_b", 0.0))
+        residual_ratio = self._safe_metric(diag.get("residual_ratio", 0.0))
+        stale_ratio = self._safe_metric(diag.get("stale_ratio", 0.0))
+        attn_entropy = self._safe_metric(diag.get("attn_entropy", 0.0))
+        safe_global_loss = self._safe_metric(global_loss, default=0.0)
         ccfg = self.cfg.controller
         density_penalty = abs(density_a - ccfg.target_density) + abs(density_b - ccfg.target_density)
         residual_penalty = max(0.0, residual_ratio - ccfg.residual_ratio_ceiling)
@@ -1031,7 +1042,7 @@ class HomeostaticController:
         entropy_target = math.log(max(2, self.cfg.num_memory_slots)) * ccfg.target_attn_entropy_scale
         entropy_penalty = abs(attn_entropy - entropy_target)
         return float(
-            global_loss
+            safe_global_loss
             + ccfg.density_penalty_weight * density_penalty
             + ccfg.residual_penalty_weight * residual_penalty
             + ccfg.stale_penalty_weight * stale_penalty
@@ -1078,17 +1089,17 @@ class HomeostaticController:
                 generation_window=getattr(self.cfg.controller, "tapestry_step_window", self.cfg.controller.tapestry_generation_window),
                 decay_rate=0.05,
             )
-            predicted_gain = -float(stats.get("effect", 0.0))
+            predicted_gain = -self._safe_metric(stats.get("effect", 0.0))
             overrides[op] = predicted_gain
-        if float(diag.get("stale_ratio", 0.0)) > 1.25:
+        if self._safe_metric(diag.get("stale_ratio", 0.0)) > 1.25:
             overrides["increase_forget"] = overrides.get("increase_forget", 0.0) + 0.15
             overrides["decrease_write"] = overrides.get("decrease_write", 0.0) + 0.10
-        if float(diag.get("residual_ratio", 0.0)) > 0.90:
+        if self._safe_metric(diag.get("residual_ratio", 0.0)) > 0.90:
             overrides["decrease_residual"] = overrides.get("decrease_residual", 0.0) + 0.15
-        if float(diag.get("density_a", 0.0)) < 0.05:
+        if self._safe_metric(diag.get("density_a", 0.0)) < 0.05:
             overrides["lower_threshold_a"] = overrides.get("lower_threshold_a", 0.0) + 0.10
             overrides["increase_gain_a"] = overrides.get("increase_gain_a", 0.0) + 0.05
-        if float(diag.get("density_b", 0.0)) < 0.05:
+        if self._safe_metric(diag.get("density_b", 0.0)) < 0.05:
             overrides["lower_threshold_b"] = overrides.get("lower_threshold_b", 0.0) + 0.10
             overrides["increase_gain_b"] = overrides.get("increase_gain_b", 0.0) + 0.05
         return overrides

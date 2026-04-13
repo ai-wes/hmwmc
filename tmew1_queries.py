@@ -168,7 +168,7 @@ def generate_episode_with_queries(
     for t in range(T):
         events = _step_world_with_handoff(state, handoff, cfg, t, tier.max_delay)
         vision[t] = _render_vision(state, cfg)
-        audio[t] = _render_audio(state, cfg, events)
+        audio[t] = _render_audio(state, cfg, events, current_holder_id=handoff.holder_id)
         numeric[t] = _render_numeric(state, cfg)
         text[t] = _render_text(state, cfg, events)
         if events["occluded_ids"]:
@@ -190,7 +190,7 @@ def generate_episode_with_queries(
         handoff.holder_id = receiver.id
         # Re-render audio at the forced timestep so the event bit is visible.
         forced_events = {"trigger": False, "alarm_fire": False, "occluded_ids": [], "handoff": True, "new_holder_id": receiver.id}
-        audio[force_t] = _render_audio(state, cfg, forced_events)
+        audio[force_t] = _render_audio(state, cfg, forced_events, current_holder_id=receiver.id)
 
     # Build queries. Time-asked is always toward the back half so the model has
     # to actually carry information forward.
