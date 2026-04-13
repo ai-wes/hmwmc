@@ -345,6 +345,9 @@ def recall_by_difficulty(
             max_entities=holder_feature_dim,
             use_audio="audio" in enabled,
         )
+        if output.hpm_sequence is not None:
+            augmented_seq = torch.cat([augmented_seq, output.hpm_sequence.to(augmented_seq.dtype)], dim=-1)
+            
         entity_logits, binary_logits = query_head(augmented_seq, qtimes, batch["query_types"])
 
         bs, q = batch["query_types"].shape
@@ -387,7 +390,12 @@ def recall_by_difficulty(
             lag = t_max - cc_step
             lag_bucket = "0-5" if lag <= 5 else "6-15" if lag <= 15 else "16-30" if lag <= 30 else "31+"
             syn_qtime = torch.tensor([[t_max]], device=device, dtype=torch.long)
+            # Use a trained "which entity" embedding slot for the probe. The
+            # color_change_idx embedding never receives gradient and would feed
+            # the QueryHead trunk random noise.
+            probe_qtype_idx = EXTENDED_QUERY_TYPE_TO_IDX["which_entity_occluded"]
             syn_qtype = torch.tensor([[probe_qtype_idx]], device=device, dtype=torch.long)
+                
             syn_ent, _ = query_head(augmented_seq[bi:bi+1], syn_qtime, syn_qtype)
             pred = int(syn_ent[0, 0].argmax().item())
             correct = int(pred == cc_entity)

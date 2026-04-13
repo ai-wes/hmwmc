@@ -11,7 +11,7 @@ families are failing in isolation.
 """
 
 from __future__ import annotations
-
+from typing import Optional 
 import argparse
 import random
 from dataclasses import replace
@@ -102,20 +102,40 @@ class CurrentHolderHead(nn.Module):
 
 
 # -----------------------------------------------------------------------------
+# Full query-input builder: base sequence + audio-holder + HPM sequence
+# -----------------------------------------------------------------------------
+def build_query_input(
+    output: ForwardOutput,
+    audio: Optional[Tensor],
+    max_entities: int,
+    use_audio: bool,
+) -> Tensor:
+    """Concatenate base sequence, holder-audio channels, and HPM sequence."""
+    aug = augment_sequence_with_holder_audio(
+        output.sequence,
+        audio,
+        max_entities=max_entities,
+        use_audio=use_audio,
+    )
+    if output.hpm_sequence is not None:
+        aug = torch.cat([aug, output.hpm_sequence.to(aug.dtype)], dim=-1)
+    return aug
+
+# -----------------------------------------------------------------------------
 # Per-query-type accuracy logging
 # -----------------------------------------------------------------------------
 @torch.no_grad()
 def per_qtype_accuracy(
-    output_sequence: Tensor,
+    output: ForwardOutput,
     query_head: QueryHead,
     batch: Dict[str, Tensor],
     holder_feature_dim: int,
     enabled: Sequence[str],
 ) -> Dict[str, float]:
-    t_max = output_sequence.size(1) - 1
+    t_max = output.sequence.size(1) - 1
     qtimes = batch["query_times"].clamp(max=t_max)
-    augmented_seq = augment_sequence_with_holder_audio(
-        output_sequence,
+    augmented_seq = build_query_input(
+        output,
         batch.get("audio"),
         max_entities=holder_feature_dim,
         use_audio="audio" in enabled,
@@ -183,17 +203,17 @@ def train_one_step(
         aux = nn.functional.cross_entropy(rule_logits, batch["latent_rule"])
 
         q_loss, q_metrics = query_train_step_addon(
-            augment_sequence_with_holder_audio(
-                output.sequence,
-                batch.get("audio"),
-                max_entities=holder_feature_dim,
-                use_audio="audio" in enabled,
-            ),
-            query_head,
-            batch,
-            query_type_to_idx=EXTENDED_QUERY_TYPE_TO_IDX,
-            weight=0.5,
-        )
+                    build_query_input(
+                        output,
+                        batch.get("audio"),
+                        max_entities=holder_feature_dim,
+                        use_audio="audio" in enabled,
+                    ),
+                    query_head,
+                    batch,
+                    query_type_to_idx=EXTENDED_QUERY_TYPE_TO_IDX,
+                    weight=0.5,
+                )
 
         holder_loss = torch.zeros((), device=output.sequence.device)
         holder_acc = 0.0
@@ -289,7 +309,7 @@ def evaluate(
             )
         rule_logits = probe(output.sequence)
         rule_acc = (rule_logits.argmax(-1) == batch["latent_rule"]).float().mean().item()
-        qtype_metrics = per_qtype_accuracy(output.sequence, query_head, batch, holder_feature_dim, enabled)
+        qtype_metrics = per_qtype_accuracy(output, query_head, batch, holder_feature_dim, enabled)
         holder_acc = 0.0
         if "audio" in enabled and "holder_per_step" in batch:
             holder_logits = holder_head(output.sequence)
@@ -338,7 +358,10 @@ def run_curriculum(
     model, criterion, probe = build_model(world_cfg)
     # The shared categorical head must cover both entity-id answers and latent-rule answers.
     num_categorical_answers = max(world_cfg.max_entities, world_cfg.num_latent_rules)
-    query_head = QueryHead(model.cfg.d_model + world_cfg.max_entities, num_categorical_answers, len(EXTENDED_QUERY_TYPES))
+
+    hpm_dim = model.hpm.output_dim if getattr(model, "hpm", None) is not None else 0
+    query_head = QueryHead(model.cfg.d_model + world_cfg.max_entities + hpm_dim, num_categorical_answers, len(EXTENDED_QUERY_TYPES))
+
     holder_head = CurrentHolderHead(model.cfg.d_model, world_cfg.max_entities)
 
     model = model.to(tcfg.device)
@@ -504,7 +527,7 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=4)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--train-episodes", type=int, default=2048)
-    parser.add_argument("--no-amp", action="store_true", help="Disable mixed-precision training")
+    parser.add_argument("--amp", action="store_true", help="Enable mixed-precision (float16) training")
     parser.add_argument("--workers", type=int, default=2, help="DataLoader worker processes")
     args = parser.parse_args()
 
@@ -521,7 +544,7 @@ def main() -> None:
         batch_size=args.batch_size,
         train_episodes_per_tier=args.train_episodes,
         epochs_per_tier=args.epochs,
-        use_amp=not args.no_amp and torch.cuda.is_available(),
+        use_amp=args.amp and torch.cuda.is_available(),
         num_workers=args.workers,
     )
     run_curriculum(world_cfg, tcfg)

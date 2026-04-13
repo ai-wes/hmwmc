@@ -241,3 +241,140 @@ This forces the model to actually *use* its memory architecture rather than gett
 
 Completed: *Propose scaling roadmap* (4/4)
 
+
+
+## [2026-04-13 HPM add 0 shot color. Fix attempt handoff=1 regression ]
+
+Good — you sent the current model file. HPM is correctly instantiated in the model (self.hpm = HomeostaticPredictiveMemory(...) at line ~1260), hpm_sequence and hpm_diagnostics flow through ForwardOutput. The model side is intact.
+The bug is on the consumer side, in tmew1_run.py. HPM is generating output, but nothing downstream reads it.
+Three wiring breaks in tmew1_run.py:
+Break 1: train_one_step ignores output.hpm_sequence. Line ~170 calls augment_sequence_with_holder_audio(output.sequence, ...) directly, which returns d_model + max_entities features. HPM output is discarded.
+Break 2: per_qtype_accuracy takes output_sequence instead of the full ForwardOutput. Same issue on the eval path.
+Break 3: QueryHead input dim is d_model + max_entities (line 318). No HPM dim added. Even if you fixed the two breaks above, the QueryHead would reject the wider tensor.
+Here are the exact patches.
+Patch 1: Add build_query_input helper to tmew1_run.py. Insert this after the CurrentHolderHead class definition (around line 92):
+python# -----------------------------------------------------------------------------
+# Full query-input builder: base sequence + audio-holder + HPM sequence
+# -----------------------------------------------------------------------------
+def build_query_input(
+    output: ForwardOutput,
+    audio: Optional[Tensor],
+    max_entities: int,
+    use_audio: bool,
+) -> Tensor:
+    """Concatenate base sequence, holder-audio channels, and HPM sequence."""
+    aug = augment_sequence_with_holder_audio(
+        output.sequence,
+        audio,
+        max_entities=max_entities,
+        use_audio=use_audio,
+    )
+    if output.hpm_sequence is not None:
+        aug = torch.cat([aug, output.hpm_sequence.to(aug.dtype)], dim=-1)
+    return aug
+You'll also need from typing import Optional at the top if it's not already imported.
+Patch 2: Update per_qtype_accuracy signature and body. Replace the whole function:
+python@torch.no_grad()
+def per_qtype_accuracy(
+    output: ForwardOutput,
+    query_head: QueryHead,
+    batch: Dict[str, Tensor],
+    holder_feature_dim: int,
+    enabled: Sequence[str],
+) -> Dict[str, float]:
+    t_max = output.sequence.size(1) - 1
+    qtimes = batch["query_times"].clamp(max=t_max)
+    augmented_seq = build_query_input(
+        output,
+        batch.get("audio"),
+        max_entities=holder_feature_dim,
+        use_audio="audio" in enabled,
+    )
+    entity_logits, binary_logits = query_head(augmented_seq, qtimes, batch["query_types"])
+
+    targets = batch["query_targets"]
+    is_binary = batch["query_is_binary"]
+    qtypes = batch["query_types"]
+
+    metrics: Dict[str, float] = {}
+    for qtype_name, qtype_idx in EXTENDED_QUERY_TYPE_TO_IDX.items():
+        mask = qtypes == qtype_idx
+        if not mask.any():
+            continue
+        if is_binary[mask].all():
+            preds = binary_logits[mask].argmax(-1)
+        else:
+            preds = entity_logits[mask].argmax(-1)
+        acc = (preds == targets[mask]).float().mean().item()
+        metrics[f"qacc/{qtype_name}"] = acc
+    return metrics
+Patch 3: Update the train_one_step call to query_train_step_addon. Find this block (around line 170):
+python        q_loss, q_metrics = query_train_step_addon(
+            augment_sequence_with_holder_audio(
+                output.sequence,
+                batch.get("audio"),
+                max_entities=holder_feature_dim,
+                use_audio="audio" in enabled,
+            ),
+            query_head,
+            batch,
+            query_type_to_idx=EXTENDED_QUERY_TYPE_TO_IDX,
+            weight=0.5,
+        )
+Replace with:
+python        q_loss, q_metrics = query_train_step_addon(
+            build_query_input(
+                output,
+                batch.get("audio"),
+                max_entities=holder_feature_dim,
+                use_audio="audio" in enabled,
+            ),
+            query_head,
+            batch,
+            query_type_to_idx=EXTENDED_QUERY_TYPE_TO_IDX,
+            weight=0.5,
+        )
+Patch 4: Update the evaluate call. Find (around line 290):
+python        qtype_metrics = per_qtype_accuracy(output.sequence, query_head, batch, holder_feature_dim, enabled)
+Replace with:
+python        qtype_metrics = per_qtype_accuracy(output, query_head, batch, holder_feature_dim, enabled)
+Patch 5: Bump QueryHead input dim. Find (around line 318):
+python    query_head = QueryHead(model.cfg.d_model + world_cfg.max_entities, num_categorical_answers, len(EXTENDED_QUERY_TYPES))
+Replace with:
+python    hpm_dim = model.hpm.output_dim if getattr(model, "hpm", None) is not None else 0
+    query_head = QueryHead(model.cfg.d_model + world_cfg.max_entities + hpm_dim, num_categorical_answers, len(EXTENDED_QUERY_TYPES))
+Patch 6 (optional but recommended): Also patch tmew1_diagnostics.py so recall_by_difficulty uses HPM too. The diagnostic report runs on the same model but uses augment_sequence_with_holder_audio directly. If you don't patch it, the diagnostics will silently evaluate HPM-less features while training uses HPM-full features, which means the numbers in the diagnostic block don't match the numbers in [val].
+In tmew1_diagnostics.py, in recall_by_difficulty, change:
+python        augmented_seq = augment_sequence_with_holder_audio(
+            output.sequence,
+            batch.get("audio"),
+            max_entities=holder_feature_dim,
+            use_audio="audio" in enabled,
+        )
+to:
+python        augmented_seq = augment_sequence_with_holder_audio(
+            output.sequence,
+            batch.get("audio"),
+            max_entities=holder_feature_dim,
+            use_audio="audio" in enabled,
+        )
+        if output.hpm_sequence is not None:
+            augmented_seq = torch.cat([augmented_seq, output.hpm_sequence.to(augmented_seq.dtype)], dim=-1)
+Patch 7: Fix the zero-shot probe qtype. In the zero-shot color-change eval block of recall_by_difficulty, change:
+python                syn_qtype = torch.tensor([[color_change_idx]], device=device, dtype=torch.long)
+to:
+python                # Use a trained "which entity" embedding slot for the probe. The
+                # color_change_idx embedding never receives gradient and would feed
+                # the QueryHead trunk random noise.
+                probe_qtype_idx = EXTENDED_QUERY_TYPE_TO_IDX["which_entity_occluded"]
+                syn_qtype = torch.tensor([[probe_qtype_idx]], device=device, dtype=torch.long)
+
+After all seven patches, you'll have:
+
+HPM output flowing into QueryHead during training, eval, and diagnostics.
+QueryHead input dim sized correctly for the larger feature.
+Zero-shot probe using a trained embedding so the accuracy number reflects retention, not noise.
+
+Order of operations. Apply patches 1–5 first, run a smoke test to confirm shapes are right (python tmew1_run.py --smoke). If smoke passes, apply patches 6 and 7, then run the full curriculum.
+Expected behavior after patching. Handoff=1 should return to the 0.58–0.78 range from the earlier HPM-enabled run. Handoff=2 and 3 should climb above the pre-HPM baseline (0.35, 0.31). The zero-shot probe should either (a) stay near chance, in which case the color-change event is genuinely below HPM's surprise resolution and you have a clean scoping result, or (b) show some lift in the short-lag buckets, in which case HPM is doing weak generalization and you can push on sharpening the surprise signal.
+Either way, you'll have a clean, interpretable result instead of a measurement contaminated by broken wiring.
