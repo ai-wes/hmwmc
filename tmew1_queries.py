@@ -85,6 +85,8 @@ class HandoffState:
     holder_id: int
     transfer_history: List[Tuple[int, int, int]]  # (t, from_id, to_id)
     first_tagged_id: int = -1
+    color_change_entity_id: int = -1   # entity that changed color, -1 if none
+    color_change_step: int = -1        # step at which the change occurred
 
 
 def _step_world_with_handoff(
@@ -106,6 +108,17 @@ def _step_world_with_handoff(
         if state.rng.random() < 0.15:
             e.dx = state.rng.choice([-1, 0, 1])
             e.dy = state.rng.choice([-1, 0, 1])
+
+    # --- Color change event: once per episode, ~8% per step ---
+    if handoff.color_change_entity_id < 0 and state.rng.random() < 0.08:
+        e = state.rng.choice(state.entities)
+        candidates = [c for c in range(cfg.vision_channels) if c != e.color]
+        if candidates:
+            e.color = state.rng.choice(candidates)
+            handoff.color_change_entity_id = e.id
+            handoff.color_change_step = t
+            events["color_change"] = True
+            events["color_change_entity_id"] = e.id
 
     # Token transfer: if the holder is adjacent to another entity, hand off with prob 0.9.
     holder = next((e for e in state.entities if e.id == handoff.holder_id), None)

@@ -52,7 +52,7 @@ from tmew1_queries import (
 # -----------------------------------------------------------------------------
 # Extended query type set: adds belief-revision query
 # -----------------------------------------------------------------------------
-EXTENDED_QUERY_TYPES: Tuple[str, ...] = QUERY_TYPES + ("what_was_true_rule",)
+EXTENDED_QUERY_TYPES: Tuple[str, ...] = QUERY_TYPES + ("what_was_true_rule", "which_entity_changed_color")
 EXTENDED_QUERY_TYPE_TO_IDX: Dict[str, int] = {q: i for i, q in enumerate(EXTENDED_QUERY_TYPES)}
 
 
@@ -75,6 +75,8 @@ class EpisodeWithDiagnostics:
     had_false_cue: bool
     cue_corrected_at: int      # -1 if no correction
     occlusion_steps: int
+    color_change_entity_id: int = -1   # entity that changed color, -1 if none
+    color_change_step: int = -1        # step at which color change occurred
 
 
 # -----------------------------------------------------------------------------
@@ -179,7 +181,10 @@ def generate_episode_with_diagnostics(
     q_rng = random.Random(seed + 7)
     queries: List[Query] = []
     back_half_start = max(1, T // 2)
-    pool = list(EXTENDED_QUERY_TYPES) if has_false_cue else list(QUERY_TYPES)
+    # Eval-only query types are never sampled for training/val — only used by
+    # recall_by_difficulty as zero-shot generalization probes.
+    _EVAL_ONLY = {"which_entity_changed_color"}
+    pool = [q for q in (EXTENDED_QUERY_TYPES if has_false_cue else QUERY_TYPES) if q not in _EVAL_ONLY]
 
     for _ in range(num_queries):
         qtype = q_rng.choice(pool)
@@ -218,6 +223,8 @@ def generate_episode_with_diagnostics(
         had_false_cue=has_false_cue,
         cue_corrected_at=correction_step,
         occlusion_steps=occlusion_steps,
+        color_change_entity_id=handoff.color_change_entity_id,
+        color_change_step=handoff.color_change_step,
     )
 
 
@@ -240,6 +247,8 @@ def episode_to_diag_tensors(ep: EpisodeWithDiagnostics) -> Dict[str, Tensor]:
         "num_handoffs": torch.tensor(ep.num_handoffs, dtype=torch.long),
         "had_false_cue": torch.tensor(int(ep.had_false_cue), dtype=torch.long),
         "occlusion_steps": torch.tensor(ep.occlusion_steps, dtype=torch.long),
+        "color_change_entity_id": torch.tensor(ep.color_change_entity_id, dtype=torch.long),
+        "color_change_step": torch.tensor(ep.color_change_step, dtype=torch.long),
     }
 
 
@@ -304,6 +313,9 @@ def recall_by_difficulty(
     temporal_ordering_correct: List[int] = []
     first_occluded_correct: List[int] = []
     chain2_fire_correct: List[int] = []
+    color_change_correct: List[int] = []
+    _lag_keys = ["0-5", "6-15", "16-30", "31+"]
+    color_change_by_lag: Dict[str, List[int]] = {k: [] for k in _lag_keys}
     entropy_samples: List[float] = []
 
     def bucket_for(n: int) -> str:
@@ -363,6 +375,25 @@ def recall_by_difficulty(
                 elif qtype == chain2_fire_idx and chain2_fire_idx >= 0:
                     chain2_fire_correct.append(correct)
 
+        # --- Zero-shot eval: color change query (never trained) ---
+        # Use a *trained* "which entity" embedding so the probe tests HPM
+        # retention, not trunk decoding of a random embedding vector.
+        probe_qtype_idx = EXTENDED_QUERY_TYPE_TO_IDX["which_entity_occluded"]
+        for bi in range(bs):
+            cc_entity = int(batch["color_change_entity_id"][bi].item())
+            cc_step = int(batch["color_change_step"][bi].item())
+            if cc_entity < 0:
+                continue
+            lag = t_max - cc_step
+            lag_bucket = "0-5" if lag <= 5 else "6-15" if lag <= 15 else "16-30" if lag <= 30 else "31+"
+            syn_qtime = torch.tensor([[t_max]], device=device, dtype=torch.long)
+            syn_qtype = torch.tensor([[probe_qtype_idx]], device=device, dtype=torch.long)
+            syn_ent, _ = query_head(augmented_seq[bi:bi+1], syn_qtime, syn_qtype)
+            pred = int(syn_ent[0, 0].argmax().item())
+            correct = int(pred == cc_entity)
+            color_change_correct.append(correct)
+            color_change_by_lag[lag_bucket].append(correct)
+
     model.train()
     query_head.train()
 
@@ -379,6 +410,8 @@ def recall_by_difficulty(
         "did_trigger_before_alarm": {"acc": (sum(temporal_ordering_correct) / len(temporal_ordering_correct)) if temporal_ordering_correct else None, "n": len(temporal_ordering_correct)},
         "which_entity_first_occluded": {"acc": (sum(first_occluded_correct) / len(first_occluded_correct)) if first_occluded_correct else None, "n": len(first_occluded_correct)},
         "did_chain2_fire": {"acc": (sum(chain2_fire_correct) / len(chain2_fire_correct)) if chain2_fire_correct else None, "n": len(chain2_fire_correct)},
+        "which_entity_changed_color": {"acc": (sum(color_change_correct) / len(color_change_correct)) if color_change_correct else None, "n": len(color_change_correct)},
+        "color_change_by_lag": summarize(color_change_by_lag),
         "mean_episodic_read_entropy": float(np.mean(entropy_samples)) if entropy_samples else None,
     }
 
@@ -416,10 +449,18 @@ def format_diagnostics(report: Dict[str, Any]) -> str:
         ("did_trigger_before_alarm", "temporal ordering (trigger<alarm)"),
         ("which_entity_first_occluded", "first occluded entity"),
         ("did_chain2_fire", "chain2 fire"),
+        ("which_entity_changed_color", "color change (zero-shot, untrained)"),
     ]:
         entry = report.get(key)
         if entry and entry.get("n", 0) > 0:
             lines.append(f"  {label}:  acc={_color_val(entry['acc'], acc_spec)}  n={entry['n']}")
+    # Color change retention curve by lag
+    lag_data = report.get("color_change_by_lag", {})
+    if any(v.get("n", 0) > 0 for v in lag_data.values()):
+        lines.append("  color change by lag (steps since event):")
+        for k, v in lag_data.items():
+            if v["n"] > 0:
+                lines.append(f"    lag={k:>5s}  acc={_color_val(v['acc'], acc_spec)}  n={v['n']}")
     lines.append("")
     return "\n".join(lines)
 
