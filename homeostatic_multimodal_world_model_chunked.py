@@ -19,6 +19,8 @@ uploaded component files when available in the same directory.
 """
 
 from dataclasses import dataclass, field
+
+from hpm import HomeostaticPredictiveMemory, HPMConfig
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, MutableMapping, Optional, Sequence, Tuple
@@ -425,6 +427,9 @@ class WorldModelConfig:
     enable_online_homeostasis: bool = True
     detach_state_between_steps: bool = False
     scan_chunk_size: int = 16
+
+    # Homeostatic Predictive Memory
+    hpm_config: HPMConfig = field(default_factory=HPMConfig)
 
 
 # -----------------------------------------------------------------------------
@@ -1317,6 +1322,8 @@ class ForwardOutput:
     numeric_pred: Optional[Tensor] = None
     audio_pred: Optional[Tensor] = None
     vision_pred: Optional[Tensor] = None
+    hpm_sequence: Optional[Tensor] = None
+    hpm_diagnostics: Optional[Dict[str, float]] = None
 
 
 # -----------------------------------------------------------------------------
@@ -1346,6 +1353,13 @@ class HomeostaticMultimodalWorldModel(nn.Module):
         self.final_norm = RMSNorm(cfg.d_model)
         self.event_proj = nn.Linear(2 * cfg.d_model, 1)
         self.controller = HomeostaticController(self.blocks, cfg)
+
+        # Homeostatic Predictive Memory: surprise-gated working memory that
+        # replaces attention as the retention primitive for "most recent event"
+        # queries. See hpm.py for the architectural thesis.
+        self.hpm: Optional[HomeostaticPredictiveMemory] = None
+        if cfg.hpm_config is not None and cfg.hpm_config.enabled:
+            self.hpm = HomeostaticPredictiveMemory(cfg.d_model, cfg.hpm_config)
 
         self.text_head = nn.Linear(cfg.d_model, cfg.modality.text_vocab_size) if cfg.predict_text else None
         self.numeric_head = nn.Linear(cfg.d_model, cfg.modality.numeric_dim) if cfg.predict_numeric else None
@@ -1533,6 +1547,13 @@ class HomeostaticMultimodalWorldModel(nn.Module):
         if self.cfg.detach_state_between_steps:
             state = state.detach()
 
+        # Homeostatic Predictive Memory pass (kept separate from `sequence`
+        # so next-step prediction heads continue to operate on pure block output).
+        hpm_sequence: Optional[Tensor] = None
+        hpm_diagnostics: Optional[Dict[str, float]] = None
+        if self.hpm is not None:
+            hpm_sequence, hpm_diagnostics = self.hpm(sequence)
+
         layer_diagnostics = []
         for layer_stats in per_layer_diagnostics:
             if not layer_stats:
@@ -1574,6 +1595,8 @@ class HomeostaticMultimodalWorldModel(nn.Module):
             numeric_pred=numeric_pred,
             audio_pred=audio_pred,
             vision_pred=vision_pred,
+            hpm_sequence=hpm_sequence,
+            hpm_diagnostics=hpm_diagnostics,
         )
 
     def controller_step(self, loss_value: Tensor | float) -> Dict[str, Any]:
