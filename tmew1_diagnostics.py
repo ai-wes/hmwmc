@@ -64,6 +64,7 @@ class EpisodeWithDiagnostics:
     audio: np.ndarray
     numeric: np.ndarray
     text: np.ndarray
+    holder_per_step: np.ndarray
     latent_rule: int           # the TRUE latent rule, post-correction
     template: str
     length: int
@@ -122,6 +123,8 @@ def generate_episode_with_diagnostics(
     fired_at = -1
     last_occluded_id = -1
     occlusion_steps = 0
+    holder_per_step = np.zeros((T,), dtype=np.int64)
+    event_history: List[Dict[str, Any]] = []
 
     for t in range(T):
         # During the false-cue window, temporarily lie about active_rule in the numeric channel.
@@ -130,11 +133,13 @@ def generate_episode_with_diagnostics(
             state.active_rule = decoy_rule
 
         events = _step_world_with_handoff(state, handoff, cfg, t, tier.max_delay)
+        event_history.append(dict(events))
         vision[t] = _render_vision(state, cfg)
         audio[t] = _render_audio(state, cfg, events, current_holder_id=handoff.holder_id)
         audio[t] = _inject_false_cue(audio[t], t, false_cue_step, correction_step)
         numeric[t] = _render_numeric(state, cfg)
         text[t] = _render_text(state, cfg, events)
+        holder_per_step[t] = handoff.holder_id
 
         if has_false_cue and false_cue_step <= t < correction_step:
             state.active_rule = true_rule_saved
@@ -145,8 +150,22 @@ def generate_episode_with_diagnostics(
             last_occluded_id = events["occluded_ids"][0]
             occlusion_steps += 1
 
-    # Build queries — same logic as tmew1_queries but with the new query type added
+    # Build queries - same logic as tmew1_queries but with the new query type added
     # for false_cue episodes.
+    if template == "handoff" and len(handoff.transfer_history) == 0 and len(state.entities) >= 2:
+        force_t = max(1, T // 4)
+        receiver = next((e for e in state.entities if e.id != handoff.holder_id), state.entities[0])
+        handoff.transfer_history.append((force_t, handoff.holder_id, receiver.id))
+        handoff.holder_id = receiver.id
+        holder_per_step[force_t:] = receiver.id
+        for t in range(force_t, T):
+            forced_events = dict(event_history[t])
+            if t == force_t:
+                forced_events["handoff"] = True
+                forced_events["new_holder_id"] = receiver.id
+            audio[t] = _render_audio(state, cfg, forced_events, current_holder_id=receiver.id)
+            audio[t] = _inject_false_cue(audio[t], t, false_cue_step, correction_step)
+
     q_rng = random.Random(seed + 7)
     queries: List[Query] = []
     back_half_start = max(1, T // 2)
@@ -172,6 +191,7 @@ def generate_episode_with_diagnostics(
         audio=audio,
         numeric=numeric,
         text=text,
+        holder_per_step=holder_per_step,
         latent_rule=true_rule,
         template=template,
         length=T,
@@ -193,6 +213,7 @@ def episode_to_diag_tensors(ep: EpisodeWithDiagnostics) -> Dict[str, Tensor]:
         "audio": torch.from_numpy(ep.audio),
         "numeric": torch.from_numpy(ep.numeric),
         "text": torch.from_numpy(ep.text).squeeze(-1),
+        "holder_per_step": torch.from_numpy(ep.holder_per_step),
         "latent_rule": torch.tensor(ep.latent_rule, dtype=torch.long),
         "query_times": qtimes,
         "query_types": qtypes,

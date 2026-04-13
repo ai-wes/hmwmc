@@ -164,9 +164,11 @@ def generate_episode_with_queries(
 
     last_occluded_id = -1
     fired_at = -1
+    event_history: List[Dict[str, Any]] = []
 
     for t in range(T):
         events = _step_world_with_handoff(state, handoff, cfg, t, tier.max_delay)
+        event_history.append(dict(events))
         vision[t] = _render_vision(state, cfg)
         audio[t] = _render_audio(state, cfg, events, current_holder_id=handoff.holder_id)
         numeric[t] = _render_numeric(state, cfg)
@@ -180,17 +182,17 @@ def generate_episode_with_queries(
     # can't solve the query by memorising the prior "entity 0 always holds it."
     if template == "handoff" and len(handoff.transfer_history) == 0 and len(state.entities) >= 2:
         force_t = max(1, T // 4)
-        donor = state.entities[0]
-        receiver = state.entities[1] if state.entities[1].id != donor.id else state.entities[0]
-        for e in state.entities:
-            if e.id != handoff.holder_id:
-                receiver = e
-                break
+        receiver = next((e for e in state.entities if e.id != handoff.holder_id), state.entities[0])
         handoff.transfer_history.append((force_t, handoff.holder_id, receiver.id))
         handoff.holder_id = receiver.id
-        # Re-render audio at the forced timestep so the event bit is visible.
-        forced_events = {"trigger": False, "alarm_fire": False, "occluded_ids": [], "handoff": True, "new_holder_id": receiver.id}
-        audio[force_t] = _render_audio(state, cfg, forced_events, current_holder_id=receiver.id)
+        # Re-render audio from the forced timestep onward so the ambient holder
+        # identity matches the synthetic transfer for the rest of the episode.
+        for t in range(force_t, T):
+            forced_events = dict(event_history[t])
+            if t == force_t:
+                forced_events["handoff"] = True
+                forced_events["new_holder_id"] = receiver.id
+            audio[t] = _render_audio(state, cfg, forced_events, current_holder_id=receiver.id)
 
     # Build queries. Time-asked is always toward the back half so the model has
     # to actually carry information forward.

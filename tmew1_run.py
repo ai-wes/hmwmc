@@ -79,6 +79,18 @@ class TMEW1QueryDataset(Dataset):
 
 
 # -----------------------------------------------------------------------------
+# Auxiliary holder head
+# -----------------------------------------------------------------------------
+class CurrentHolderHead(nn.Module):
+    def __init__(self, d_model: int, max_entities: int):
+        super().__init__()
+        self.proj = nn.Linear(d_model, max_entities)
+
+    def forward(self, sequence: Tensor) -> Tensor:
+        return self.proj(sequence)
+
+
+# -----------------------------------------------------------------------------
 # Per-query-type accuracy logging
 # -----------------------------------------------------------------------------
 @torch.no_grad()
@@ -117,6 +129,7 @@ def train_one_step(
     criterion: MultimodalPredictionLoss,
     probe: LatentRuleProbe,
     query_head: QueryHead,
+    holder_head: CurrentHolderHead,
     optimizer: torch.optim.Optimizer,
     batch: Dict[str, Tensor],
     tcfg: TrainConfig,
@@ -155,11 +168,23 @@ def train_one_step(
         weight=0.5,
     )
 
-    total = losses.total + tcfg.aux_latent_weight * aux + q_loss
+    holder_loss = torch.zeros((), device=output.sequence.device)
+    holder_acc = 0.0
+    if "audio" in enabled and "holder_per_step" in batch:
+        holder_logits = holder_head(output.sequence)
+        holder_targets = batch["holder_per_step"][:, :-1]
+        holder_loss = nn.functional.cross_entropy(
+            holder_logits.reshape(-1, holder_logits.size(-1)),
+            holder_targets.reshape(-1),
+        )
+        with torch.no_grad():
+            holder_acc = (holder_logits.argmax(-1) == holder_targets).float().mean().item()
+
+    total = losses.total + tcfg.aux_latent_weight * aux + q_loss + 0.3 * holder_loss
 
     total.backward()
     if tcfg.grad_clip > 0:
-        params = list(model.parameters()) + list(probe.parameters()) + list(query_head.parameters())
+        params = list(model.parameters()) + list(probe.parameters()) + list(query_head.parameters()) + list(holder_head.parameters())
         nn.utils.clip_grad_norm_(params, tcfg.grad_clip)
     optimizer.step()
 
@@ -175,6 +200,8 @@ def train_one_step(
         "aux_latent": float(aux.item()),
         "latent_acc": rule_acc,
         "q_loss": float(q_loss.item()),
+        "holder_loss": float(holder_loss.item()),
+        "holder_acc": holder_acc,
         **q_metrics,
     }
     return out
@@ -186,6 +213,7 @@ def evaluate(
     criterion: MultimodalPredictionLoss,
     probe: LatentRuleProbe,
     query_head: QueryHead,
+    holder_head: CurrentHolderHead,
     loader: DataLoader,
     tcfg: TrainConfig,
     enabled: Sequence[str],
@@ -193,6 +221,7 @@ def evaluate(
     model.eval()
     probe.eval()
     query_head.eval()
+    holder_head.eval()
 
     sums: Dict[str, float] = {}
     counts: Dict[str, int] = {}
@@ -223,9 +252,16 @@ def evaluate(
         rule_logits = probe(output.sequence)
         rule_acc = (rule_logits.argmax(-1) == batch["latent_rule"]).float().mean().item()
         qtype_metrics = per_qtype_accuracy(output.sequence, query_head, batch)
+        holder_acc = 0.0
+        if "audio" in enabled and "holder_per_step" in batch:
+            holder_logits = holder_head(output.sequence)
+            holder_targets = batch["holder_per_step"][:, :-1]
+            holder_acc = (holder_logits.argmax(-1) == holder_targets).float().mean().item()
 
         sums["next_step"] = sums.get("next_step", 0.0) + float(losses.total.item()) * bs
         sums["latent_acc"] = sums.get("latent_acc", 0.0) + rule_acc * bs
+        if "audio" in enabled and "holder_per_step" in batch:
+            sums["holder_acc"] = sums.get("holder_acc", 0.0) + holder_acc * bs
         for k, v in qtype_metrics.items():
             sums[k] = sums.get(k, 0.0) + v * bs
             counts[k] = counts.get(k, 0) + bs
@@ -234,8 +270,11 @@ def evaluate(
     model.train()
     probe.train()
     query_head.train()
+    holder_head.train()
 
     out = {"next_step": sums["next_step"] / max(1, n), "latent_acc": sums["latent_acc"] / max(1, n)}
+    if "holder_acc" in sums:
+        out["holder_acc"] = sums["holder_acc"] / max(1, n)
     for k in sums:
         if k.startswith("qacc/"):
             out[k] = sums[k] / max(1, counts[k])
@@ -262,13 +301,15 @@ def run_curriculum(
     # The shared categorical head must cover both entity-id answers and latent-rule answers.
     num_categorical_answers = max(world_cfg.max_entities, world_cfg.num_latent_rules)
     query_head = QueryHead(model.cfg.d_model, num_categorical_answers, len(EXTENDED_QUERY_TYPES))
+    holder_head = CurrentHolderHead(model.cfg.d_model, world_cfg.max_entities)
 
     model = model.to(tcfg.device)
     probe = probe.to(tcfg.device)
     query_head = query_head.to(tcfg.device)
+    holder_head = holder_head.to(tcfg.device)
 
     optimizer = torch.optim.AdamW(
-        list(model.parameters()) + list(probe.parameters()) + list(query_head.parameters()),
+        list(model.parameters()) + list(probe.parameters()) + list(query_head.parameters()) + list(holder_head.parameters()),
         lr=tcfg.lr,
         weight_decay=tcfg.weight_decay,
     )
@@ -292,7 +333,7 @@ def run_curriculum(
         for epoch in range(tcfg.epochs_per_tier):
             for step, batch in enumerate(train_loader):
                 batch = {k: v.to(tcfg.device) for k, v in batch.items()}
-                stats = train_one_step(model, criterion, probe, query_head, optimizer, batch, tcfg, tier.enabled_modalities)
+                stats = train_one_step(model, criterion, probe, query_head, holder_head, optimizer, batch, tcfg, tier.enabled_modalities)
                 if step % tcfg.log_every == 0:
                     summary = summarize_controller_report(model._last_forward_report)
                     step_metrics = {
@@ -301,6 +342,8 @@ def run_curriculum(
                         "aux_latent": stats["aux_latent"],
                         "latent_acc": stats["latent_acc"],
                         "q_loss": stats["q_loss"],
+                        "holder_loss": stats["holder_loss"],
+                        "holder_acc": stats["holder_acc"],
                         "entity_acc": stats.get("entity_acc", 0.0),
                         "binary_acc": stats.get("binary_acc", 0.0),
                     }
@@ -319,7 +362,7 @@ def run_curriculum(
                         specs=specs,
                     )
 
-            val = evaluate(model, criterion, probe, query_head, val_loader, tcfg, tier.enabled_modalities)
+            val = evaluate(model, criterion, probe, query_head, holder_head, val_loader, tcfg, tier.enabled_modalities)
             log_training_snapshot(
                 score_logger,
                 step_label=f"[val] t{tier.tier} ep{epoch}",
