@@ -383,7 +383,7 @@ def collate(batch: Sequence[Dict[str, Any]]) -> Dict[str, Tensor]:
 # -----------------------------------------------------------------------------
 @dataclass
 class TrainConfig:
-    batch_size: int = 32
+    batch_size: int = 8
     train_episodes_per_tier: int = 2048
     val_episodes: int = 256
     epochs_per_tier: int = 4
@@ -391,7 +391,7 @@ class TrainConfig:
     weight_decay: float = 1e-2
     grad_clip: float = 1.0
     aux_latent_weight: float = 0.5
-    log_every: int = 25
+    log_every: int = 10
     warmup_steps: int = 5
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     seed: int = 0
@@ -423,14 +423,14 @@ def build_model(world_cfg: WorldConfig) -> Tuple[HomeostaticMultimodalWorldModel
     )
     cfg = WorldModelConfig(
         modality=modality,
-        d_model=128,
-        num_layers=3,
+        d_model=256,
+        num_layers=6,
         num_cohorts=8,
-        num_memory_slots=16,
-        num_episodic_slots=32,
+        num_memory_slots=32,
+        num_episodic_slots=64,
         controller=ControllerConfig(
             exploit_budget=10.0,
-            unlock_stress_threshold=0.08,
+            unlock_stress_threshold=0.18,
             stress_threshold=0.30,
             intervention_interval=4,
             strategic_unlock_fraction=0.50,
