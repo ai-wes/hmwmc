@@ -414,6 +414,8 @@ def train_one_step(
         "holder_acc": holder_acc,
         **q_metrics,
     }
+    for mod_name, mod_loss in losses.parts.items():
+        out[f"loss/{mod_name}"] = float(mod_loss.item())
     return out
 
 
@@ -501,6 +503,7 @@ def run_curriculum(
     tcfg: TrainConfig,
     tiers: Sequence[CurriculumTier] = DEFAULT_TIERS,
     num_queries: int = 4,
+    resume_from: Optional[str] = None,
 ) -> None:
     torch.manual_seed(tcfg.seed)
     np.random.seed(tcfg.seed)
@@ -531,8 +534,29 @@ def run_curriculum(
 
     scaler = GradScaler("cuda", enabled=tcfg.use_amp)
 
+    # ── Resume from checkpoint ──────────────────────────────────────────
+    _resume_after_tier = 0  # 0 means start from tier 1
+    if resume_from is not None:
+        print(f"Loading checkpoint from {resume_from} ...")
+        ckpt = torch.load(resume_from, map_location=tcfg.device, weights_only=False)
+        model.load_state_dict(ckpt["model"])
+        probe.load_state_dict(ckpt["probe"])
+        query_head.load_state_dict(ckpt["query_head"])
+        holder_head.load_state_dict(ckpt["holder_head"])
+        optimizer.load_state_dict(ckpt["optimizer"])
+        if "scaler" in ckpt and tcfg.use_amp:
+            scaler.load_state_dict(ckpt["scaler"])
+        _resume_after_tier = ckpt.get("tier", 0)
+        print(f"  -> resumed from tier {_resume_after_tier} checkpoint")
+        del ckpt
+
     prev_tier_modalities: Tuple[str, ...] = ()
     for tier in tiers:
+        # Skip tiers already completed in the checkpoint
+        if tier.tier <= _resume_after_tier:
+            prev_tier_modalities = tier.enabled_modalities
+            print(f"\n=== Tier {tier.tier} | SKIPPED (already completed in checkpoint) ===")
+            continue
         if tier.tier >= 2:
             boosted_templates = list(tier.template_pool)
             if "handoff" not in boosted_templates:
@@ -612,6 +636,9 @@ def run_curriculum(
                         "entity_acc": stats.get("entity_acc", 0.0),
                         "binary_acc": stats.get("binary_acc", 0.0),
                     }
+                    for _mk in ("loss/text", "loss/vision", "loss/audio", "loss/numeric"):
+                        if _mk in stats:
+                            step_metrics[_mk] = stats[_mk]
                     stresses = summary.get("stresses") or []
                     if stresses:
                         step_metrics["stress"] = float(np.mean(np.asarray(stresses, dtype=np.float32)))
@@ -659,6 +686,7 @@ def run_curriculum(
             "holder_head": holder_head.state_dict(),
             "probe": probe.state_dict(),
             "optimizer": optimizer.state_dict(),
+            "scaler": scaler.state_dict(),
         }, ckpt_path)
         print(f"  -> saved checkpoint to {ckpt_path}")
 
@@ -713,6 +741,7 @@ def main() -> None:
     parser.add_argument("--train-episodes", type=int, default=2048)
     parser.add_argument("--amp", action="store_true", help="Enable mixed-precision (float16) training")
     parser.add_argument("--workers", type=int, default=2, help="DataLoader worker processes")
+    parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint .pt file to resume from")
     args = parser.parse_args()
 
     if args.viz:
@@ -731,7 +760,7 @@ def main() -> None:
         use_amp=args.amp and torch.cuda.is_available(),
         num_workers=args.workers,
     )
-    run_curriculum(world_cfg, tcfg)
+    run_curriculum(world_cfg, tcfg, resume_from=args.resume)
 
 
 if __name__ == "__main__":
