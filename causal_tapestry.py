@@ -37,8 +37,8 @@ class CausalTapestry:
         self._max_seen_generation: int = 0
 
         # --- Directional memory and other features remain the same ---
-        self._ctx_maps = {'action': {}, 'island': {}, 'pnn_state': {}, 'parent_types': {}}
-        self._ctx_next_id = {'action': 0, 'island': 0, 'pnn_state': 0, 'parent_types': 0}
+        self._ctx_maps = {'action': {}, 'layer_id': {}, 'pnn_state': {}, 'parent_types': {}}
+        self._ctx_next_id = {'action': 0, 'layer_id': 0, 'pnn_state': 0, 'parent_types': 0}
         self.direction_stats: dict[tuple[int, int], dict] = {}
         self.PROJ_DIM: int = 32
         self.RING_SIZE: int = 32
@@ -114,11 +114,21 @@ class CausalTapestry:
                 self._ensure_node_edges(gene_id)
         self._prune_graph_if_needed()
 
+    @staticmethod
+    def _normalize_context_fields(details: Dict[str, Any]) -> Dict[str, Any]:
+        normalized = dict(details)
+        if "layer_id" not in normalized and "island" in normalized:
+            normalized["layer_id"] = normalized["island"]
+        if "controller_step" not in normalized and "generation" in normalized:
+            normalized["controller_step"] = normalized["generation"]
+        return normalized
+
     def add_event_node(self, event_id: str, event_type: str, generation: int, details: Dict):
         if not self.enable_events or (self.event_sampling_prob < 1.0 and random.random() > self.event_sampling_prob):
             return
 
-        eff_val = float(details.get('effect', 0.0))
+        normalized_details = self._normalize_context_fields(details)
+        eff_val = float(normalized_details.get('effect', 0.0))
         if self.log_only_extremes and not (eff_val <= self.effect_good_threshold or eff_val >= self.effect_bad_threshold):
             return
 
@@ -126,8 +136,10 @@ class CausalTapestry:
         with self._lock:
             cdetails = details
             if self.compact_event_details:
-                allowed = {'action', 'effect', 'island', 'pnn_state', 'stress_bin', 'parent_types', 'child_has_quantum', 'strategy_used'}
-                cdetails = {k: v for k, v in details.items() if k in allowed}
+                allowed = {'action', 'effect', 'layer_id', 'layer_group', 'pnn_state', 'stress_bin', 'parent_types', 'child_has_quantum', 'strategy_used'}
+                cdetails = {k: v for k, v in normalized_details.items() if k in allowed}
+            else:
+                cdetails = normalized_details
 
             self._max_seen_generation = max(self._max_seen_generation, generation)
             self.nodes[event_id] = {
@@ -145,12 +157,12 @@ class CausalTapestry:
         self._prune_by_generation_if_needed(generation)
 
         # Directional stats and memory logic remains the same, as it's not tied to networkx
-        if event_type == 'MUTATION' and details.get('action') in ('recombine', 'mutate'):
-            vec = details.get('mutation_vector')
+        if event_type == 'MUTATION' and normalized_details.get('action') in ('recombine', 'mutate'):
+            vec = normalized_details.get('mutation_vector')
             if vec is not None:
-                self._update_direction_stats(self._get_action_id(details['action']), self._get_context_id(details), np.asarray(vec, dtype=np.float32), eff_val)
+                self._update_direction_stats(self._get_action_id(normalized_details['action']), self._get_context_id(normalized_details), np.asarray(vec, dtype=np.float32), eff_val)
                 if eff_val < 0.0:
-                    self._store_directional_effect(details['action'], details, vec)
+                    self._store_directional_effect(normalized_details['action'], normalized_details, vec)
 
     def _store_directional_effect(self, action, details, vec):
         """Helper for storing successful mutation vectors."""
@@ -186,6 +198,7 @@ class CausalTapestry:
             nodes_snapshot = list(self.nodes.items())
             ts_snapshot = dict(self.event_timestamps)
 
+        normalized_filters = self._normalize_context_fields(context_filters)
         relevant_effects = []
         weights = []
         current_time = datetime.now().timestamp()
@@ -196,7 +209,7 @@ class CausalTapestry:
             
             try:
                 details_str = data.get('details', '{}')
-                details = json.loads(details_str)
+                details = self._normalize_context_fields(json.loads(details_str))
             except (json.JSONDecodeError, TypeError):
                 continue
 
@@ -204,7 +217,7 @@ class CausalTapestry:
                 continue
 
             # Context matching
-            if all(details.get(k) == v for k, v in context_filters.items()):
+            if all(details.get(k) == v for k, v in normalized_filters.items()):
                 effect = data.get('effect', 0.0)
                 timestamp = ts_snapshot.get(node_id, current_time)
                 time_diff = (current_time - timestamp) / 3600
@@ -330,13 +343,14 @@ class CausalTapestry:
     # Methods like _make_context_key, _get_action_id, _update_direction_stats, etc., are unchanged.
     # We include them here for completeness.
     def _make_context_key(self, details: Dict[str, Any]) -> tuple:
-        island = details.get('island')
-        pnn_state = details.get('pnn_state')
-        stress_bin = details.get('stress_bin')
-        parent_types = details.get('parent_types')
+        normalized = self._normalize_context_fields(details)
+        layer_id = normalized.get('layer_id')
+        pnn_state = normalized.get('pnn_state')
+        stress_bin = normalized.get('stress_bin')
+        parent_types = normalized.get('parent_types')
         if isinstance(parent_types, (list, tuple)):
             parent_types = tuple(sorted(parent_types))
-        return (island, pnn_state, stress_bin, parent_types)
+        return (layer_id, pnn_state, stress_bin, parent_types)
 
     def _get_action_id(self, val: str) -> int:
         if val not in self._ctx_maps['action']:
@@ -347,20 +361,22 @@ class CausalTapestry:
     def _get_context_id(self, context: Dict[str, Any]) -> int:
         # This logic can be simplified or kept as is.
         # For simplicity, we'll keep the existing encoding logic.
+        normalized = self._normalize_context_fields(context)
+
         def _get_generic_ctx_id(key: str, val) -> int:
             if val not in self._ctx_maps[key]:
                 self._ctx_maps[key][val] = self._ctx_next_id[key]
                 self._ctx_next_id[key] += 1
             return self._ctx_maps[key][val]
         
-        island_id = _get_generic_ctx_id('island', context.get('island'))
-        pnn_id = _get_generic_ctx_id('pnn_state', context.get('pnn_state'))
-        parent_types = context.get('parent_types')
+        layer_id = _get_generic_ctx_id('layer_id', normalized.get('layer_id'))
+        pnn_id = _get_generic_ctx_id('pnn_state', normalized.get('pnn_state'))
+        parent_types = normalized.get('parent_types')
         if isinstance(parent_types, (list, tuple)):
             parent_types = tuple(sorted(parent_types))
         parent_id = _get_generic_ctx_id('parent_types', parent_types)
         
-        return int((island_id & 0xFF) << 16 | (pnn_id & 0xFF) << 8 | (parent_id & 0xFF))
+        return int((layer_id & 0xFF) << 16 | (pnn_id & 0xFF) << 8 | (parent_id & 0xFF))
 
     def _get_proj(self, orig_dim: int) -> np.ndarray:
         if orig_dim not in self._proj_cache:

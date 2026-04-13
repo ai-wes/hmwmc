@@ -34,28 +34,38 @@ class CircadianGate:
 
     Usage:
         cfg = CircadianGateConfig()
-        gate = CircadianGate(cfg, island_id=0, num_islands=5, dimension=30)
-        gate.update(generation)
+        gate = CircadianGate(cfg, layer_index=0, num_layers=5, dimension=30)
+        gate.update(controller_step)
         if gate.is_day: ...
         noise_scale *= gate.plasticity_multiplier
     """
     def __init__(self,
                  config: CircadianGateConfig,
-                 island_id: int,
-                 num_islands: int,
-                 dimension: Optional[int] = None):
+                 layer_index: Optional[int] = None,
+                 num_layers: Optional[int] = None,
+                 dimension: Optional[int] = None,
+                 **legacy_kwargs):
+        if layer_index is None:
+            layer_index = legacy_kwargs.pop("island_id", None)
+        if num_layers is None:
+            num_layers = legacy_kwargs.pop("num_islands", None)
+        if legacy_kwargs:
+            unexpected = ", ".join(sorted(legacy_kwargs.keys()))
+            raise TypeError(f"Unexpected CircadianGate kwargs: {unexpected}")
+        if layer_index is None or num_layers is None:
+            raise TypeError("CircadianGate requires layer_index and num_layers.")
         self.config = config
         self.period = int(max(1, config.period))
-        base_offset = (float(island_id) / max(1, int(num_islands))) * self.period
+        base_offset = (float(layer_index) / max(1, int(num_layers))) * self.period
         self.phase_offset = base_offset + _deterministic_jitter(
-            island_id, num_islands, self.period, config.phase_jitter
+            layer_index, num_layers, self.period, config.phase_jitter
         )
         self.dimension = int(dimension) if dimension is not None else None
         self.is_day: bool = True
         self.plasticity_multiplier: float = config.day_plasticity
 
-    def update(self, generation: int) -> None:
-        time_in_cycle = (float(generation) + float(self.phase_offset)) % float(self.period)
+    def update(self, controller_step: int) -> None:
+        time_in_cycle = (float(controller_step) + float(self.phase_offset)) % float(self.period)
         highd = (self.dimension is not None
                  and self.dimension >= self.config.high_dim_threshold)
         day_frac = self.config.day_fraction_highd if highd else self.config.day_fraction_static

@@ -26,120 +26,265 @@ class PNNConfig:
     drain_success_factor: float = 0.5
     drain_failure_factor: float = 1.5
 
-class PerineuronalNet:
-    """PNN with exploitation budget and explicit force_unlock API."""
-    def __init__(self, cell_id: str, exploit_budget: float = 100.0, config: PNNConfig = PNNConfig()):
-        self.cfg = config
-        self.cell_id = cell_id
-        self.state = PNN_STATE.OPEN
-        self.generations_in_phase = 0
-        self.plasticity_multiplier = 1.0
-        self.stability_history = deque(maxlen=10)
-        self.refractory_until: Optional[int] = None
+    @property
+    def closing_steps(self) -> int:
+        return self.closing_generations
 
-        self.exploit_budget = float(exploit_budget)
-        self.initial_exploit_budget = float(exploit_budget)
-        self.fitness_at_lock: Optional[float] = None
-        self.best_fitness_in_lock_phase: Optional[float] = None
-        self.recent_exploit_evals: float = 0.0
-        self.recent_exploit_improvement: float = 0.0
-        self.locked_phase_fitness_history: List[float] = []
-        self.locked_phase_start_gen: Optional[int] = None
+    @property
+    def time_decay_per_step(self) -> float:
+        return self.time_decay_per_gen
+
+class PerineuronalNet:
+    """PNN with an adaptation budget and explicit force-unlock API."""
+    def __init__(
+        self,
+        layer_id: Optional[str] = None,
+        adaptation_budget: float = 100.0,
+        config: PNNConfig = PNNConfig(),
+        **legacy_kwargs,
+    ):
+        if layer_id is None:
+            layer_id = legacy_kwargs.pop("cell_id", None)
+        if "exploit_budget" in legacy_kwargs:
+            adaptation_budget = float(legacy_kwargs.pop("exploit_budget"))
+        if legacy_kwargs:
+            unexpected = ", ".join(sorted(legacy_kwargs.keys()))
+            raise TypeError(f"Unexpected PerineuronalNet kwargs: {unexpected}")
+        if layer_id is None:
+            raise TypeError("PerineuronalNet requires layer_id (or legacy cell_id).")
+
+        self.cfg = config
+        self.layer_id = layer_id
+        self.state = PNN_STATE.OPEN
+        self.steps_in_state = 0
+        self.plasticity_multiplier = 1.0
+        self.score_history = deque(maxlen=10)
+        self.refractory_until_step: Optional[int] = None
+
+        self.adaptation_budget = float(adaptation_budget)
+        self.initial_adaptation_budget = float(adaptation_budget)
+        self.score_at_lock: Optional[float] = None
+        self.best_score_in_locked_phase: Optional[float] = None
+        self.recent_adaptation_evals: float = 0.0
+        self.recent_adaptation_improvement: float = 0.0
+        self.locked_phase_score_history: List[float] = []
+        self.locked_phase_start_step: Optional[int] = None
+
+    @property
+    def cell_id(self) -> str:
+        return self.layer_id
+
+    @cell_id.setter
+    def cell_id(self, value: str) -> None:
+        self.layer_id = value
+
+    @property
+    def exploit_budget(self) -> float:
+        return self.adaptation_budget
+
+    @exploit_budget.setter
+    def exploit_budget(self, value: float) -> None:
+        self.adaptation_budget = float(value)
+
+    @property
+    def initial_exploit_budget(self) -> float:
+        return self.initial_adaptation_budget
+
+    @initial_exploit_budget.setter
+    def initial_exploit_budget(self, value: float) -> None:
+        self.initial_adaptation_budget = float(value)
+
+    @property
+    def generations_in_phase(self) -> int:
+        return self.steps_in_state
+
+    @generations_in_phase.setter
+    def generations_in_phase(self, value: int) -> None:
+        self.steps_in_state = int(value)
+
+    @property
+    def stability_history(self):
+        return self.score_history
+
+    @property
+    def refractory_until(self) -> Optional[int]:
+        return self.refractory_until_step
+
+    @refractory_until.setter
+    def refractory_until(self, value: Optional[int]) -> None:
+        self.refractory_until_step = value
+
+    @property
+    def fitness_at_lock(self) -> Optional[float]:
+        return self.score_at_lock
+
+    @fitness_at_lock.setter
+    def fitness_at_lock(self, value: Optional[float]) -> None:
+        self.score_at_lock = value
+
+    @property
+    def best_fitness_in_lock_phase(self) -> Optional[float]:
+        return self.best_score_in_locked_phase
+
+    @best_fitness_in_lock_phase.setter
+    def best_fitness_in_lock_phase(self, value: Optional[float]) -> None:
+        self.best_score_in_locked_phase = value
+
+    @property
+    def recent_exploit_evals(self) -> float:
+        return self.recent_adaptation_evals
+
+    @recent_exploit_evals.setter
+    def recent_exploit_evals(self, value: float) -> None:
+        self.recent_adaptation_evals = float(value)
+
+    @property
+    def recent_exploit_improvement(self) -> float:
+        return self.recent_adaptation_improvement
+
+    @recent_exploit_improvement.setter
+    def recent_exploit_improvement(self, value: float) -> None:
+        self.recent_adaptation_improvement = float(value)
+
+    @property
+    def locked_phase_fitness_history(self) -> List[float]:
+        return self.locked_phase_score_history
+
+    @locked_phase_fitness_history.setter
+    def locked_phase_fitness_history(self, value: List[float]) -> None:
+        self.locked_phase_score_history = value
+
+    @property
+    def locked_phase_start_gen(self) -> Optional[int]:
+        return self.locked_phase_start_step
+
+    @locked_phase_start_gen.setter
+    def locked_phase_start_gen(self, value: Optional[int]) -> None:
+        self.locked_phase_start_step = value
+
+    def note_adaptation_outcome(self, evals_used: float, improvement: float) -> None:
+        self.recent_adaptation_evals = float(max(0.0, evals_used))
+        self.recent_adaptation_improvement = float(improvement)
 
     def note_exploit_outcome(self, evals_used: float, improvement: float) -> None:
-        self.recent_exploit_evals = float(max(0.0, evals_used))
-        self.recent_exploit_improvement = float(improvement)
+        self.note_adaptation_outcome(evals_used, improvement)
 
-    def update(self, current_fitness: float, generation: int, island_median_fitness: Optional[float] = None) -> None:
-        if self.refractory_until is not None and generation < self.refractory_until:
-            self.generations_in_phase = 0
+    def update(
+        self,
+        current_score: Optional[float] = None,
+        controller_step: Optional[int] = None,
+        median_layer_score: Optional[float] = None,
+        **legacy_kwargs,
+    ) -> None:
+        if current_score is None:
+            current_score = legacy_kwargs.pop("current_fitness", None)
+        if controller_step is None:
+            controller_step = legacy_kwargs.pop("generation", None)
+        if median_layer_score is None and "island_median_fitness" in legacy_kwargs:
+            median_layer_score = legacy_kwargs.pop("island_median_fitness")
+        if legacy_kwargs:
+            unexpected = ", ".join(sorted(legacy_kwargs.keys()))
+            raise TypeError(f"Unexpected PerineuronalNet.update kwargs: {unexpected}")
+        if current_score is None or controller_step is None:
+            raise TypeError("PerineuronalNet.update requires current_score and controller_step.")
+
+        if self.refractory_until_step is not None and controller_step < self.refractory_until_step:
+            self.steps_in_state = 0
             return
-        elif self.refractory_until is not None and generation >= self.refractory_until:
-            self.refractory_until = None
+        elif self.refractory_until_step is not None and controller_step >= self.refractory_until_step:
+            self.refractory_until_step = None
 
-        self.generations_in_phase += 1
-        self.stability_history.append(float(current_fitness))
+        self.steps_in_state += 1
+        self.score_history.append(float(current_score))
 
         if self.state == PNN_STATE.OPEN:
-            if len(self.stability_history) >= self.cfg.lock_stability_window:
-                recent = list(self.stability_history)[-self.cfg.lock_stability_window:]
+            if len(self.score_history) >= self.cfg.lock_stability_window:
+                recent = list(self.score_history)[-self.cfg.lock_stability_window:]
                 recent_mean = float(np.mean(recent))
-                rel = abs(float(current_fitness) - recent_mean) / max(1e-8, abs(recent_mean))
+                rel = abs(float(current_score) - recent_mean) / max(1e-8, abs(recent_mean))
                 if rel < self.cfg.lock_rel_change:
-                    if island_median_fitness is not None:
-                        if current_fitness <= island_median_fitness:
+                    if median_layer_score is not None:
+                        if current_score <= median_layer_score:
                             self.state = PNN_STATE.CLOSING
-                            self.generations_in_phase = 0
+                            self.steps_in_state = 0
                         else:
-                            self.generations_in_phase = 0  # keep OPEN
+                            self.steps_in_state = 0  # keep OPEN
                     else:
                         self.state = PNN_STATE.CLOSING
-                        self.generations_in_phase = 0
+                        self.steps_in_state = 0
 
         elif self.state == PNN_STATE.CLOSING:
-            progress = min(1.0, self.generations_in_phase / float(self.cfg.closing_generations))
+            progress = min(1.0, self.steps_in_state / float(self.cfg.closing_steps))
             self.plasticity_multiplier = max(self.cfg.min_plasticity, 1.0 - (1.0 - self.cfg.min_plasticity) * progress)
             if progress >= 1.0:
                 self.state = PNN_STATE.LOCKED
                 self.plasticity_multiplier = self.cfg.min_plasticity
-                self.generations_in_phase = 0
-                self.fitness_at_lock = float(current_fitness)
-                self.best_fitness_in_lock_phase = float(current_fitness)
-                self.exploit_budget = float(self.initial_exploit_budget)
-                self.locked_phase_fitness_history = [float(current_fitness)]
-                self.locked_phase_start_gen = int(generation)
+                self.steps_in_state = 0
+                self.score_at_lock = float(current_score)
+                self.best_score_in_locked_phase = float(current_score)
+                self.adaptation_budget = float(self.initial_adaptation_budget)
+                self.locked_phase_score_history = [float(current_score)]
+                self.locked_phase_start_step = int(controller_step)
 
         elif self.state == PNN_STATE.LOCKED:
             self.plasticity_multiplier = self.cfg.min_plasticity
-            self.locked_phase_fitness_history.append(float(current_fitness))
-            if len(self.locked_phase_fitness_history) > 100:
-                self.locked_phase_fitness_history = self.locked_phase_fitness_history[-100:]
+            self.locked_phase_score_history.append(float(current_score))
+            if len(self.locked_phase_score_history) > 100:
+                self.locked_phase_score_history = self.locked_phase_score_history[-100:]
 
-            if self.best_fitness_in_lock_phase is None:
-                self.best_fitness_in_lock_phase = float(current_fitness)
+            if self.best_score_in_locked_phase is None:
+                self.best_score_in_locked_phase = float(current_score)
                 stagn = 0
-            elif current_fitness < self.best_fitness_in_lock_phase:
-                self.best_fitness_in_lock_phase = float(current_fitness)
+            elif current_score < self.best_score_in_locked_phase:
+                self.best_score_in_locked_phase = float(current_score)
                 stagn = 0
             else:
-                stagn = self.generations_in_phase
+                stagn = self.steps_in_state
 
             # budget decay
-            time_decay = self.cfg.time_decay_per_gen
+            time_decay = self.cfg.time_decay_per_step
             if stagn >= self.cfg.stagnation_penalty_threshold:
                 stagnation_decay = self.cfg.stagnation_penalty_multiplier * (1.0 + (stagn / float(self.cfg.stagnation_penalty_threshold)))
             else:
                 stagnation_decay = 0.2 * (stagn / float(self.cfg.stagnation_penalty_threshold))
 
-            used = float(self.recent_exploit_evals)
-            imp = float(self.recent_exploit_improvement)
+            used = float(self.recent_adaptation_evals)
+            imp = float(self.recent_adaptation_improvement)
             success = imp > self.cfg.improvement_eps
             usage_decay = (self.cfg.drain_success_factor if success else self.cfg.drain_failure_factor) * used
 
             total = time_decay + stagnation_decay + usage_decay
             if total > 0.0:
-                self.exploit_budget = max(0.0, self.exploit_budget - total)
+                self.adaptation_budget = max(0.0, self.adaptation_budget - total)
 
-            self.recent_exploit_evals *= 0.5
-            self.recent_exploit_improvement *= 0.5
+            self.recent_adaptation_evals *= 0.5
+            self.recent_adaptation_improvement *= 0.5
 
-    def force_unlock(self, generation: int, refractory_period: int = 5) -> None:
+    def force_unlock(self, controller_step: Optional[int] = None, refractory_period: int = 5, **legacy_kwargs) -> None:
+        if controller_step is None:
+            controller_step = legacy_kwargs.pop("generation", None)
+        if legacy_kwargs:
+            unexpected = ", ".join(sorted(legacy_kwargs.keys()))
+            raise TypeError(f"Unexpected PerineuronalNet.force_unlock kwargs: {unexpected}")
+        if controller_step is None:
+            raise TypeError("PerineuronalNet.force_unlock requires controller_step.")
+
+        recent = list(self.score_history)[-5:]
         self.state = PNN_STATE.OPEN
         self.plasticity_multiplier = 1.0
-        self.generations_in_phase = 0
-        self.stability_history.clear()
-        self.fitness_at_lock = None
-        self.best_fitness_in_lock_phase = None
-        self.locked_phase_fitness_history = []
-        self.locked_phase_start_gen = None
+        self.steps_in_state = 0
+        self.score_history.clear()
+        self.score_at_lock = None
+        self.best_score_in_locked_phase = None
+        self.locked_phase_score_history = []
+        self.locked_phase_start_step = None
 
         base_ref = int(refractory_period)
-        recent = list(self.stability_history)[-5:]
         stress_proxy = 0.0
         if recent:
             avg = float(np.mean(recent)); std = float(np.std(recent))
             if avg > 1e-8: stress_proxy = min(1.0, std / avg)
-        self.refractory_until = generation + max(refractory_period, int(round(base_ref * (1.0 + 1.5 * stress_proxy))))
+        self.refractory_until_step = controller_step + max(refractory_period, int(round(base_ref * (1.0 + 1.5 * stress_proxy))))
 
 """
     # In complete_teai_methods_slim.py

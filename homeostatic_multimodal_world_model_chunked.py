@@ -382,6 +382,14 @@ class ControllerConfig:
     stale_penalty_weight: float = 0.20
     entropy_penalty_weight: float = 0.05
 
+    @property
+    def adaptation_budget(self) -> float:
+        return self.exploit_budget
+
+    @property
+    def tapestry_step_window(self) -> int:
+        return self.tapestry_generation_window
+
 
 @dataclass
 class WorldModelConfig:
@@ -867,8 +875,24 @@ class EpisodicMemoryBank(nn.Module):
 @dataclass
 class _LayerProxyUnit:
     id: str
-    fitness_history: List[float] = field(default_factory=list)
-    local_stress: float = 0.0
+    score_history: List[float] = field(default_factory=list)
+    layer_stress: float = 0.0
+
+    @property
+    def fitness_history(self) -> List[float]:
+        return self.score_history
+
+    @fitness_history.setter
+    def fitness_history(self, value: List[float]) -> None:
+        self.score_history = value
+
+    @property
+    def local_stress(self) -> float:
+        return self.layer_stress
+
+    @local_stress.setter
+    def local_stress(self, value: float) -> None:
+        self.layer_stress = float(value)
 
 
 @dataclass
@@ -958,13 +982,14 @@ class HomeostaticController:
         self.bandit = ContextualOperatorBandit(self.OPERATORS, cfg.controller.action_ucb_c, cfg.controller.action_discount)
 
         pnn_cfg = PNNConfig() if callable(PNNConfig) else None  # type: ignore
+        adaptation_budget = float(getattr(cfg.controller, "adaptation_budget", cfg.controller.exploit_budget))
         self.pnns = [
-            PerineuronalNet(cell_id=f"layer_{i}", exploit_budget=cfg.controller.exploit_budget, config=pnn_cfg) if pnn_cfg is not None else PerineuronalNet(cell_id=f"layer_{i}", exploit_budget=cfg.controller.exploit_budget)  # type: ignore[arg-type]
+            PerineuronalNet(layer_id=f"layer_{i}", adaptation_budget=adaptation_budget, config=pnn_cfg) if pnn_cfg is not None else PerineuronalNet(layer_id=f"layer_{i}", adaptation_budget=adaptation_budget)  # type: ignore[arg-type]
             for i in range(len(self.blocks))
         ]
         circ_cfg = CircadianGateConfig() if callable(CircadianGateConfig) else None  # type: ignore
         self.circadian = [
-            CircadianGate(circ_cfg, island_id=i, num_islands=len(self.blocks), dimension=cfg.d_model) if circ_cfg is not None else CircadianGate(island_id=i, num_islands=len(self.blocks), dimension=cfg.d_model)  # type: ignore[arg-type]
+            CircadianGate(circ_cfg, layer_index=i, num_layers=len(self.blocks), dimension=cfg.d_model) if circ_cfg is not None else CircadianGate(layer_index=i, num_layers=len(self.blocks), dimension=cfg.d_model)  # type: ignore[arg-type]
             for i in range(len(self.blocks))
         ]
         rd_cfg = RDStressConfig(stress_threshold=cfg.controller.stress_threshold, default_stress=min(0.3, cfg.controller.stress_threshold)) if callable(RDStressConfig) else None  # type: ignore
@@ -972,7 +997,8 @@ class HomeostaticController:
         immune_cfg = StressImmuneConfig(max_cache=128) if callable(StressImmuneConfig) else None  # type: ignore
         self.immune = [StressImmuneLayer(immune_cfg) if immune_cfg is not None else StressImmuneLayer() for _ in range(len(self.blocks))]  # type: ignore[arg-type]
 
-        self.proxies = [_LayerProxyUnit(id=f"layer_{i}") for i in range(len(self.blocks))]
+        self.layer_proxies = [_LayerProxyUnit(id=f"layer_{i}") for i in range(len(self.blocks))]
+        self.proxies = self.layer_proxies  # backward-compatible alias
         self.pending: Dict[int, PendingIntervention] = {}
         self.last_scores: List[float] = [0.0 for _ in range(len(self.blocks))]
         self.last_diagnostics: List[Dict[str, float]] = [{} for _ in range(len(self.blocks))]
@@ -1017,7 +1043,7 @@ class HomeostaticController:
         for layer_idx, pending in self.pending.items():
             cur = float(scores[layer_idx])
             effect = cur - float(pending.pre_score)  # negative = improvement
-            context_key = (pending.context["island"], pending.context["pnn_state"], pending.context["stress_bin"])
+            context_key = (pending.context["layer_id"], pending.context["pnn_state"], pending.context["stress_bin"])
             reward = float(np.clip(-effect, -self.cfg.controller.action_reward_clip, self.cfg.controller.action_reward_clip))
             self.bandit.update(context_key, pending.action, reward)
             self.tapestry.add_event_node(
@@ -1027,7 +1053,7 @@ class HomeostaticController:
                 details={
                     "action": pending.action,
                     "effect": float(effect),
-                    "island": pending.context["island"],
+                    "layer_id": pending.context["layer_id"],
                     "pnn_state": pending.context["pnn_state"],
                     "stress_bin": pending.context["stress_bin"],
                     "strategy_used": pending.action,
@@ -1045,11 +1071,11 @@ class HomeostaticController:
             stats = self.tapestry.query_action_effect_with_stats(
                 action=op,
                 context_filters={
-                    "island": context["island"],
+                    "layer_id": context["layer_id"],
                     "pnn_state": context["pnn_state"],
                     "stress_bin": context["stress_bin"],
                 },
-                generation_window=self.cfg.controller.tapestry_generation_window,
+                generation_window=getattr(self.cfg.controller, "tapestry_step_window", self.cfg.controller.tapestry_generation_window),
                 decay_rate=0.05,
             )
             predicted_gain = -float(stats.get("effect", 0.0))
@@ -1111,9 +1137,9 @@ class HomeostaticController:
         else:
             raise ValueError(f"Unknown controller action: {action}")
         block.clamp_controls()
-        # Charge exploit budget for non-noop interventions.
-        pnn.note_exploit_outcome(evals_used=1.0, improvement=0.0)
-        pnn.exploit_budget = max(0.0, float(getattr(pnn, "exploit_budget", 0.0)) - 1.0)
+        # Charge adaptation budget for non-noop interventions.
+        pnn.note_adaptation_outcome(evals_used=1.0, improvement=0.0)
+        pnn.adaptation_budget = max(0.0, float(getattr(pnn, "adaptation_budget", getattr(pnn, "exploit_budget", 0.0))) - 1.0)
 
     @torch.no_grad()
     def emergency_stabilize(self) -> None:
@@ -1127,11 +1153,11 @@ class HomeostaticController:
         for idx, pnn in enumerate(self.pnns):
             if pnn.state != PNN_STATE.LOCKED:
                 continue
-            stress = float(self.proxies[idx].local_stress)
-            budget_exhausted = float(getattr(pnn, "exploit_budget", 0.0)) <= 0.0
+            stress = float(self.layer_proxies[idx].layer_stress)
+            budget_exhausted = float(getattr(pnn, "adaptation_budget", getattr(pnn, "exploit_budget", 0.0))) <= 0.0
             critical_stress = stress > self.cfg.controller.unlock_stress_threshold
             if budget_exhausted or critical_stress:
-                priority = float(scores[idx]) * (1.0 + 0.1 * float(getattr(pnn, "generations_in_phase", 0.0)))
+                priority = float(scores[idx]) * (1.0 + 0.1 * float(getattr(pnn, "steps_in_state", getattr(pnn, "generations_in_phase", 0.0))))
                 candidates.append((priority, idx))
         if not candidates:
             return 0
@@ -1147,9 +1173,9 @@ class HomeostaticController:
                 details={
                     "action": "unlock",
                     "effect": 0.0,
-                    "island": f"layer_{idx}",
+                    "layer_id": f"layer_{idx}",
                     "pnn_state": PNN_STATE.OPEN.value,
-                    "stress_bin": self._stress_bin(self.proxies[idx].local_stress),
+                    "stress_bin": self._stress_bin(self.layer_proxies[idx].layer_stress),
                 },
             )
             unlocked += 1
@@ -1165,31 +1191,31 @@ class HomeostaticController:
         for idx, diag in enumerate(layer_diagnostics):
             self.last_diagnostics[idx] = dict(diag)
             score = self._score_layer(diag, global_loss)
-            self.proxies[idx].fitness_history.append(score)
-            self.proxies[idx].fitness_history = self.proxies[idx].fitness_history[-128:]
+            self.layer_proxies[idx].score_history.append(score)
+            self.layer_proxies[idx].score_history = self.layer_proxies[idx].score_history[-128:]
             scores.append(score)
 
-        self.stress_field.update({0: self.proxies}, self.global_step)
+        self.stress_field.update(layer_groups={"controller_layers": self.layer_proxies}, controller_step=self.global_step)
         median_score = float(np.median(np.asarray(scores, dtype=np.float32))) if scores else float(global_loss)
 
         for idx, score in enumerate(scores):
-            self.pnns[idx].update(score, self.global_step, island_median_fitness=median_score)
+            self.pnns[idx].update(current_score=score, controller_step=self.global_step, median_layer_score=median_score)
 
         self._resolve_pending(scores)
         unlocked = self._strategic_unlock(scores)
 
         if self.global_step % self.cfg.controller.intervention_interval == 0:
             # Intervene only on the highest-stress layers this step.
-            ranked = sorted(range(len(scores)), key=lambda i: self.proxies[i].local_stress, reverse=True)
+            ranked = sorted(range(len(scores)), key=lambda i: self.layer_proxies[i].layer_stress, reverse=True)
             for layer_idx in ranked[: self.cfg.controller.max_interventions_per_step]:
                 pnn = self.pnns[layer_idx]
                 diag = self.last_diagnostics[layer_idx]
                 context = {
-                    "island": f"layer_{layer_idx}",
+                    "layer_id": f"layer_{layer_idx}",
                     "pnn_state": pnn.state.value,
-                    "stress_bin": self._stress_bin(self.proxies[layer_idx].local_stress),
+                    "stress_bin": self._stress_bin(self.layer_proxies[layer_idx].layer_stress),
                 }
-                context_key = (context["island"], context["pnn_state"], context["stress_bin"])
+                context_key = (context["layer_id"], context["pnn_state"], context["stress_bin"])
 
                 allowed_ops = list(self.OPERATORS)
                 if pnn.state == PNN_STATE.CLOSING:
@@ -1204,7 +1230,7 @@ class HomeostaticController:
                 overrides = self._action_overrides(layer_idx, context, diag)
                 signature_penalties: Dict[str, float] = {}
                 for op in allowed_ops:
-                    signature = self._make_signature(layer_idx, op, diag, self.proxies[layer_idx].local_stress)
+                    signature = self._make_signature(layer_idx, op, diag, self.layer_proxies[layer_idx].layer_stress)
                     if hasattr(self.immune[layer_idx], "has_memory") and self.immune[layer_idx].has_memory(signature):
                         signature_penalties[op] = -1.0
                 combined_overrides = {op: overrides.get(op, 0.0) + signature_penalties.get(op, 0.0) for op in allowed_ops}
@@ -1216,10 +1242,10 @@ class HomeostaticController:
                     bandit.total[context_key] = self.bandit.total.get(context_key, 0.0)
                 action = bandit.select(context_key, combined_overrides)
 
-                signature = self._make_signature(layer_idx, action, diag, self.proxies[layer_idx].local_stress)
+                signature = self._make_signature(layer_idx, action, diag, self.layer_proxies[layer_idx].layer_stress)
                 if hasattr(self.immune[layer_idx], "has_memory") and self.immune[layer_idx].has_memory(signature):
                     action = "noop"
-                self._apply_action(layer_idx, action, self.proxies[layer_idx].local_stress)
+                self._apply_action(layer_idx, action, self.layer_proxies[layer_idx].layer_stress)
                 self.pending[layer_idx] = PendingIntervention(
                     step=self.global_step,
                     layer_idx=layer_idx,
@@ -1231,14 +1257,14 @@ class HomeostaticController:
                 self.last_action_report.append({
                     "layer_idx": layer_idx,
                     "action": action,
-                    "stress": float(self.proxies[layer_idx].local_stress),
+                    "stress": float(self.layer_proxies[layer_idx].layer_stress),
                     "pnn_state": pnn.state.value,
                 })
 
         report = {
             "step": self.global_step,
             "scores": list(scores),
-            "stresses": [float(p.local_stress) for p in self.proxies],
+            "stresses": [float(p.layer_stress) for p in self.layer_proxies],
             "pnn_states": [pnn.state.value for pnn in self.pnns],
             "unlocked": unlocked,
             "actions": list(self.last_action_report),
