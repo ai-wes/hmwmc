@@ -55,6 +55,7 @@ class WorldConfig:
     numeric_dim: int = 10
     text_vocab_size: int = 64
     text_seq_len: int = 1               # one symbolic token per step
+    min_entities: int = 2
     max_entities: int = 6
     episode_length: int = 64
     num_latent_rules: int = 6           # latent_state classification target
@@ -113,8 +114,11 @@ def _make_world(cfg: WorldConfig, template: str, max_delay: int, allow_occlusion
     rng = random.Random(seed)
     # Active entities: 2-4 that participate in causal chains
     n_active = rng.randint(2, min(4, cfg.max_entities))
-    # Distractor entities: fill up to max_entities with some randomness
-    n_distractor = rng.randint(0, cfg.max_entities - n_active)
+    # Distractor entities: fill up to max_entities with some randomness,
+    # while allowing branches to enforce a denser total-entity regime.
+    min_total_entities = max(n_active, min(cfg.min_entities, cfg.max_entities))
+    min_distractor = max(0, min_total_entities - n_active)
+    n_distractor = rng.randint(min_distractor, cfg.max_entities - n_active)
     n = n_active + n_distractor
     entities: List[Entity] = []
     for i in range(n):

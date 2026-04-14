@@ -213,6 +213,7 @@ class BranchConfig:
     description: str
 
     # --- world overrides (family A) ---
+    min_entities: Optional[int] = None
     max_entities: Optional[int] = None
     grid_h: Optional[int] = None
     grid_w: Optional[int] = None
@@ -398,7 +399,8 @@ def make_branch_preset(branch_id: str) -> BranchConfig:
         return BranchConfig(
             branch_id="A1",
             family="A",
-            description="Entity scaling: max_entities 6 -> 8, more distractors",
+            description="Entity scaling: enforce 6-8 entities with more distractors",
+            min_entities=6,
             max_entities=8,
             rubric=PromotionRubric(
                 target_metric="qacc/who_holds_token",
@@ -571,6 +573,8 @@ def make_branch_preset(branch_id: str) -> BranchConfig:
 def apply_world_overrides(branch: BranchConfig) -> "WorldConfig":
     WorldConfig, *_ = _lazy_imports()
     kwargs: Dict[str, Any] = {}
+    if branch.min_entities is not None:
+        kwargs["min_entities"] = branch.min_entities
     if branch.max_entities is not None:
         kwargs["max_entities"] = branch.max_entities
     if branch.grid_h is not None:

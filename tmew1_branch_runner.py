@@ -104,6 +104,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # A-family overrides
+    p.add_argument("--min-entities", type=int, default=None)
     p.add_argument("--max-entities", type=int, default=None)
     p.add_argument("--tier3-episode-length", type=int, default=None)
     p.add_argument("--tier3-max-delay", type=int, default=None)
@@ -158,6 +159,8 @@ def merge_cli_into_branch(args: argparse.Namespace, branch: BranchConfig) -> Bra
     if args.tiers is not None:
         patch["tiers_to_run"] = tuple(int(x) for x in args.tiers.split(","))
     # A
+    if args.min_entities is not None:
+        patch["min_entities"] = args.min_entities
     if args.max_entities is not None:
         patch["max_entities"] = args.max_entities
     if args.tier3_episode_length is not None:
