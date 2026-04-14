@@ -452,9 +452,8 @@ def make_branch_preset(branch_id: str) -> BranchConfig:
         return BranchConfig(
             branch_id="A4",
             family="A",
-            description="Rule-dynamic worlds: active_rule alters entity motion + visibility",
+            description="Rule-dynamic worlds: active_rule alters entity motion, handoff, and alarm timing",
             rule_dynamic=True,
-            requires_step_patch=True,
             rubric=PromotionRubric(
                 target_metric="qacc/what_was_true_rule",
                 min_absolute=0.85,
@@ -580,6 +579,8 @@ def apply_world_overrides(branch: BranchConfig) -> "WorldConfig":
         kwargs["chain2_frequency_boost"] = branch.chain2_frequency_boost
     if branch.chain2_temporal_overlap:
         kwargs["chain2_temporal_overlap"] = True
+    if branch.rule_dynamic:
+        kwargs["rule_dynamic"] = True
     if branch.grid_h is not None:
         kwargs["grid_h"] = branch.grid_h
     if branch.grid_w is not None:

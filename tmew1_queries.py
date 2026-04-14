@@ -102,10 +102,22 @@ def _step_world_with_handoff(
         "handoff": False, "chain2_trigger": False, "chain2_fire": False,
     }
 
+    # --- A4: rule-dynamic motion modulation ---
+    if cfg.rule_dynamic:
+        rule = state.active_rule
+        if rule <= 1:
+            motion_change_prob = 0.15    # baseline
+        elif rule <= 3:
+            motion_change_prob = 0.05    # sticky — predictable paths
+        else:
+            motion_change_prob = 0.30    # jittery — erratic paths
+    else:
+        motion_change_prob = 0.15
+
     for e in state.entities:
         e.x = (e.x + e.dx) % cfg.grid_w
         e.y = (e.y + e.dy) % cfg.grid_h
-        if state.rng.random() < 0.15:
+        if state.rng.random() < motion_change_prob:
             e.dx = state.rng.choice([-1, 0, 1])
             e.dy = state.rng.choice([-1, 0, 1])
 
@@ -120,13 +132,23 @@ def _step_world_with_handoff(
             events["color_change"] = True
             events["color_change_entity_id"] = e.id
 
-    # Token transfer: if the holder is adjacent to another entity, hand off with prob 0.9.
+    # Token transfer — A4: rule-dynamic handoff probability and range
+    if cfg.rule_dynamic:
+        _r = state.active_rule
+        if _r <= 1:
+            _ho_prob, _ho_range = 0.9, 1      # baseline
+        elif _r <= 3:
+            _ho_prob, _ho_range = 0.5, 1      # sticky token
+        else:
+            _ho_prob, _ho_range = 0.95, 2     # slippery token
+    else:
+        _ho_prob, _ho_range = 0.9, 1
     holder = next((e for e in state.entities if e.id == handoff.holder_id), None)
     if holder is not None:
         for e in state.entities:
             if e.id == handoff.holder_id:
                 continue
-            if abs(holder.x - e.x) + abs(holder.y - e.y) <= 1 and state.rng.random() < 0.9:
+            if abs(holder.x - e.x) + abs(holder.y - e.y) <= _ho_range and state.rng.random() < _ho_prob:
                 handoff.transfer_history.append((t, holder.id, e.id))
                 handoff.holder_id = e.id
                 events["handoff"] = True
@@ -149,7 +171,19 @@ def _step_world_with_handoff(
             for j in range(i + 1, len(state.entities)):
                 a, b = state.entities[i], state.entities[j]
                 if _check_trigger_condition(a, b):
-                    state.alarm_in = state.rng.randint(2, max_delay)
+                    # A4: rule-dynamic alarm delay
+                    if cfg.rule_dynamic:
+                        _r = state.active_rule
+                        if _r <= 1:
+                            _dlo, _dhi = 2, max_delay
+                        elif _r <= 3:
+                            _dlo, _dhi = 1, max(2, max_delay // 2)
+                        else:
+                            _dlo = max(3, max_delay)
+                            _dhi = min(max_delay * 2, max_delay + 4)
+                    else:
+                        _dlo, _dhi = 2, max_delay
+                    state.alarm_in = state.rng.randint(_dlo, _dhi)
                     events["trigger"] = True
                     a.tagged = True
                     if handoff.first_tagged_id < 0:
@@ -163,6 +197,17 @@ def _step_world_with_handoff(
         if state.alarm_in == 0:
             state.alarm_fired = True
             events["alarm_fire"] = True
+            # A4: rule-dynamic post-alarm consequences
+            if cfg.rule_dynamic:
+                _r = state.active_rule
+                if 2 <= _r <= 3:
+                    for e in state.entities:
+                        if e.tagged:
+                            e.dx, e.dy = 0, 0
+                elif _r >= 4:
+                    for e in state.entities:
+                        e.dx = state.rng.choice([-2, -1, 1, 2])
+                        e.dy = state.rng.choice([-2, -1, 1, 2])
 
     # Chain 2 (multi_chain support — always uses simple proximity)
     if not state.chain2_alarm_fired and state.chain2_alarm_in < 0:
