@@ -396,7 +396,7 @@ class TrainConfig:
     modality_warmup_steps: int = 200     # ramp new-modality loss weight 0→1 over this many steps
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     seed: int = 0
-    use_amp: bool = torch.cuda.is_available()   # mixed-precision (float16)
+    use_amp: bool = False   # force full fp32 training; AMP disabled globally
     num_workers: int = 0                         # unused with PreCachedDataset
 
 

@@ -698,13 +698,18 @@ class AdaptiveSparseWorldBlock(nn.Module):
         residual_scale = self.residual_gate.mean()
         x_out = self.output_norm(x_t + residual_scale * delta)
 
-        proposal = torch.cat([x_norm, context, hidden_state], dim=-1)
-        proposal = torch.tanh(self.transition(proposal))
-        candidate_state = self.state_cell(proposal, hidden_state)
-        write_alpha_t = self.write_alpha.mean()
-        forget_t = self.forget_lambda.mean()
-        next_hidden = forget_t * hidden_state + write_alpha_t * candidate_state
-        next_memory = self._update_memory(next_hidden, memory_slots, write_alpha_t, forget_t)
+        with torch.amp.autocast(device_type=x_t.device.type, enabled=False):
+            hidden_state_f = hidden_state.float()
+            memory_slots_f = memory_slots.float()
+            x_norm_f = x_norm.float()
+            context_f = context.float()
+            proposal = torch.cat([x_norm_f, context_f, hidden_state_f], dim=-1)
+            proposal = torch.tanh(self.transition(proposal))
+            candidate_state = self.state_cell(proposal, hidden_state_f)
+            write_alpha_t = self.write_alpha.mean().float()
+            forget_t = self.forget_lambda.mean().float()
+            next_hidden = forget_t * hidden_state_f + write_alpha_t * candidate_state
+            next_memory = self._update_memory(next_hidden, memory_slots_f, write_alpha_t, forget_t)
         next_hidden = torch.nan_to_num(next_hidden, nan=0.0, posinf=1.0, neginf=-1.0)
         next_memory = torch.nan_to_num(next_memory, nan=0.0, posinf=1.0, neginf=-1.0)
 
@@ -752,29 +757,36 @@ class AdaptiveSparseWorldBlock(nn.Module):
         outputs: List[Tensor] = []
         diagnostics: List[Dict[str, float]] = []
         for step in range(steps):
-            x_t = x_chunk[:, step, :]
-            x_norm_t = x_norm_chunk[:, step, :]
-            a_sparse_t = a_sparse_chunk[:, step, :]
+            with torch.amp.autocast(device_type=x_chunk.device.type, enabled=False):
+                x_t = x_chunk[:, step, :].float()
+                x_norm_t = x_norm_chunk[:, step, :].float()
+                a_sparse_t = a_sparse_chunk[:, step, :].float()
+                hidden_state = hidden_state.float()
+                memory_slots = memory_slots.float()
+                residual_scale_f = residual_scale.float()
+                write_alpha_t_f = write_alpha_t.float()
+                forget_t_f = forget_t.float()
+                mult_gate_f = mult_gate.float()
 
-            context, attn_entropy = self._read_memory(x_norm_t, memory_slots)
-            ctx = self.state_norm(context + hidden_state)
+                context, attn_entropy = self._read_memory(x_norm_t, memory_slots)
+                ctx = self.state_norm(context + hidden_state)
 
-            b_latent = self.latent_b(ctx)
-            b_sparse, density_b = self._apply_sparse_controls(b_latent, self.threshold_b, self.gain_b)
+                b_latent = self.latent_b(ctx)
+                b_sparse, density_b = self._apply_sparse_controls(b_latent, self.threshold_b, self.gain_b)
 
-            mult = a_sparse_t.view(bsz, self.num_cohorts, self.cohort_dim)
-            mult = mult * b_sparse.view(bsz, self.num_cohorts, self.cohort_dim)
-            mult = mult * mult_gate
-            mult_flat = self.dropout(mult.flatten(1))
+                mult = a_sparse_t.view(bsz, self.num_cohorts, self.cohort_dim)
+                mult = mult * b_sparse.view(bsz, self.num_cohorts, self.cohort_dim)
+                mult = mult * mult_gate_f
+                mult_flat = self.dropout(mult.flatten(1))
 
-            delta = self.decode(mult_flat)
-            x_out = self.output_norm(x_t + residual_scale * delta)
+                delta = self.decode(mult_flat)
+                x_out = self.output_norm(x_t + residual_scale_f * delta)
 
-            proposal = torch.cat([x_norm_t, context, hidden_state], dim=-1)
-            proposal = torch.tanh(self.transition(proposal))
-            candidate_state = self.state_cell(proposal, hidden_state)
-            next_hidden = forget_t * hidden_state + write_alpha_t * candidate_state
-            next_memory = self._update_memory(next_hidden, memory_slots, write_alpha_t, forget_t)
+                proposal = torch.cat([x_norm_t, context, hidden_state], dim=-1)
+                proposal = torch.tanh(self.transition(proposal))
+                candidate_state = self.state_cell(proposal, hidden_state)
+                next_hidden = forget_t_f * hidden_state + write_alpha_t_f * candidate_state
+                next_memory = self._update_memory(next_hidden, memory_slots, write_alpha_t_f, forget_t_f)
 
             with torch.no_grad():
                 density_a_t = (a_sparse_t.view(bsz, self.num_cohorts, self.cohort_dim) > 0).float().mean(dim=(0, 2))
