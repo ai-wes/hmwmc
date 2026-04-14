@@ -440,7 +440,6 @@ def make_branch_preset(branch_id: str) -> BranchConfig:
                 "handoff", "handoff", "false_cue",
                 "trigger_delay", "occlusion_identity",
             ),
-            requires_step_patch=True,   # overlap behavior is not in current _step_world
             rubric=PromotionRubric(
                 target_metric="qacc/did_chain2_fire",
                 min_absolute=0.90,
@@ -577,6 +576,10 @@ def apply_world_overrides(branch: BranchConfig) -> "WorldConfig":
         kwargs["min_entities"] = branch.min_entities
     if branch.max_entities is not None:
         kwargs["max_entities"] = branch.max_entities
+    if branch.chain2_frequency_boost != 1.0:
+        kwargs["chain2_frequency_boost"] = branch.chain2_frequency_boost
+    if branch.chain2_temporal_overlap:
+        kwargs["chain2_temporal_overlap"] = True
     if branch.grid_h is not None:
         kwargs["grid_h"] = branch.grid_h
     if branch.grid_w is not None:

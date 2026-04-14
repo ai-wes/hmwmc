@@ -61,6 +61,8 @@ class WorldConfig:
     num_latent_rules: int = 6           # latent_state classification target
     occlusion_prob: float = 0.25
     noise_std: float = 0.02
+    chain2_frequency_boost: float = 1.0
+    chain2_temporal_overlap: bool = False
 
 
 @dataclass
@@ -196,18 +198,27 @@ def _step_world(state: WorldState, cfg: WorldConfig, t: int, template: str, max_
     # Chain 2: secondary causal chain (multi_chain template only)
     if template == "multi_chain":
         if not state.chain2_alarm_fired and state.chain2_alarm_in < 0:
+            primary_chain_busy = (state.alarm_in > 0) and (not state.alarm_fired)
+            if primary_chain_busy and not cfg.chain2_temporal_overlap:
+                return events
+            chain2_radius = 2 if cfg.chain2_frequency_boost > 1.0 else 1
+            chain2_delay_hi = max(3, max_delay // 2)
+            if cfg.chain2_frequency_boost >= 1.5:
+                chain2_delay_hi = max(2, chain2_delay_hi - 1)
             # Second chain uses a different pair — scan from the end
             for i in range(len(state.entities) - 1, 0, -1):
                 for j in range(i - 1, -1, -1):
                     a, b = state.entities[i], state.entities[j]
                     # chain2 always uses simple proximity, independent of active_rule
-                    if abs(a.x - b.x) + abs(a.y - b.y) <= 1:
-                        # Avoid double-firing if chain1 already used this pair this step
-                        if not events["trigger"] or (a.id != state.entities[0].id):
-                            state.chain2_alarm_in = state.rng.randint(2, max(3, max_delay // 2))
-                            state.chain2_trigger_pair = (a.id, b.id)
-                            events["chain2_trigger"] = True
-                            break
+                    if abs(a.x - b.x) + abs(a.y - b.y) <= chain2_radius:
+                        if cfg.chain2_frequency_boost < 1.5 and events["trigger"]:
+                            primary_pair_used = any(entity.id in (a.id, b.id) for entity in state.entities[:1])
+                            if primary_pair_used:
+                                continue
+                        state.chain2_alarm_in = state.rng.randint(2, chain2_delay_hi)
+                        state.chain2_trigger_pair = (a.id, b.id)
+                        events["chain2_trigger"] = True
+                        break
                 if events["chain2_trigger"]:
                     break
         if state.chain2_alarm_in > 0:
