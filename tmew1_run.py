@@ -229,7 +229,6 @@ def train_one_step(
     tcfg: TrainConfig,
     enabled: Sequence[str],
     holder_feature_dim: int,
-    scaler: object | None = None,
     tier_step: int = 0,
     prev_tier_modalities: Sequence[str] = (),
     nan_detector: NaNLocalizer | None = None,
@@ -348,81 +347,40 @@ def train_one_step(
             "holder_acc": holder_acc, **q_metrics,
         }
 
-    if scaler is not None:
-        scaler.scale(total).backward()
-        if tcfg.grad_clip > 0:
-            scaler.unscale_(optimizer)
-            params = list(model.parameters()) + list(probe.parameters()) + list(query_head.parameters()) + list(holder_head.parameters())
-            nn.utils.clip_grad_norm_(params, tcfg.grad_clip)
-        else:
-            scaler.unscale_(optimizer)
-            params = list(model.parameters()) + list(probe.parameters()) + list(query_head.parameters()) + list(holder_head.parameters())
-
-        # ── Fix #3: Pre-step finite-grad check ─────────────────────────
-        # Identify offenders BEFORE zeroing so we can clear their Adam state.
-        bad_params = [
-            p for p in params
-            if p.grad is not None and not torch.isfinite(p.grad).all()
-        ]
-        grads_finite = len(bad_params) == 0
-        if not grads_finite:
-            import logging as _log
-            _log.getLogger(__name__).warning(
-                "Non-finite grads detected — skipping optimizer.step() "
-                "(clearing Adam state for %d offender params)", len(bad_params),
-            )
-            if nan_detector is not None:
-                nan_detector.report(prefix="[grad-skip scaler] ")
-            for p in bad_params:
-                if p in optimizer.state:
-                    optimizer.state[p] = {}
-            optimizer.zero_grad(set_to_none=True)
-            scaler.update()  # still update scaler so it can back off the scale
-            with torch.no_grad():
-                rule_acc = (rule_logits.argmax(-1) == batch["latent_rule"]).float().mean().item()
-            return {
-                "total": float(total.item()), "next_step": float(losses.parts.get("text", losses.parts.get("vision", total)).item()),
-                "aux_latent": float(aux.item()), "latent_acc": rule_acc,
-                "q_loss": float(q_loss.item()), "holder_loss": float(holder_loss.item()),
-                "holder_acc": holder_acc, "skipped_step": True, **q_metrics,
-            }
-        scaler.step(optimizer)
-        scaler.update()
+    total.backward()
+    if tcfg.grad_clip > 0:
+        params = list(model.parameters()) + list(probe.parameters()) + list(query_head.parameters()) + list(holder_head.parameters())
+        nn.utils.clip_grad_norm_(params, tcfg.grad_clip)
     else:
-        total.backward()
-        if tcfg.grad_clip > 0:
-            params = list(model.parameters()) + list(probe.parameters()) + list(query_head.parameters()) + list(holder_head.parameters())
-            nn.utils.clip_grad_norm_(params, tcfg.grad_clip)
-        else:
-            params = list(model.parameters()) + list(probe.parameters()) + list(query_head.parameters()) + list(holder_head.parameters())
+        params = list(model.parameters()) + list(probe.parameters()) + list(query_head.parameters()) + list(holder_head.parameters())
 
-        # ── Fix #3 (non-scaler path): Pre-step finite-grad check ──────
-        bad_params = [
-            p for p in params
-            if p.grad is not None and not torch.isfinite(p.grad).all()
-        ]
-        grads_finite = len(bad_params) == 0
-        if not grads_finite:
-            import logging as _log
-            _log.getLogger(__name__).warning(
-                "Non-finite grads detected — skipping optimizer.step() "
-                "(clearing Adam state for %d offender params)", len(bad_params),
-            )
-            if nan_detector is not None:
-                nan_detector.report(prefix="[grad-skip no-scaler] ")
-            for p in bad_params:
-                if p in optimizer.state:
-                    optimizer.state[p] = {}
-            optimizer.zero_grad(set_to_none=True)
-            with torch.no_grad():
-                rule_acc = (rule_logits.argmax(-1) == batch["latent_rule"]).float().mean().item()
-            return {
-                "total": float(total.item()), "next_step": float(losses.parts.get("text", losses.parts.get("vision", total)).item()),
-                "aux_latent": float(aux.item()), "latent_acc": rule_acc,
-                "q_loss": float(q_loss.item()), "holder_loss": float(holder_loss.item()),
-                "holder_acc": holder_acc, "skipped_step": True, **q_metrics,
-            }
-        optimizer.step()
+    # ── Pre-step finite-grad check ───────────────────────────────────
+    bad_params = [
+        p for p in params
+        if p.grad is not None and not torch.isfinite(p.grad).all()
+    ]
+    grads_finite = len(bad_params) == 0
+    if not grads_finite:
+        import logging as _log
+        _log.getLogger(__name__).warning(
+            "Non-finite grads detected — skipping optimizer.step() "
+            "(clearing Adam state for %d offender params)", len(bad_params),
+        )
+        if nan_detector is not None:
+            nan_detector.report(prefix="[grad-skip] ")
+        for p in bad_params:
+            if p in optimizer.state:
+                optimizer.state[p] = {}
+        optimizer.zero_grad(set_to_none=True)
+        with torch.no_grad():
+            rule_acc = (rule_logits.argmax(-1) == batch["latent_rule"]).float().mean().item()
+        return {
+            "total": float(total.item()), "next_step": float(losses.parts.get("text", losses.parts.get("vision", total)).item()),
+            "aux_latent": float(aux.item()), "latent_acc": rule_acc,
+            "q_loss": float(q_loss.item()), "holder_loss": float(holder_loss.item()),
+            "holder_acc": holder_acc, "skipped_step": True, **q_metrics,
+        }
+    optimizer.step()
 
     # ── Post-step NaN check: repair poisoned weights + reset Adam state ──
     _has_nan = False
@@ -610,8 +568,6 @@ def run_curriculum(
         weight_decay=tcfg.weight_decay,
     )
 
-    scaler = None
-
     # ── Resume from checkpoint ──────────────────────────────────────────
     _resume_after_tier = 0  # 0 means start from tier 1
     if resume_from is not None:
@@ -700,8 +656,6 @@ def run_curriculum(
                     f"weight tensors, cleared {_adam_cleared} poisoned Adam states"
                 )
 
-            scaler = None
-
         tier_step = 0  # running step counter within this tier (for modality warmup)
 
         train_ds = PreCachedDataset(world_cfg, tier, tcfg.train_episodes_per_tier, base_seed=1000 * tier.tier, num_queries=num_queries, device=tcfg.device)
@@ -720,7 +674,7 @@ def run_curriculum(
             _accum_unlocks = 0  # accumulate force-unlocks between log events
             for step, batch in enumerate(train_loader):
                 # Data is already on device from PreCachedDataset
-                stats = train_one_step(model, criterion, probe, query_head, holder_head, optimizer, batch, tcfg, tier.enabled_modalities, world_cfg.max_entities, scaler=scaler, tier_step=tier_step, prev_tier_modalities=prev_tier_modalities, nan_detector=nan_detector)
+                stats = train_one_step(model, criterion, probe, query_head, holder_head, optimizer, batch, tcfg, tier.enabled_modalities, world_cfg.max_entities, tier_step=tier_step, prev_tier_modalities=prev_tier_modalities, nan_detector=nan_detector)
                 tier_step += 1
                 # Accumulate force-unlocks every step (not just log steps)
                 _step_report = summarize_controller_report(model._last_forward_report)
@@ -799,7 +753,6 @@ def run_curriculum(
             "holder_head": holder_head.state_dict(),
             "probe": probe.state_dict(),
             "optimizer": optimizer.state_dict(),
-            "scaler": scaler.state_dict() if scaler is not None else None,
         }, ckpt_path)
         print(f"  -> saved checkpoint to {ckpt_path}")
 
@@ -852,7 +805,6 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=4)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--train-episodes", type=int, default=2048)
-    parser.add_argument("--amp", action="store_true", help="Deprecated; AMP is disabled and training runs in fp32")
     parser.add_argument("--workers", type=int, default=2, help="DataLoader worker processes")
     parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint .pt file to resume from")
     args = parser.parse_args()
@@ -870,7 +822,6 @@ def main() -> None:
         batch_size=args.batch_size,
         train_episodes_per_tier=args.train_episodes,
         epochs_per_tier=args.epochs,
-        use_amp=False,
         num_workers=args.workers,
     )
     run_curriculum(world_cfg, tcfg, resume_from=args.resume)

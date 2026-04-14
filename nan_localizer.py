@@ -25,8 +25,8 @@ Why this matters for the 6-layer C1 crash:
 
 This is a diagnostic, not a fix. Once you know which module is the
 offender, the remedy depends on which one it is:
-  - Transformer block attention logits overflowing under fp16 AMP → switch
-    that block to bf16 or add pre-softmax tanh cap.
+    - Transformer block attention logits overflowing in low precision → add
+        a pre-softmax tanh cap or tighten value ranges.
   - HPM gate_mlp producing inf under competitive winner-take-all → reduce
     gate_hidden or add input LayerNorm inside HPM.
   - Modality encoder output range too large → LayerNorm the encoder output.

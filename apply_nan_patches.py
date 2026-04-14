@@ -215,9 +215,7 @@ PATCH2B_NEW = '''        # ── Fix #3 (non-scaler path): Pre-step finite-grad
 # left trailing instability in the shared params' moment buffers.
 
 PATCH3_OLD = '''            if _cleared:
-                print(f"  -> reset Adam state for {_cleared} params in new modalities: {new_mods}")
-            # Reset GradScaler so stale scale factor from previous tier doesn't cause issues
-            scaler = GradScaler("cuda", enabled=tcfg.use_amp)'''
+                print(f"  -> reset Adam state for {_cleared} params in new modalities: {new_mods}")'''
 
 PATCH3_NEW = '''            if _cleared:
                 print(f"  -> reset Adam state for {_cleared} params in new modalities: {new_mods}")
@@ -251,8 +249,7 @@ PATCH3_NEW = '''            if _cleared:
                     f"weight tensors, cleared {_adam_cleared} poisoned Adam states"
                 )
 
-            # Reset GradScaler so stale scale factor from previous tier doesn't cause issues
-            scaler = GradScaler("cuda", enabled=tcfg.use_amp)'''
+'''
 
 
 PATCHES: List[Tuple[str, str, str]] = [
