@@ -189,7 +189,7 @@ My read is that the rule-dynamic idea is valid, but the alarm-delay modulation i
 
 This branch asks whether the current latent state is manipulable, not just decodable.
 
-    ### B1
+### B1
 Experiment B1 should add temporal ordering queries beyond the existing trigger-before-alarm family. Ask whether event X happened before Y, whether the first chain fired before the second, and whether an occlusion began before a handoff. The current diagnostics already include one temporal ordering query, so you can generalize that pattern. 
 
 What to look for is whether the model can compare timestamps implicitly or whether it only knows event presence. If event-presence stays strong but ordering stays weak, that tells you the world model is storing “what happened” without enough sequence structure.
@@ -198,6 +198,10 @@ What to look for is whether the model can compare timestamps implicitly or wheth
 Experiment B2 should add relational queries. Examples are which entity was closest to holder at alarm fire, which entity was visible during correction, or which tagged entity shared color with the trigger source. This directly tests whether stored state supports relational recombination.
 
 What to look for is whether relational errors correlate with object count. If yes, entity binding is the bottleneck. If not, relation formation itself is the bottleneck.
+    
+
+
+
     
 ### B3
 Experiment B3 should add negation-style queries such as which entity was never occluded or which chain never fired. This is deceptively important because negation demands global episode bookkeeping rather than salience detection.

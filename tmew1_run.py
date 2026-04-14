@@ -234,6 +234,13 @@ def train_one_step(
     nan_detector: NaNLocalizer | None = None,
 ) -> Dict[str, float]:
     optimizer.zero_grad(set_to_none=True)
+    named_params = (
+        [(f"model.{name}", param) for name, param in model.named_parameters()]
+        + [(f"probe.{name}", param) for name, param in probe.named_parameters()]
+        + [(f"query_head.{name}", param) for name, param in query_head.named_parameters()]
+        + [(f"holder_head.{name}", param) for name, param in holder_head.named_parameters()]
+    )
+    param_name_by_id = {id(param): name for name, param in named_params}
 
     # ── Modality warmup: ramp loss weight for newly-introduced modalities ──
     _new_modalities = set(enabled) - set(prev_tier_modalities)
@@ -316,7 +323,7 @@ def train_one_step(
         # forever. This is the same repair the post-step block does, but we
         # never reach that block on this early-return path.
         _repaired = 0
-        for p in model.parameters():
+        for _, p in named_params:
             if p.data.isnan().any() or p.data.isinf().any():
                 p.data.nan_to_num_(nan=0.0, posinf=1.0, neginf=-1.0)
                 _repaired += 1
@@ -362,15 +369,30 @@ def train_one_step(
     grads_finite = len(bad_params) == 0
     if not grads_finite:
         import logging as _log
+        bad_names = [param_name_by_id.get(id(p), "<unnamed>") for p in bad_params]
+        bad_groups = sorted({name.rsplit(".", 1)[0] if "." in name else name for name in bad_names})
         _log.getLogger(__name__).warning(
             "Non-finite grads detected — skipping optimizer.step() "
             "(clearing Adam state for %d offender params)", len(bad_params),
         )
+        _log.getLogger(__name__).warning(
+            "Non-finite grad param groups: %s",
+            ", ".join(bad_groups),
+        )
         if nan_detector is not None:
             nan_detector.report(prefix="[grad-skip] ")
+        _sanitized = 0
         for p in bad_params:
+            if p.data.isnan().any() or p.data.isinf().any():
+                p.data.nan_to_num_(nan=0.0, posinf=1.0, neginf=-1.0)
+                _sanitized += 1
             if p in optimizer.state:
                 optimizer.state[p] = {}
+        if _sanitized:
+            _log.getLogger(__name__).warning(
+                "Grad-skip repair: sanitized %d offender param tensors before clearing Adam state",
+                _sanitized,
+            )
         optimizer.zero_grad(set_to_none=True)
         with torch.no_grad():
             rule_acc = (rule_logits.argmax(-1) == batch["latent_rule"]).float().mean().item()
@@ -384,7 +406,7 @@ def train_one_step(
 
     # ── Post-step NaN check: repair poisoned weights + reset Adam state ──
     _has_nan = False
-    for p in model.parameters():
+    for _, p in named_params:
         if p.data.isnan().any() or p.data.isinf().any():
             _has_nan = True
             p.data.nan_to_num_(nan=0.0, posinf=1.0, neginf=-1.0)
@@ -560,7 +582,7 @@ def run_curriculum(
 
     # NaN localizer: forward-hook diagnostic that identifies the first module
     # whose output goes non-finite. Only reports when report() is called.
-    nan_detector = attach_nan_localizer(model)
+    nan_detector = attach_nan_localizer(model, probe, query_head, holder_head)
 
     optimizer = torch.optim.AdamW(
         list(model.parameters()) + list(probe.parameters()) + list(query_head.parameters()) + list(holder_head.parameters()),
@@ -635,7 +657,7 @@ def run_curriculum(
             # shared params' exp_avg_sq, which blows up on first tier-2 step.
             _weights_repaired = 0
             _adam_cleared = 0
-            for p in model.parameters():
+            for p in list(model.parameters()) + list(probe.parameters()) + list(query_head.parameters()) + list(holder_head.parameters()):
                 if p.data.isnan().any() or p.data.isinf().any():
                     p.data.nan_to_num_(nan=0.0, posinf=1.0, neginf=-1.0)
                     _weights_repaired += 1
