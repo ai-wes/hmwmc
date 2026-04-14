@@ -51,6 +51,7 @@ from homeostatic_multimodal_world_model_chunked import (
     summarize_controller_report,
 )
 from score_logging import ScoreLogger, build_default_metric_specs, log_training_snapshot
+from nan_localizer import NaNLocalizer, attach_nan_localizer
 import tmew1_viz_server as viz
 
 
@@ -232,6 +233,7 @@ def train_one_step(
     scaler: GradScaler | None = None,
     tier_step: int = 0,
     prev_tier_modalities: Sequence[str] = (),
+    nan_detector: NaNLocalizer | None = None,
 ) -> Dict[str, float]:
     optimizer.zero_grad(set_to_none=True)
 
@@ -308,6 +310,10 @@ def train_one_step(
         )
         optimizer.zero_grad(set_to_none=True)
 
+        # Report which module produced the first non-finite activation.
+        if nan_detector is not None:
+            nan_detector.report(prefix="[NaN-loss] ")
+
         # CRITICAL: repair any NaN/Inf weights AND reset poisoned Adam state.
         # Without this the next forward pass produces NaN again and we loop
         # forever. This is the same repair the post-step block does, but we
@@ -367,6 +373,8 @@ def train_one_step(
                 "Non-finite grads detected — skipping optimizer.step() "
                 "(clearing Adam state for %d offender params)", len(bad_params),
             )
+            if nan_detector is not None:
+                nan_detector.report(prefix="[grad-skip scaler] ")
             for p in bad_params:
                 if p in optimizer.state:
                     optimizer.state[p] = {}
@@ -402,6 +410,8 @@ def train_one_step(
                 "Non-finite grads detected — skipping optimizer.step() "
                 "(clearing Adam state for %d offender params)", len(bad_params),
             )
+            if nan_detector is not None:
+                nan_detector.report(prefix="[grad-skip no-scaler] ")
             for p in bad_params:
                 if p in optimizer.state:
                     optimizer.state[p] = {}
@@ -589,6 +599,10 @@ def run_curriculum(
     query_head = query_head.to(tcfg.device)
     holder_head = holder_head.to(tcfg.device)
 
+    # NaN localizer: forward-hook diagnostic that identifies the first module
+    # whose output goes non-finite. Only reports when report() is called.
+    nan_detector = attach_nan_localizer(model)
+
     optimizer = torch.optim.AdamW(
         list(model.parameters()) + list(probe.parameters()) + list(query_head.parameters()) + list(holder_head.parameters()),
         lr=tcfg.lr,
@@ -708,7 +722,7 @@ def run_curriculum(
             _accum_unlocks = 0  # accumulate force-unlocks between log events
             for step, batch in enumerate(train_loader):
                 # Data is already on device from PreCachedDataset
-                stats = train_one_step(model, criterion, probe, query_head, holder_head, optimizer, batch, tcfg, tier.enabled_modalities, world_cfg.max_entities, scaler=scaler, tier_step=tier_step, prev_tier_modalities=prev_tier_modalities)
+                stats = train_one_step(model, criterion, probe, query_head, holder_head, optimizer, batch, tcfg, tier.enabled_modalities, world_cfg.max_entities, scaler=scaler, tier_step=tier_step, prev_tier_modalities=prev_tier_modalities, nan_detector=nan_detector)
                 tier_step += 1
                 # Accumulate force-unlocks every step (not just log steps)
                 _step_report = summarize_controller_report(model._last_forward_report)
