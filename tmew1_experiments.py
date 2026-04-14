@@ -123,7 +123,22 @@ class PromotionRubric:
     )
 
     def verdict(self, val_record: Dict[str, float], baseline_record: Optional[Dict[str, float]] = None) -> Tuple[str, List[str]]:
+        import math
         reasons: List[str] = []
+
+        # NaN/Inf in any core loss metric is an immediate kill — the run
+        # exploded, there's nothing to evaluate. Check before anything else.
+        nan_metrics = [
+            k for k, v in val_record.items()
+            if isinstance(v, float) and (math.isnan(v) or math.isinf(v))
+            and (k.startswith("loss/") or k in ("next_step", "total"))
+        ]
+        if nan_metrics:
+            reasons.append(
+                f"training instability kill: NaN/Inf in {nan_metrics[:4]}"
+                + (f" and {len(nan_metrics) - 4} more" if len(nan_metrics) > 4 else "")
+            )
+            return "kill", reasons
 
         # Stability floors are hard kills.
         for k, floor in self.stability_floors.items():

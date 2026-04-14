@@ -224,8 +224,6 @@ def run_branch(branch: BranchConfig, out_dir: str, baseline_record: Optional[Dic
     """
     # Lazy import so the runner can be inspected without torch.
     from tmew1_run import run_curriculum
-    from homeostatic_multimodal_world_model_chunked import ModelConfig  # noqa: F401
-
     os.makedirs(out_dir, exist_ok=True)
     os.environ["TMEW1_BRANCH_OUT_DIR"] = out_dir
 
@@ -235,18 +233,18 @@ def run_branch(branch: BranchConfig, out_dir: str, baseline_record: Optional[Dic
     hpm_cfg = apply_hpm_overrides(branch)
 
     # The model is constructed inside run_curriculum via build_model(world_cfg),
-    # which pulls HPMConfig from the default ModelConfig. We monkey-patch
-    # ModelConfig's default factory so the branch's HPMConfig is picked up
+    # which pulls HPMConfig from the default WorldModelConfig. We monkey-patch
+    # WorldModelConfig's default factory so the branch's HPMConfig is picked up
     # without forking build_model. This is the minimum-invasive way to
     # inject HPM overrides into the existing pipeline.
     if any([branch.hpm_n_slots, branch.hpm_read_mode, branch.hpm_competitive, branch.hpm_slot_dim]):
         import homeostatic_multimodal_world_model_chunked as hmwm
-        original_default = hmwm.ModelConfig.__dataclass_fields__["hpm_config"].default_factory
-        hmwm.ModelConfig.__dataclass_fields__["hpm_config"].default_factory = (lambda cfg=hpm_cfg: cfg)
+        original_default = hmwm.WorldModelConfig.__dataclass_fields__["hpm_config"].default_factory
+        hmwm.WorldModelConfig.__dataclass_fields__["hpm_config"].default_factory = (lambda cfg=hpm_cfg: cfg)
         try:
             run_curriculum(world_cfg, tcfg, tiers=tiers, resume_from=resume)
         finally:
-            hmwm.ModelConfig.__dataclass_fields__["hpm_config"].default_factory = original_default
+            hmwm.WorldModelConfig.__dataclass_fields__["hpm_config"].default_factory = original_default
     else:
         run_curriculum(world_cfg, tcfg, tiers=tiers, resume_from=resume)
 
