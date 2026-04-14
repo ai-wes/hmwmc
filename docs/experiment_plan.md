@@ -56,11 +56,14 @@ Step 0.3 is to define a promotion rubric for experiments. A branch counts as pro
 
 The capability thresholds I would use are these. For targeted branches, demand at least a 10-point absolute gain on the new target metric, or clear transfer to a harder bucket without harming solved buckets by more than 3 points. For architecture branches, require at least one genuinely new qualitative behavior, not just a small aggregate bump. For world-difficulty branches, require maintained performance under increased entity count or horizon, rather than improvement on the old easier evals.
 
-Phase 1 is the parallel branch structure. Run three families at once.
+# Phase 1 is the parallel branch structure. Run three families at once.
 
-Branch family A is harder worlds with the same architecture.
+## Branch family A is harder worlds with the same architecture.
 
 This branch asks whether the current model still has unused headroom. You should not change HPM, QueryHead, or controller behavior here beyond whatever is already in the stable baseline.
+
+
+### A1
 
 Experiment A1 should raise entity count and distractor load. Increase the active-plus-distractor regime from the current small world toward 6–8 entities. The world generator already supports active and distractor entities and max entity count in `WorldConfig`, so this is a natural continuation rather than a rewrite.  
 
@@ -68,69 +71,181 @@ What to look for in A1 is whether handoff tracking degrades gracefully or collap
 
 Promote A1 if `who_holds_token` at 1 and 2 handoffs stays above baseline minus 10 points despite the harder world, and if holder auxiliary accuracy remains high. Kill A1 if handoff metrics collapse while all easier binary queries stay strong, because that pattern would suggest the world has outgrown identity tracking specifically, not global learning capacity.
 
+#### Results A1: A1 is a clean kill.
+
+It failed early and never recovered on the branch’s actual target:
+
+Tier 1 val: qacc/who_holds_token = 0.226609
+Tier 2 val: 0.150481
+Tier 3 final val: 0.217240
+For A1, the meaningful floor is 0.35, so this is not a near miss. It is materially below the threshold and far below the baseline 0.459082.
+
+The pattern is also specific, which makes the result easier to trust. The model still kept a lot of other capabilities:
+
+latent_acc recovered to 1.0
+loss/text recovered well by Tier 3
+did_alarm_fire, did_chain2_fire, and what_was_true_rule stayed very strong
+What broke is holder tracking in dense worlds. The diagnostics make that explicit: who_holds_token is weak across almost every handoff bucket and especially bad at 6+ handoffs (0.170, n=88). So the added entity density is not just making training noisy; it is collapsing the token-holder memory capability the branch was supposed to preserve.
+
+Pragmatically, I would stop spending compute on this exact A1 configuration and keep A3 running. If you want to revisit the density idea later, the right follow-up is not “run A1 again”, it is a softer A1b boundary-mapping variant like 5–7 entities instead of 6–8.
+
+
+
+
+
+### A2
 Experiment A2 should extend horizon length. Move from the current curriculum horizon to 64 and then 128 steps while keeping everything else fixed. Your roadmap already identifies this as one of the main scaling levers. 
 
 What to look for in A2 is whether performance degrades mainly with lag or mainly with overwrite count. If lag is the main failure mode, you need stronger temporal persistence. If overwrite count is the main failure mode, you need better slot separation or retroactive binding.
 
 Promote A2 if long-lag recall and belief revision remain strong and HPM gate statistics do not saturate. Kill A2 if HPM gate mean collapses toward always-open or always-closed, or if sigma drifts badly, because that means the memory controller is not calibrated for the longer timescale.
 
+#### Results A2: 
+I’m checking the A2 preset and rubric in code so I can tell you whether this run failed for the expected reason or because the branch is misconfigured.
+
+This A2 run is a real kill, not noise.
+
+Per the A2 rubric in tmew1_experiments.py:406, the target is qacc/who_holds_token with min_absolute=0.40 and only 5 points of allowed regression. Your final A2 val is 0.374563, so it fails on both counts:
+
+absolute floor: 37.46% < 40.00%
+regression vs baseline: 45.91% -> 37.46%, which is -8.45 points
+The pattern is also clear, not random. Almost everything except holder tracking stayed strong:
+
+text recovered well: loss/text 0.581
+latent stayed strong: latent_acc 0.992
+chain2 stayed excellent: qacc/did_chain2_fire 0.995
+belief revision stayed strong: qacc/what_was_true_rule 1.000
+the failure is concentrated in long-horizon token memory: who_holds_token especially degrades in the higher handoff buckets, with handoffs=6+ acc=0.390 over n=77
+So the conclusion is straightforward: T=96 made the world harder in exactly the way A2 was meant to test, and the current system did not hold up on the holder-memory objective. That is a valid negative result. I would not spend more full-run compute on this exact A2 configuration.
+
+
+
+### A3
 Experiment A3 should activate truly concurrent multi-chain worlds. The simulator already includes `multi_chain` and delayed secondary chains. Increase the frequency and independence of chain-2 events, and ensure chains can overlap temporally rather than occurring as mostly separate events.  
 
 What to look for in A3 is whether the model can keep separate latent threads alive. The success signature is stable `did_chain2_fire`, preserved ordering queries, and little degradation on holder tracking. The failure signature is “thread blending,” where the model answers a merged average of events rather than one chain or the other.
 
 Promote A3 if multi-chain accuracy stays high and false-cue belief revision remains near perfect. Kill A3 if chain-2 and belief revision both worsen at once, because that pattern would suggest the model is running out of latent partitioning capacity.
 
+
+#### Results A3: 
+
+
+
+
+
+### A4
+
 Experiment A4 should make `active_rule` genuinely dynamic and consequential. Right now the simulator already has rule-conditioned triggers in `_step_world`, but you should make rules diverge more sharply in downstream consequences, not just trigger conditions. 
 
 What to look for in A4 is whether latent-rule probes remain clean and whether the model starts using rule-state as a real hidden variable rather than a classifier label. Success here would likely precede more abstract reasoning later.
 
-Branch family B is harder question families with the same world and same architecture.
+#### A4 Results: A4 is a real rubric kill, but not a dead end. It failed for a specific reason, not because the branch was broadly bad.
+
+What happened
+
+A4 cleared its intended capability bar:
+
+qacc/what_was_true_rule = 0.893 at final Tier 3, above the A4 floor of 0.85
+latent_acc = 0.988, so rule-state remained highly decodable
+qacc/who_holds_token = 0.503, which is actually above the baseline 0.459
+But it still got killed because of the regression guard:
+
+qacc/did_trigger_before_alarm = 0.923
+baseline was about 0.992
+drop is 6.9 points, beyond the allowed regression budget
+So the verdict is: A4 succeeded on rule-state, failed on collateral damage.
+
+Interpretation
+
+This is stronger than A1/A2 and weaker than A3.
+
+A4 did what it was supposed to do in the narrow sense: rule became behaviorally consequential enough that the model still tracked it cleanly under harder dynamics. The combination of near-perfect latent_acc, strong what_was_true_rule, and improved who_holds_token says the branch did not just confuse the model.
+
+The problem is that your rule-dynamic changes appear to have blurred temporal ordering. That is consistent with the implementation: A4 modifies alarm timing and post-trigger dynamics, so did_trigger_before_alarm became a more fragile question. In other words, the branch made rules matter, but it also changed the timing geometry enough to hurt one already-solved capability.
+
+Bottom line
+
+Scientifically: promising.
+Operationally under the current rubric: kill.
+
+I would not discard A4. I would treat it as a near-miss branch that surfaced a useful tension:
+
+A3 improved parallel causal bookkeeping cleanly
+A4 improved rule-grounded world modeling, but introduced timing regressions
+Best next move
+
+Keep A3 as the current winner.
+Patch A4 rather than abandon it: reduce how aggressively rule-dependent alarm timing shifts, while keeping the motion/handoff/post-alarm consequences.
+Re-run A4 as an A4b variant targeting preservation of did_trigger_before_alarm.
+My read is that the rule-dynamic idea is valid, but the alarm-delay modulation is the part causing the kill. The rest looks worth preserving. If you want, I can propose the exact minimal A4b change before you spend more compute.
+
+
+
+
+
+
+## Branch family B is harder question families with the same world and same architecture.
 
 This branch asks whether the current latent state is manipulable, not just decodable.
 
+    ### B1
 Experiment B1 should add temporal ordering queries beyond the existing trigger-before-alarm family. Ask whether event X happened before Y, whether the first chain fired before the second, and whether an occlusion began before a handoff. The current diagnostics already include one temporal ordering query, so you can generalize that pattern. 
 
 What to look for is whether the model can compare timestamps implicitly or whether it only knows event presence. If event-presence stays strong but ordering stays weak, that tells you the world model is storing “what happened” without enough sequence structure.
 
+### B2
 Experiment B2 should add relational queries. Examples are which entity was closest to holder at alarm fire, which entity was visible during correction, or which tagged entity shared color with the trigger source. This directly tests whether stored state supports relational recombination.
 
 What to look for is whether relational errors correlate with object count. If yes, entity binding is the bottleneck. If not, relation formation itself is the bottleneck.
-
+    
+### B3
 Experiment B3 should add negation-style queries such as which entity was never occluded or which chain never fired. This is deceptively important because negation demands global episode bookkeeping rather than salience detection.
 
 What to look for is whether the model overanswers salient entities. If negation fails by selecting the most memorable entity, then the memory system is still too event-driven and insufficiently exhaustive.
 
+### B4
 Experiment B4 should add counterfactual queries in a limited, controlled form. Do not begin with open-ended “what would happen.” Start with one intervention at a known event index, such as “who would hold the token if handoff #2 had not occurred?” or “would the alarm have fired if the correction had not happened?” This is the most ambitious query branch and should remain evaluation-focused at first.
 
 What to look for is whether success on counterfactuals appears after relational and temporal queries improve, or whether it emerges early once HPM is strong. That sequencing will tell you whether counterfactual reasoning is built from stable episodic retrieval or from a more general internal simulator.
 
 Promote B-branch experiments if they show improvement without hurting the base recall tasks. Kill a query family if it causes training to overfit to its own supervision and degrade world-modeling signals. The rule here is that query expansion should reveal latent competence, not replace it with answer-head specialization.
 
-Branch family C is architecture change with the same benchmark.
+## Branch family C is architecture change with the same benchmark.
 
 This branch is where the most novel gains could happen, so keep it clean. Change one architecture idea at a time.
 
+### C1
 Experiment C1 should be HPM Level 2: multi-slot competitive writes with concat readout. Your HPM config already supports multi-slot and competitive gating. This is the cleanest next architecture move because it requires no conceptual rewrite of the module’s role. 
 
 What to look for is slot specialization. A good result is that different slots show different z-spike profiles, different lock dynamics, and different usefulness to different query types. A weak result is that all slots behave identically, meaning extra capacity became redundancy.
 
 Promote C1 if you observe differentiated slot dynamics and improved multi-hop handoff or concurrent-chain performance. Kill C1 if slots collapse to identical behavior or if competitive gating causes sparse starvation, where one slot dominates and the others never meaningfully update.
 
+### C2
+
 Experiment C2 should be HPM read-mode ablation. Compare `concat`, `mean`, and `attn` without changing the rest. The config already supports all three. 
 
 What to look for is whether concat helps because it preserves slot identity, or whether attention readout helps because the query can target the right slot dynamically. If concat wins on recall and attn wins on relational questions later, that would be a very useful architectural clue.
+
+
+### C3
 
 Experiment C3 should be retroactive binding. This is the first architecture change that is more than a config flip. At a surprise step, write not only the current hidden state but a short learned mixture over the recent window. Your notes already framed this as Level 3. 
 
 What to look for is improvement specifically on delayed-cause tasks. If retroactive binding helps handoff and false-cue correction equally, that means surprise events are acting as general anchors. If it only helps one class, it may be too specialized.
 
+
 Promote C3 only if it beats C1 on longer-lag or delayed-cause tasks. Kill it quickly if it introduces instability or if gains can already be obtained by simple multi-slot HPM.
+
+
+### C4
 
 Experiment C4 should be multi-timescale HPM. Give different slots different default update persistence or gain schedules, effectively creating fast and slow memory lanes. Your notes already point toward this as Level 4. 
 
 What to look for is natural specialization by timescale: one slot should track immediate holder changes, another should hold episode-level rule state, another may retain belief-correction context. If that appears, it is one of the strongest architectural signals you could publish.
 
-Phase 2 is resource allocation and run cadence.
+# Phase 2 is resource allocation and run cadence.
 
 Do not run everything at full curriculum immediately. Use a funnel.
 

@@ -177,10 +177,9 @@ def _step_world_with_handoff(
                         if _r <= 1:
                             _dlo, _dhi = 2, max_delay
                         elif _r <= 3:
-                            _dlo, _dhi = 1, max(2, max_delay // 2)
+                            _dlo, _dhi = 2, max(2, max_delay - 1)
                         else:
-                            _dlo = max(3, max_delay)
-                            _dhi = min(max_delay * 2, max_delay + 4)
+                            _dlo, _dhi = min(3, max_delay), max_delay
                     else:
                         _dlo, _dhi = 2, max_delay
                     state.alarm_in = state.rng.randint(_dlo, _dhi)
