@@ -229,6 +229,14 @@ def run_branch(branch: BranchConfig, out_dir: str, baseline_record: Optional[Dic
     from tmew1_run import run_curriculum
     os.makedirs(out_dir, exist_ok=True)
     os.environ["TMEW1_BRANCH_OUT_DIR"] = out_dir
+    if branch.extra_query_families:
+        os.environ["TMEW1_EXTRA_QUERY_FAMILIES"] = ",".join(branch.extra_query_families)
+    else:
+        os.environ.pop("TMEW1_EXTRA_QUERY_FAMILIES", None)
+    if branch.replace_query_families:
+        os.environ["TMEW1_REPLACE_QUERY_FAMILIES"] = ",".join(branch.replace_query_families)
+    else:
+        os.environ.pop("TMEW1_REPLACE_QUERY_FAMILIES", None)
 
     world_cfg = apply_world_overrides(branch)
     tiers = apply_tier_overrides(branch)

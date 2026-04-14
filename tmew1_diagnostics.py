@@ -24,6 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+import os
 import random
 import numpy as np
 import torch
@@ -52,7 +53,55 @@ from tmew1_queries import (
 # -----------------------------------------------------------------------------
 # Extended query type set: adds belief-revision query
 # -----------------------------------------------------------------------------
-EXTENDED_QUERY_TYPES: Tuple[str, ...] = QUERY_TYPES + ("what_was_true_rule", "which_entity_changed_color")
+BASE_EXTENDED_QUERY_TYPES: Tuple[str, ...] = QUERY_TYPES + ("what_was_true_rule", "which_entity_changed_color")
+BRANCH_QUERY_TYPES: Tuple[str, ...] = (
+    "did_occlusion_before_handoff",
+    "did_chain2_before_chain1",
+    "which_event_was_first",
+    "closest_entity_to_holder_at_alarm",
+    "entity_sharing_color_with_trigger",
+    "which_entity_visible_at_correction",
+    "entity_never_occluded",
+    "entity_never_tagged",
+    "chain_never_fired",
+    "holder_if_handoff2_absent",
+    "would_alarm_fire_without_correction",
+)
+_ENV_EXTRA_QUERY_FAMILIES = "TMEW1_EXTRA_QUERY_FAMILIES"
+_ENV_REPLACE_QUERY_FAMILIES = "TMEW1_REPLACE_QUERY_FAMILIES"
+_FIRST_EVENT_CODES: Dict[str, int] = {
+    "trigger": 0,
+    "handoff": 1,
+    "occlusion": 2,
+    "alarm": 3,
+    "chain2_fire": 4,
+    "correction": 5,
+}
+
+
+def _parse_query_family_env(name: str) -> Tuple[str, ...]:
+    raw = os.environ.get(name, "")
+    if not raw:
+        return ()
+    return tuple(part.strip() for part in raw.split(",") if part.strip())
+
+
+def get_extended_query_types() -> Tuple[str, ...]:
+    replace = _parse_query_family_env(_ENV_REPLACE_QUERY_FAMILIES)
+    extra = _parse_query_family_env(_ENV_EXTRA_QUERY_FAMILIES)
+    supported = set(BASE_EXTENDED_QUERY_TYPES) | set(BRANCH_QUERY_TYPES)
+    if replace:
+        active = tuple(dict.fromkeys(q for q in replace if q in supported))
+        return active or BASE_EXTENDED_QUERY_TYPES
+    active = tuple(dict.fromkeys(BASE_EXTENDED_QUERY_TYPES + extra))
+    return tuple(q for q in active if q in supported)
+
+
+def get_extended_query_type_to_idx() -> Dict[str, int]:
+    return {q: i for i, q in enumerate(get_extended_query_types())}
+
+
+EXTENDED_QUERY_TYPES: Tuple[str, ...] = BASE_EXTENDED_QUERY_TYPES
 EXTENDED_QUERY_TYPE_TO_IDX: Dict[str, int] = {q: i for i, q in enumerate(EXTENDED_QUERY_TYPES)}
 
 
@@ -101,6 +150,7 @@ def generate_episode_with_diagnostics(
     enable_false_cue: bool = False,
 ) -> EpisodeWithDiagnostics:
     rng = random.Random(seed)
+    active_query_types = get_extended_query_types()
     template_pool = list(tier.template_pool)
     if enable_false_cue and "false_cue" not in template_pool:
         template_pool.append("false_cue")
@@ -111,7 +161,6 @@ def generate_episode_with_diagnostics(
 
     T = tier.max_episode_length
 
-    # False-cue scheduling: cue at ~25%, correction at ~60% of episode.
     has_false_cue = template == "false_cue"
     false_cue_step = T // 4 if has_false_cue else -1
     correction_step = (T * 3) // 5 if has_false_cue else -1
@@ -126,14 +175,21 @@ def generate_episode_with_diagnostics(
     fired_at = -1
     trigger_at = -1
     chain2_fired_at = -1
+    first_handoff_at = -1
     last_occluded_id = -1
     first_occluded_id = -1
+    first_occlusion_at = -1
     occlusion_steps = 0
     holder_per_step = np.zeros((T,), dtype=np.int64)
     event_history: List[Dict[str, Any]] = []
+    active_entity_ids = tuple(e.id for e in state.entities)
+    positions = np.full((T, cfg.max_entities, 2), -1, dtype=np.int64)
+    visible = np.zeros((T, cfg.max_entities), dtype=np.bool_)
+    colors = np.full((T, cfg.max_entities), -1, dtype=np.int64)
+    ever_occluded = np.zeros((cfg.max_entities,), dtype=np.bool_)
+    ever_tagged = np.zeros((cfg.max_entities,), dtype=np.bool_)
 
     for t in range(T):
-        # During the false-cue window, temporarily lie about active_rule in the numeric channel.
         if has_false_cue and false_cue_step <= t < correction_step:
             true_rule_saved = state.active_rule
             state.active_rule = decoy_rule
@@ -147,6 +203,14 @@ def generate_episode_with_diagnostics(
         text[t] = _render_text(state, cfg, events)
         holder_per_step[t] = handoff.holder_id
 
+        for e in state.entities:
+            positions[t, e.id, 0] = e.x
+            positions[t, e.id, 1] = e.y
+            visible[t, e.id] = bool(e.visible)
+            colors[t, e.id] = e.color
+            if e.tagged:
+                ever_tagged[e.id] = True
+
         if has_false_cue and false_cue_step <= t < correction_step:
             state.active_rule = true_rule_saved
 
@@ -156,19 +220,26 @@ def generate_episode_with_diagnostics(
             trigger_at = t
         if events.get("chain2_fire") and chain2_fired_at < 0:
             chain2_fired_at = t
+        if events.get("handoff") and first_handoff_at < 0:
+            first_handoff_at = t
         if events.get("occluded_ids"):
             last_occluded_id = events["occluded_ids"][0]
             if first_occluded_id < 0:
                 first_occluded_id = events["occluded_ids"][0]
+            if first_occlusion_at < 0:
+                first_occlusion_at = t
+            for entity_id in events["occluded_ids"]:
+                if 0 <= entity_id < cfg.max_entities:
+                    ever_occluded[entity_id] = True
             occlusion_steps += 1
 
-    # Build queries - same logic as tmew1_queries but with the new query type added
-    # for false_cue episodes.
     if template == "handoff" and len(handoff.transfer_history) == 0 and len(state.entities) >= 2:
         force_t = max(1, T // 4)
         receiver = next((e for e in state.entities if e.id != handoff.holder_id), state.entities[0])
         handoff.transfer_history.append((force_t, handoff.holder_id, receiver.id))
         handoff.holder_id = receiver.id
+        if first_handoff_at < 0:
+            first_handoff_at = force_t
         holder_per_step[force_t:] = receiver.id
         for t in range(force_t, T):
             forced_events = dict(event_history[t])
@@ -178,17 +249,105 @@ def generate_episode_with_diagnostics(
             audio[t] = _render_audio(state, cfg, forced_events, current_holder_id=receiver.id)
             audio[t] = _inject_false_cue(audio[t], t, false_cue_step, correction_step)
 
+    trigger_source_id = handoff.first_tagged_id if handoff.first_tagged_id >= 0 else -1
+
+    def _first_visible_entity_at(step: int) -> Optional[int]:
+        if step < 0 or step >= T:
+            return None
+        candidates = [entity_id for entity_id in active_entity_ids if visible[step, entity_id]]
+        return min(candidates) if candidates else None
+
+    def _closest_entity_to_holder_at_alarm() -> Optional[int]:
+        if fired_at < 0 or fired_at >= T:
+            return None
+        holder_id = int(holder_per_step[fired_at])
+        hx, hy = positions[fired_at, holder_id]
+        if hx < 0:
+            return None
+        best: Optional[Tuple[int, int]] = None
+        for entity_id in active_entity_ids:
+            if entity_id == holder_id:
+                continue
+            ex, ey = positions[fired_at, entity_id]
+            if ex < 0:
+                continue
+            candidate = (abs(hx - ex) + abs(hy - ey), entity_id)
+            if best is None or candidate < best:
+                best = candidate
+        return best[1] if best is not None else None
+
+    def _entity_sharing_color_with_trigger() -> Optional[int]:
+        if trigger_source_id < 0 or trigger_at < 0 or trigger_at >= T:
+            return None
+        trigger_color = int(colors[trigger_at, trigger_source_id])
+        if trigger_color < 0:
+            return None
+        candidates = [
+            entity_id for entity_id in active_entity_ids
+            if entity_id != trigger_source_id and int(colors[trigger_at, entity_id]) == trigger_color
+        ]
+        return min(candidates) if candidates else None
+
+    def _first_event_code() -> Optional[int]:
+        event_times = [
+            (trigger_at, _FIRST_EVENT_CODES["trigger"]),
+            (first_handoff_at, _FIRST_EVENT_CODES["handoff"]),
+            (first_occlusion_at, _FIRST_EVENT_CODES["occlusion"]),
+            (fired_at, _FIRST_EVENT_CODES["alarm"]),
+            (chain2_fired_at, _FIRST_EVENT_CODES["chain2_fire"]),
+        ]
+        if has_false_cue:
+            event_times.append((correction_step, _FIRST_EVENT_CODES["correction"]))
+        valid = [(time_idx, code) for time_idx, code in event_times if time_idx >= 0]
+        if not valid:
+            return None
+        valid.sort(key=lambda item: (item[0], item[1]))
+        return valid[0][1]
+
+    closest_entity_to_holder_at_alarm = _closest_entity_to_holder_at_alarm()
+    visible_at_correction = _first_visible_entity_at(correction_step)
+    entity_sharing_color_with_trigger = _entity_sharing_color_with_trigger()
+    entity_never_occluded = min((entity_id for entity_id in active_entity_ids if not ever_occluded[entity_id]), default=None)
+    entity_never_tagged = min((entity_id for entity_id in active_entity_ids if not ever_tagged[entity_id]), default=None)
+    first_event_code = _first_event_code()
+
     q_rng = random.Random(seed + 7)
     queries: List[Query] = []
     back_half_start = max(1, T // 2)
-    # Eval-only query types are never sampled for training/val — only used by
-    # recall_by_difficulty as zero-shot generalization probes.
     _EVAL_ONLY = {"which_entity_changed_color"}
-    pool = [q for q in (EXTENDED_QUERY_TYPES if has_false_cue else QUERY_TYPES) if q not in _EVAL_ONLY]
+
+    def _query_available(qtype: str) -> bool:
+        if qtype == "what_was_true_rule":
+            return has_false_cue
+        if qtype == "which_event_was_first":
+            return first_event_code is not None
+        if qtype == "closest_entity_to_holder_at_alarm":
+            return closest_entity_to_holder_at_alarm is not None
+        if qtype == "entity_sharing_color_with_trigger":
+            return entity_sharing_color_with_trigger is not None
+        if qtype == "which_entity_visible_at_correction":
+            return has_false_cue and visible_at_correction is not None
+        if qtype == "entity_never_occluded":
+            return entity_never_occluded is not None
+        if qtype == "entity_never_tagged":
+            return entity_never_tagged is not None
+        if qtype in {"holder_if_handoff2_absent", "would_alarm_fire_without_correction"}:
+            return False
+        return True
+
+    candidate_pool = active_query_types
+    if not has_false_cue:
+        candidate_pool = tuple(
+            q for q in candidate_pool
+            if q not in {"what_was_true_rule", "which_entity_visible_at_correction", "would_alarm_fire_without_correction"}
+        )
+    pool = [q for q in candidate_pool if q not in _EVAL_ONLY and _query_available(q)]
+    if not pool:
+        pool = list(QUERY_TYPES)
 
     for _ in range(num_queries):
         qtype = q_rng.choice(pool)
-        time_asked = q_rng.randint(back_half_start, T - 1)
+        time_asked = (T - 1) if qtype in BRANCH_QUERY_TYPES else q_rng.randint(back_half_start, T - 1)
         if qtype == "who_holds_token":
             queries.append(Query(qtype, handoff.holder_id, time_asked, is_binary=False))
         elif qtype == "who_was_first_tagged":
@@ -207,6 +366,27 @@ def generate_episode_with_diagnostics(
             queries.append(Query(qtype, max(0, first_occluded_id), time_asked, is_binary=False))
         elif qtype == "did_chain2_fire":
             target = 1 if chain2_fired_at >= 0 and chain2_fired_at <= time_asked else 0
+            queries.append(Query(qtype, target, time_asked, is_binary=True))
+        elif qtype == "did_occlusion_before_handoff":
+            target = 1 if (first_occlusion_at >= 0 and first_handoff_at >= 0 and first_occlusion_at < first_handoff_at) else 0
+            queries.append(Query(qtype, target, time_asked, is_binary=True))
+        elif qtype == "did_chain2_before_chain1":
+            target = 1 if (chain2_fired_at >= 0 and fired_at >= 0 and chain2_fired_at < fired_at) else 0
+            queries.append(Query(qtype, target, time_asked, is_binary=True))
+        elif qtype == "which_event_was_first":
+            queries.append(Query(qtype, int(first_event_code), time_asked, is_binary=False))
+        elif qtype == "closest_entity_to_holder_at_alarm":
+            queries.append(Query(qtype, int(closest_entity_to_holder_at_alarm), time_asked, is_binary=False))
+        elif qtype == "entity_sharing_color_with_trigger":
+            queries.append(Query(qtype, int(entity_sharing_color_with_trigger), time_asked, is_binary=False))
+        elif qtype == "which_entity_visible_at_correction":
+            queries.append(Query(qtype, int(visible_at_correction), time_asked, is_binary=False))
+        elif qtype == "entity_never_occluded":
+            queries.append(Query(qtype, int(entity_never_occluded), time_asked, is_binary=False))
+        elif qtype == "entity_never_tagged":
+            queries.append(Query(qtype, int(entity_never_tagged), time_asked, is_binary=False))
+        elif qtype == "chain_never_fired":
+            target = 1 if ((fired_at >= 0) ^ (chain2_fired_at >= 0)) else 0
             queries.append(Query(qtype, target, time_asked, is_binary=True))
 
     return EpisodeWithDiagnostics(
@@ -229,8 +409,9 @@ def generate_episode_with_diagnostics(
 
 
 def episode_to_diag_tensors(ep: EpisodeWithDiagnostics) -> Dict[str, Tensor]:
+    qtype_map = get_extended_query_type_to_idx()
     qtimes = torch.tensor([q.time_asked for q in ep.queries], dtype=torch.long)
-    qtypes = torch.tensor([EXTENDED_QUERY_TYPE_TO_IDX[q.qtype] for q in ep.queries], dtype=torch.long)
+    qtypes = torch.tensor([qtype_map[q.qtype] for q in ep.queries], dtype=torch.long)
     qtargets = torch.tensor([q.target for q in ep.queries], dtype=torch.long)
     qbinary = torch.tensor([q.is_binary for q in ep.queries], dtype=torch.bool)
     return {
@@ -299,12 +480,18 @@ def recall_by_difficulty(
     model.eval()
     query_head.eval()
 
-    holds_idx = EXTENDED_QUERY_TYPE_TO_IDX["who_holds_token"]
-    first_tagged_idx = EXTENDED_QUERY_TYPE_TO_IDX["who_was_first_tagged"]
-    true_rule_idx = EXTENDED_QUERY_TYPE_TO_IDX.get("what_was_true_rule", -1)
-    trigger_before_alarm_idx = EXTENDED_QUERY_TYPE_TO_IDX.get("did_trigger_before_alarm", -1)
-    first_occluded_idx = EXTENDED_QUERY_TYPE_TO_IDX.get("which_entity_first_occluded", -1)
-    chain2_fire_idx = EXTENDED_QUERY_TYPE_TO_IDX.get("did_chain2_fire", -1)
+    qtype_map = get_extended_query_type_to_idx()
+    holds_idx = qtype_map.get("who_holds_token", -1)
+    first_tagged_idx = qtype_map.get("who_was_first_tagged", -1)
+    true_rule_idx = qtype_map.get("what_was_true_rule", -1)
+    trigger_before_alarm_idx = qtype_map.get("did_trigger_before_alarm", -1)
+    first_occluded_idx = qtype_map.get("which_entity_first_occluded", -1)
+    chain2_fire_idx = qtype_map.get("did_chain2_fire", -1)
+    extra_query_names = [
+        q for q in get_extended_query_types()
+        if q in BRANCH_QUERY_TYPES and q not in {"holder_if_handoff2_absent", "would_alarm_fire_without_correction"}
+    ]
+    extra_query_idxs = {qtype_map[q]: q for q in extra_query_names if q in qtype_map}
 
     _handoff_keys = ["0", "1", "2", "3", "4", "5", "6+"]
     bucket_correct: Dict[str, List[int]] = {k: [] for k in _handoff_keys}
@@ -313,6 +500,7 @@ def recall_by_difficulty(
     temporal_ordering_correct: List[int] = []
     first_occluded_correct: List[int] = []
     chain2_fire_correct: List[int] = []
+    extra_query_correct: Dict[str, List[int]] = {q: [] for q in extra_query_names}
     color_change_correct: List[int] = []
     _lag_keys = ["0-5", "6-15", "16-30", "31+"]
     color_change_by_lag: Dict[str, List[int]] = {k: [] for k in _lag_keys}
@@ -377,11 +565,13 @@ def recall_by_difficulty(
                     first_occluded_correct.append(correct)
                 elif qtype == chain2_fire_idx and chain2_fire_idx >= 0:
                     chain2_fire_correct.append(correct)
+                elif qtype in extra_query_idxs:
+                    extra_query_correct[extra_query_idxs[qtype]].append(correct)
 
         # --- Zero-shot eval: color change query (never trained) ---
         # Use a *trained* "which entity" embedding so the probe tests HPM
         # retention, not trunk decoding of a random embedding vector.
-        probe_qtype_idx = EXTENDED_QUERY_TYPE_TO_IDX["which_entity_occluded"]
+        probe_qtype_idx = qtype_map["which_entity_occluded"]
         for bi in range(bs):
             cc_entity = int(batch["color_change_entity_id"][bi].item())
             cc_step = int(batch["color_change_step"][bi].item())
@@ -393,7 +583,7 @@ def recall_by_difficulty(
             # Use a trained "which entity" embedding slot for the probe. The
             # color_change_idx embedding never receives gradient and would feed
             # the QueryHead trunk random noise.
-            probe_qtype_idx = EXTENDED_QUERY_TYPE_TO_IDX["which_entity_occluded"]
+            probe_qtype_idx = qtype_map["which_entity_occluded"]
             syn_qtype = torch.tensor([[probe_qtype_idx]], device=device, dtype=torch.long)
                 
             syn_ent, _ = query_head(augmented_seq[bi:bi+1], syn_qtime, syn_qtype)
@@ -418,6 +608,7 @@ def recall_by_difficulty(
         "did_trigger_before_alarm": {"acc": (sum(temporal_ordering_correct) / len(temporal_ordering_correct)) if temporal_ordering_correct else None, "n": len(temporal_ordering_correct)},
         "which_entity_first_occluded": {"acc": (sum(first_occluded_correct) / len(first_occluded_correct)) if first_occluded_correct else None, "n": len(first_occluded_correct)},
         "did_chain2_fire": {"acc": (sum(chain2_fire_correct) / len(chain2_fire_correct)) if chain2_fire_correct else None, "n": len(chain2_fire_correct)},
+        "extra_query_metrics": summarize(extra_query_correct),
         "which_entity_changed_color": {"acc": (sum(color_change_correct) / len(color_change_correct)) if color_change_correct else None, "n": len(color_change_correct)},
         "color_change_by_lag": summarize(color_change_by_lag),
         "mean_episodic_read_entropy": float(np.mean(entropy_samples)) if entropy_samples else None,
@@ -462,6 +653,12 @@ def format_diagnostics(report: Dict[str, Any]) -> str:
         entry = report.get(key)
         if entry and entry.get("n", 0) > 0:
             lines.append(f"  {label}:  acc={_color_val(entry['acc'], acc_spec)}  n={entry['n']}")
+    extra_metrics = report.get("extra_query_metrics", {})
+    if any(v.get("n", 0) > 0 for v in extra_metrics.values()):
+        lines.append("  branch-B query metrics:")
+        for key, value in extra_metrics.items():
+            if value.get("n", 0) > 0:
+                lines.append(f"    {key}:  acc={_color_val(value['acc'], acc_spec)}  n={value['n']}")
     # Color change retention curve by lag
     lag_data = report.get("color_change_by_lag", {})
     if any(v.get("n", 0) > 0 for v in lag_data.values()):
@@ -495,6 +692,8 @@ def run_diagnostic_report(
 __all__ = [
     "EXTENDED_QUERY_TYPES",
     "EXTENDED_QUERY_TYPE_TO_IDX",
+    "get_extended_query_types",
+    "get_extended_query_type_to_idx",
     "EpisodeWithDiagnostics",
     "TMEW1DiagnosticDataset",
     "generate_episode_with_diagnostics",

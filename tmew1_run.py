@@ -34,9 +34,9 @@ from tmew1_train import (
 )
 from tmew1_queries import QueryHead, augment_sequence_with_holder_audio, query_train_step_addon
 from tmew1_diagnostics import (
-    EXTENDED_QUERY_TYPES,
-    EXTENDED_QUERY_TYPE_TO_IDX,
     generate_episode_with_diagnostics,
+    get_extended_query_type_to_idx,
+    get_extended_query_types,
     episode_to_diag_tensors,
     collate_diag,
     run_diagnostic_report,
@@ -202,7 +202,7 @@ def per_qtype_accuracy(
     qtypes = batch["query_types"]
 
     metrics: Dict[str, float] = {}
-    for qtype_name, qtype_idx in EXTENDED_QUERY_TYPE_TO_IDX.items():
+    for qtype_name, qtype_idx in get_extended_query_type_to_idx().items():
         mask = qtypes == qtype_idx
         if not mask.any():
             continue
@@ -281,7 +281,7 @@ def train_one_step(
                 ),
                 query_head,
                 batch,
-                query_type_to_idx=EXTENDED_QUERY_TYPE_TO_IDX,
+                query_type_to_idx=get_extended_query_type_to_idx(),
                 weight=0.5,
             )
 
@@ -587,7 +587,11 @@ def run_curriculum(
     num_categorical_answers = max(world_cfg.max_entities, world_cfg.num_latent_rules)
 
     hpm_dim = model.hpm.output_dim if getattr(model, "hpm", None) is not None else 0
-    query_head = QueryHead(model.cfg.d_model + world_cfg.max_entities + hpm_dim, num_categorical_answers, len(EXTENDED_QUERY_TYPES))
+    query_head = QueryHead(
+        model.cfg.d_model + world_cfg.max_entities + hpm_dim,
+        num_categorical_answers,
+        len(get_extended_query_types()),
+    )
 
     holder_head = CurrentHolderHead(model.cfg.d_model, world_cfg.max_entities)
 

@@ -311,9 +311,7 @@ B_QUERY_SPECS: Dict[str, Dict[str, Any]] = {
             "At the step the alarm fired, which entity was closest "
             "(Manhattan distance) to the current holder?"
         ),
-        # Ground truth needs per-step entity positions cached in the episode.
-        # _render_vision already projects positions; diagnostics must store them.
-        "requires_step_patch": True,
+        "requires_step_patch": False,
     },
     "which_entity_visible_at_correction": {
         "answer_kind": "entity_id",
@@ -322,7 +320,7 @@ B_QUERY_SPECS: Dict[str, Dict[str, Any]] = {
             "In false_cue episodes, which entity was visible at the "
             "correction step?"
         ),
-        "requires_step_patch": True,
+        "requires_step_patch": False,
     },
     "entity_sharing_color_with_trigger": {
         "answer_kind": "entity_id",
@@ -331,7 +329,7 @@ B_QUERY_SPECS: Dict[str, Dict[str, Any]] = {
             "Which entity shares color with the trigger source "
             "(and is not the trigger source itself)?"
         ),
-        "requires_step_patch": True,
+        "requires_step_patch": False,
     },
 
     # --- B3 negation ---
@@ -488,7 +486,6 @@ def make_branch_preset(branch_id: str) -> BranchConfig:
                 "entity_sharing_color_with_trigger",
                 "which_entity_visible_at_correction",
             ),
-            requires_step_patch=True,
             rubric=PromotionRubric(
                 target_metric="qacc/closest_entity_to_holder_at_alarm",
                 min_absolute=0.55,
