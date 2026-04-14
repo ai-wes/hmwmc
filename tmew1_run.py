@@ -13,6 +13,8 @@ families are failing in isolation.
 from __future__ import annotations
 from typing import Optional 
 import argparse
+import json
+import os
 import random
 from dataclasses import replace
 from typing import Dict, Sequence, Tuple
@@ -696,6 +698,11 @@ def run_curriculum(
                 metrics=val,
                 specs=specs,
             )
+            # Persist val dict for branch runner rubric evaluation
+            _branch_out = os.environ.get("TMEW1_BRANCH_OUT_DIR")
+            if _branch_out:
+                with open(os.path.join(_branch_out, "val.json"), "w") as _vf:
+                    json.dump({k: float(v) for k, v in val.items()}, _vf, indent=2)
 
             if val["latent_acc"] >= tier.promote_at_accuracy:
                 print(f"  -> promoting from tier {tier.tier}")
