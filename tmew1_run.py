@@ -307,6 +307,29 @@ def train_one_step(
             "running emergency_stabilize", float(total.item()) if not torch.isnan(total) else float("nan"),
         )
         optimizer.zero_grad(set_to_none=True)
+
+        # CRITICAL: repair any NaN/Inf weights AND reset poisoned Adam state.
+        # Without this the next forward pass produces NaN again and we loop
+        # forever. This is the same repair the post-step block does, but we
+        # never reach that block on this early-return path.
+        _repaired = 0
+        for p in model.parameters():
+            if p.data.isnan().any() or p.data.isinf().any():
+                p.data.nan_to_num_(nan=0.0, posinf=1.0, neginf=-1.0)
+                _repaired += 1
+            if p in optimizer.state and optimizer.state[p]:
+                state = optimizer.state[p]
+                for k in ("exp_avg", "exp_avg_sq", "max_exp_avg_sq"):
+                    if k in state and isinstance(state[k], torch.Tensor):
+                        if state[k].isnan().any() or state[k].isinf().any():
+                            optimizer.state[p] = {}
+                            break
+        if _repaired:
+            _log.getLogger(__name__).warning(
+                "NaN-loss cascade repair: sanitized %d param tensors, "
+                "cleared poisoned Adam moments", _repaired,
+            )
+
         if model.cfg.enable_online_homeostasis:
             model.controller.emergency_stabilize()
             # Force-unlock all layers so the model can recover
@@ -332,15 +355,21 @@ def train_one_step(
             params = list(model.parameters()) + list(probe.parameters()) + list(query_head.parameters()) + list(holder_head.parameters())
 
         # ── Fix #3: Pre-step finite-grad check ─────────────────────────
-        grads_finite = all(
-            p.grad is None or torch.isfinite(p.grad).all()
-            for p in params
-        )
+        # Identify offenders BEFORE zeroing so we can clear their Adam state.
+        bad_params = [
+            p for p in params
+            if p.grad is not None and not torch.isfinite(p.grad).all()
+        ]
+        grads_finite = len(bad_params) == 0
         if not grads_finite:
             import logging as _log
             _log.getLogger(__name__).warning(
-                "Non-finite grads detected — skipping optimizer.step()"
+                "Non-finite grads detected — skipping optimizer.step() "
+                "(clearing Adam state for %d offender params)", len(bad_params),
             )
+            for p in bad_params:
+                if p in optimizer.state:
+                    optimizer.state[p] = {}
             optimizer.zero_grad(set_to_none=True)
             scaler.update()  # still update scaler so it can back off the scale
             with torch.no_grad():
@@ -362,15 +391,20 @@ def train_one_step(
             params = list(model.parameters()) + list(probe.parameters()) + list(query_head.parameters()) + list(holder_head.parameters())
 
         # ── Fix #3 (non-scaler path): Pre-step finite-grad check ──────
-        grads_finite = all(
-            p.grad is None or torch.isfinite(p.grad).all()
-            for p in params
-        )
+        bad_params = [
+            p for p in params
+            if p.grad is not None and not torch.isfinite(p.grad).all()
+        ]
+        grads_finite = len(bad_params) == 0
         if not grads_finite:
             import logging as _log
             _log.getLogger(__name__).warning(
-                "Non-finite grads detected — skipping optimizer.step()"
+                "Non-finite grads detected — skipping optimizer.step() "
+                "(clearing Adam state for %d offender params)", len(bad_params),
             )
+            for p in bad_params:
+                if p in optimizer.state:
+                    optimizer.state[p] = {}
             optimizer.zero_grad(set_to_none=True)
             with torch.no_grad():
                 rule_acc = (rule_logits.argmax(-1) == batch["latent_rule"]).float().mean().item()
@@ -623,6 +657,36 @@ def run_curriculum(
                     _cleared += 1
             if _cleared:
                 print(f"  -> reset Adam state for {_cleared} params in new modalities: {new_mods}")
+
+            # Proactive tier-boundary sanitize: nan_to_num all weights AND
+            # inspect every Adam moment buffer for NaN/Inf. Clears any that
+            # are poisoned, even in shared backbone params that didn't belong
+            # to the new modality. This is the defence against the cascade
+            # where tier-1 grad-skip events leave trailing instability in
+            # shared params' exp_avg_sq, which blows up on first tier-2 step.
+            _weights_repaired = 0
+            _adam_cleared = 0
+            for p in model.parameters():
+                if p.data.isnan().any() or p.data.isinf().any():
+                    p.data.nan_to_num_(nan=0.0, posinf=1.0, neginf=-1.0)
+                    _weights_repaired += 1
+                if p in optimizer.state and optimizer.state[p]:
+                    state = optimizer.state[p]
+                    poisoned = False
+                    for k in ("exp_avg", "exp_avg_sq", "max_exp_avg_sq"):
+                        if k in state and isinstance(state[k], torch.Tensor):
+                            if state[k].isnan().any() or state[k].isinf().any():
+                                poisoned = True
+                                break
+                    if poisoned:
+                        optimizer.state[p] = {}
+                        _adam_cleared += 1
+            if _weights_repaired or _adam_cleared:
+                print(
+                    f"  -> tier-boundary sanitize: repaired {_weights_repaired} "
+                    f"weight tensors, cleared {_adam_cleared} poisoned Adam states"
+                )
+
             # Reset GradScaler so stale scale factor from previous tier doesn't cause issues
             scaler = GradScaler("cuda", enabled=tcfg.use_amp)
 
