@@ -454,8 +454,13 @@ class RMSNorm(nn.Module):
         self.eps = eps
 
     def forward(self, x: Tensor) -> Tensor:
-        rms = x.pow(2).mean(dim=-1, keepdim=True).add(self.eps).sqrt()
-        return (x / rms) * self.weight
+        # Compute RMS in fp32 to avoid fp16 flush-to-zero on eps.
+        # Under AMP autocast, x may be fp16 where eps=1e-6 is a subnormal
+        # that CUDA FTZ flushes to 0, causing 0/0=NaN on zero-init memory slots.
+        dtype = x.dtype
+        x_f32 = x.float()
+        rms = x_f32.pow(2).mean(dim=-1, keepdim=True).add(self.eps).sqrt()
+        return ((x_f32 / rms) * self.weight.float()).to(dtype)
 
 
 # -----------------------------------------------------------------------------
