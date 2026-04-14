@@ -673,6 +673,9 @@ def run_curriculum(
                     pnn_str = "/".join(s[0] for s in pnn_states) if pnn_states else ""
                     n_open = sum(1 for s in pnn_states if s == "OPEN") if pnn_states else 0
                     unlock_tag = f" (+{_accum_unlocks} unlocked)" if _accum_unlocks > 0 else ""
+                    # PNN state metrics for aux_latent spike correlation
+                    step_metrics["pnn_open"] = n_open
+                    step_metrics["pnn_unlocks"] = _accum_unlocks
                     log_training_snapshot(
                         score_logger,
                         step_label=(

@@ -270,6 +270,13 @@ def log_training_snapshot(
     Convenience helper for your training loop.
     """
     metric_specs = dict(specs or build_default_metric_specs())
+    # Entropy-relative scoring for loss/text: if text_entropy is present,
+    # re-anchor min_value so scoring measures excess above the irreducible floor.
+    if "text_entropy" in metrics and "loss/text" in metric_specs:
+        floor = metrics["text_entropy"]
+        metric_specs["loss/text"] = MetricSpec(
+            ScoreDirection.LOWER_IS_BETTER, floor, floor + 1.0,
+        )
     score_logger.logger.info(f"=== {step_label} ===")
     score_logger.log_scores(metrics, metric_specs)
 
