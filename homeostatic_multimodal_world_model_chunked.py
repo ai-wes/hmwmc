@@ -472,17 +472,18 @@ class TextEncoder(nn.Module):
         self.cfg = cfg
         self.embedding = nn.Embedding(cfg.modality.text_vocab_size, cfg.d_model, padding_idx=cfg.modality.text_pad_id)
         self.proj = nn.Linear(cfg.d_model, cfg.d_model)
+        self.out_norm = nn.LayerNorm(cfg.d_model)
 
     def forward(self, text_tokens: Tensor) -> Tensor:
         if text_tokens.dim() == 2:
-            return self.proj(self.embedding(text_tokens))
+            return self.out_norm(self.proj(self.embedding(text_tokens)))
         if text_tokens.dim() != 3:
             raise ValueError(f"text_tokens must have shape [B,T] or [B,T,L], got {tuple(text_tokens.shape)}")
         emb = self.embedding(text_tokens)
         mask = (text_tokens != self.cfg.modality.text_pad_id).float().unsqueeze(-1)
         denom = mask.sum(dim=2).clamp_min(1.0)
         pooled = (emb * mask).sum(dim=2) / denom
-        return self.proj(pooled)
+        return self.out_norm(self.proj(pooled))
 
 
 class VisionEncoder(nn.Module):
@@ -704,6 +705,8 @@ class AdaptiveSparseWorldBlock(nn.Module):
         forget_t = self.forget_lambda.mean()
         next_hidden = forget_t * hidden_state + write_alpha_t * candidate_state
         next_memory = self._update_memory(next_hidden, memory_slots, write_alpha_t, forget_t)
+        next_hidden = torch.nan_to_num(next_hidden, nan=0.0, posinf=1.0, neginf=-1.0)
+        next_memory = torch.nan_to_num(next_memory, nan=0.0, posinf=1.0, neginf=-1.0)
 
         with torch.no_grad():
             residual_ratio = delta.norm(dim=-1).mean() / x_t.norm(dim=-1).mean().clamp_min(1e-6)
@@ -791,8 +794,8 @@ class AdaptiveSparseWorldBlock(nn.Module):
                 })
 
             outputs.append(x_out)
-            hidden_state = next_hidden
-            memory_slots = next_memory
+            hidden_state = torch.nan_to_num(next_hidden, nan=0.0, posinf=1.0, neginf=-1.0)
+            memory_slots = torch.nan_to_num(next_memory, nan=0.0, posinf=1.0, neginf=-1.0)
 
         return torch.stack(outputs, dim=1), hidden_state, memory_slots, diagnostics
 
@@ -868,7 +871,7 @@ class EpisodicMemoryBank(nn.Module):
         if alloc_mask.any():
             episodic_memory = episodic_memory.clone()
             strengths = strengths.clone()
-            episodic_memory[batch_idx[alloc_mask], weakest_idx[alloc_mask], :] = candidate[alloc_mask]
+            episodic_memory[batch_idx[alloc_mask], weakest_idx[alloc_mask], :] = candidate[alloc_mask].to(episodic_memory.dtype)
             strengths[batch_idx[alloc_mask], weakest_idx[alloc_mask]] = torch.maximum(
                 strengths[batch_idx[alloc_mask], weakest_idx[alloc_mask]],
                 (alloc_strength.squeeze(-1)[alloc_mask] * (1.0 + self.cfg.episodic_allocate_boost)).clamp_min(self.cfg.episodic_min_strength),
