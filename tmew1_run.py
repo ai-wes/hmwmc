@@ -311,9 +311,10 @@ def train_one_step(
                 **(get_retrieval_context(output) if isinstance(query_head, IterativeQueryHead) else {}),
             )
 
+    holder_active = "audio" in enabled and "holder_per_step" in batch
     holder_loss = torch.zeros((), device=output.sequence.device)
     holder_acc = 0.0
-    if "audio" in enabled and "holder_per_step" in batch:
+    if holder_active:
         holder_logits = holder_head(output.sequence)
         holder_targets = batch["holder_per_step"][:, :-1]
         holder_loss = nn.functional.cross_entropy(
@@ -376,8 +377,9 @@ def train_one_step(
         return {
             "total": float("nan"), "next_step": float("nan"),
             "aux_latent": float("nan"), "latent_acc": rule_acc,
-            "q_loss": float("nan"), "holder_loss": float("nan"),
-            "holder_acc": holder_acc, **q_metrics,
+            "q_loss": float("nan"),
+            **({"holder_loss": float("nan"), "holder_acc": holder_acc} if holder_active else {}),
+            **q_metrics,
         }
 
     total.backward()
@@ -425,8 +427,9 @@ def train_one_step(
         return {
             "total": float(total.item()), "next_step": float(losses.parts.get("text", losses.parts.get("vision", total)).item()),
             "aux_latent": float(aux.item()), "latent_acc": rule_acc,
-            "q_loss": float(q_loss.item()), "holder_loss": float(holder_loss.item()),
-            "holder_acc": holder_acc, "skipped_step": True, **q_metrics,
+            "q_loss": float(q_loss.item()),
+            **({"holder_loss": float(holder_loss.item()), "holder_acc": holder_acc} if holder_active else {}),
+            "skipped_step": True, **q_metrics,
         }
     optimizer.step()
 
@@ -460,10 +463,11 @@ def train_one_step(
         "aux_latent": float(aux.item()),
         "latent_acc": rule_acc,
         "q_loss": float(q_loss.item()),
-        "holder_loss": float(holder_loss.item()),
-        "holder_acc": holder_acc,
         **q_metrics,
     }
+    if holder_active:
+        out["holder_loss"] = float(holder_loss.item())
+        out["holder_acc"] = holder_acc
     for mod_name, mod_loss in losses.parts.items():
         out[f"loss/{mod_name}"] = float(mod_loss.item())
     return out
@@ -762,11 +766,13 @@ def run_curriculum(
                         "aux_latent": stats["aux_latent"],
                         "latent_acc": stats["latent_acc"],
                         "q_loss": stats["q_loss"],
-                        "holder_loss": stats["holder_loss"],
-                        "holder_acc": stats["holder_acc"],
                         "entity_acc": stats.get("entity_acc", 0.0),
                         "binary_acc": stats.get("binary_acc", 0.0),
                     }
+                    if "holder_loss" in stats:
+                        step_metrics["holder_loss"] = stats["holder_loss"]
+                    if "holder_acc" in stats:
+                        step_metrics["holder_acc"] = stats["holder_acc"]
                     for _mk in ("loss/text", "loss/vision", "loss/audio", "loss/numeric"):
                         if _mk in stats:
                             step_metrics[_mk] = stats[_mk]
