@@ -651,7 +651,7 @@ def run_curriculum(world_cfg: WorldConfig, tcfg: TrainConfig, tiers: Sequence[Cu
                     unlock_tag = f" (+{_accum_unlocks} unlocked)" if _accum_unlocks > 0 else ""
                     log_training_snapshot(
                         score_logger,
-                        step_label=f"tier{tier.tier} ep{epoch} s{step:04d} | pnn={pnn_str} open={n_open}{unlock_tag}",
+                        step_label=f"=============================tier{tier.tier} ep{epoch} s{step:04d} | pnn={pnn_str} open={n_open}{unlock_tag}======================================",
                         metrics=step_metrics,
                         specs=specs,
                     )

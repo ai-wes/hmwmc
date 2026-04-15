@@ -754,8 +754,8 @@ def run_curriculum(
                     log_training_snapshot(
                         score_logger,
                         step_label=(
-                            f"t{tier.tier} ep{epoch} s{step:04d}"
-                            f" | pnn={pnn_str} open={n_open}{unlock_tag}"
+                            f"=================================t{tier.tier} ep{epoch} s{step:04d}"
+                            f" | pnn={pnn_str} open={n_open}{unlock_tag}================================"
                         ),
                         metrics=step_metrics,
                         specs=specs,
