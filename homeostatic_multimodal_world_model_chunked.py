@@ -430,6 +430,9 @@ class WorldModelConfig:
 
     # Homeostatic Predictive Memory
     hpm_config: HPMConfig = field(default_factory=HPMConfig)
+    # Dual-bank HPM: optional slow-plasticity bank for structural/rule memory.
+    # When set, a second HPM module runs in parallel with different hyperparams.
+    hpm_slow_config: Optional[HPMConfig] = None
 
 
 # -----------------------------------------------------------------------------
@@ -1387,6 +1390,12 @@ class HomeostaticMultimodalWorldModel(nn.Module):
 
         self._last_forward_report: Optional[Dict[str, Any]] = None
         self._last_layer_diagnostics: List[Dict[str, float]] = []
+        self._last_hpm_diagnostics: Optional[Dict[str, float]] = None
+
+        # Dual-bank HPM: optional slow-plasticity bank for structural/rule memory.
+        self.hpm_slow: Optional[HomeostaticPredictiveMemory] = None
+        if cfg.hpm_slow_config is not None and cfg.hpm_slow_config.enabled:
+            self.hpm_slow = HomeostaticPredictiveMemory(cfg.d_model, cfg.hpm_slow_config)
 
     def init_state(self, batch_size: int, device: torch.device | None = None) -> WorldModelState:
         device = device or next(self.parameters()).device
@@ -1569,6 +1578,19 @@ class HomeostaticMultimodalWorldModel(nn.Module):
         hpm_diagnostics: Optional[Dict[str, float]] = None
         if self.hpm is not None:
             hpm_sequence, hpm_diagnostics = self.hpm(sequence)
+        # Dual-bank HPM: run slow bank and concatenate outputs.
+        if self.hpm_slow is not None:
+            hpm_slow_seq, hpm_slow_diag = self.hpm_slow(sequence)
+            if hpm_sequence is not None:
+                hpm_sequence = torch.cat([hpm_sequence, hpm_slow_seq], dim=-1)
+            else:
+                hpm_sequence = hpm_slow_seq
+            if hpm_diagnostics is not None and hpm_slow_diag:
+                for k, v in hpm_slow_diag.items():
+                    hpm_diagnostics[f"slow_{k}"] = v
+            elif hpm_slow_diag:
+                hpm_diagnostics = {f"slow_{k}": v for k, v in hpm_slow_diag.items()}
+        self._last_hpm_diagnostics = hpm_diagnostics
 
         layer_diagnostics = []
         for layer_stats in per_layer_diagnostics:

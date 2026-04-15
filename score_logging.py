@@ -256,6 +256,17 @@ def build_default_metric_specs() -> dict[str, MetricSpec]:
         "qacc/did_trigger_before_alarm": MetricSpec(ScoreDirection.HIGHER_IS_BETTER, 0.0, 1.0),
         "qacc/which_entity_first_occluded": MetricSpec(ScoreDirection.HIGHER_IS_BETTER, 0.0, 1.0),
         "qacc/did_chain2_fire": MetricSpec(ScoreDirection.HIGHER_IS_BETTER, 0.0, 1.0),
+        # HPM diagnostics
+        "hpm_gate_mean": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 1.0),
+        "hpm_z_abs_mean": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 5.0),
+        "hpm_z_abs_max": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 10.0),
+        "hpm_err_mean": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 1.0),
+        "hpm_write_mag": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 1.0),
+        "hpm_force_unlocks_step": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 10.0),
+        "hpm_mu": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 1.0),
+        "hpm_sigma": MetricSpec(ScoreDirection.HIGHER_IS_BETTER, 0.0, 2.0),
+        "hpm_write_regular_frac": MetricSpec(ScoreDirection.HIGHER_IS_BETTER, 0.0, 1.0),
+        "hpm_write_forced_frac": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 1.0),
     }
 
 

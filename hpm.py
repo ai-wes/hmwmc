@@ -47,11 +47,13 @@ Running stats, z-scores, and prediction errors are all detached.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Optional, Tuple, Dict, List
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch import Tensor
 
 
@@ -94,6 +96,34 @@ class HPMConfig:
     gate_hidden: int = 64
     # Dim of state-id embedding fed into gate.
     state_embed_dim: int = 8
+    # --- C3: retroactive binding ---
+    # Window size for retroactive binding. 0 = disabled (Level 1/2 behaviour).
+    # When > 0, writes are a learned mixture over the last `retroactive_window`
+    # hidden states instead of the current h_t alone (Level 3).
+    retroactive_window: int = 0
+    # --- C4: multi-timescale ---
+    # Per-slot persistence multipliers. When set, len must equal n_slots.
+    # Each value scales the *retention* (1 - g) for that slot:
+    #   effective_gate_s = g_s / timescale_s  (higher timescale => slower writes)
+    # None means all slots use timescale 1.0 (uniform, default).
+    slot_timescales: Optional[Tuple[float, ...]] = None
+    # --- Learned surprise subspace (Phase B, critique #1) ---
+    # Dimension of the per-slot projection for computing prediction error.
+    # 0 = disabled (surprise computed in raw h-space, original behavior).
+    surprise_dim: int = 0
+    # --- Adaptive sigma floor (Phase B, critique #6) ---
+    # When True, sigma floor scales with batch_mu to prevent convergence-collapse.
+    sigma_floor_adaptive: bool = False
+    sigma_floor_scale: float = 0.1
+    # Absolute MSE gate: force-unlock requires e_t > this AND |z| > critical_z.
+    min_surprise_threshold: float = 0.0
+    # --- Content-conditional write gating (Phase C, critique #2) ---
+    # When True, each slot develops content preferences via key-query matching.
+    # Subsumes the old `competitive` flag with a content-aware mechanism.
+    content_gating: bool = False
+    # --- Learnable state gains (Phase D, critique #4) ---
+    # When True, the OPEN/CLOSING/LOCKED gain multipliers are learned via softplus.
+    learnable_gains: bool = False
 
 
 STATE_OPEN = 0
@@ -144,6 +174,11 @@ class HomeostaticPredictiveMemory(nn.Module):
         # Per-slot one-step-ahead predictor: h_{t-1} -> h_t prediction.
         self.next_h_predictor = SlotLinear(self.n_slots, d_model, d_model)
 
+        # --- Learned surprise subspace (Phase B) ---
+        self._use_surprise_proj = cfg.surprise_dim > 0
+        if self._use_surprise_proj:
+            self.surprise_proj = SlotLinear(self.n_slots, d_model, cfg.surprise_dim)
+
         # Slot state embedding.
         self.state_embed = nn.Embedding(3, cfg.state_embed_dim)
 
@@ -160,6 +195,39 @@ class HomeostaticPredictiveMemory(nn.Module):
 
         if cfg.read_mode == "attn":
             self.read_query = nn.Linear(d_model, self.slot_dim)
+
+        # --- Content-conditional write gating (Phase C) ---
+        if cfg.content_gating:
+            self.slot_key = nn.Parameter(torch.randn(self.n_slots, self.slot_dim) * 0.02)
+            self.content_query = SlotLinear(self.n_slots, d_model, self.slot_dim)
+
+        # --- Learnable state gains (Phase D) ---
+        if cfg.learnable_gains:
+            # Initialize via inverse-softplus so softplus(logit) ≈ original gain.
+            def _inv_softplus(x: float) -> float:
+                return math.log(math.exp(x) - 1.0) if x > 0 else 0.0
+            self.gain_logits = nn.Parameter(torch.tensor([
+                _inv_softplus(cfg.gain_open),
+                _inv_softplus(cfg.gain_closing),
+                _inv_softplus(cfg.gain_locked),
+            ]))
+
+        # --- C3: retroactive binding ---
+        if cfg.retroactive_window > 0:
+            # Learned mixing weights over the last W hidden states.
+            # MLP: h_t -> (W,) softmax weights.  Write becomes weighted
+            # combination of recent hidden states, projected through write_encoder.
+            self.retro_mix = SlotLinear(self.n_slots, d_model, cfg.retroactive_window)
+
+        # --- C4: multi-timescale ---
+        if cfg.slot_timescales is not None:
+            assert len(cfg.slot_timescales) == self.n_slots, (
+                f"slot_timescales length {len(cfg.slot_timescales)} != n_slots {self.n_slots}"
+            )
+            self.register_buffer(
+                "timescale_vec",
+                torch.tensor(cfg.slot_timescales, dtype=torch.float32),
+            )
 
         # --- buffers ---
         self.register_buffer("mu", torch.zeros(self.n_slots))
@@ -220,6 +288,9 @@ class HomeostaticPredictiveMemory(nn.Module):
         self.slot_state.copy_(new_state)
 
     def _state_gain_vec(self, device: torch.device, dtype: torch.dtype) -> Tensor:
+        if self.cfg.learnable_gains:
+            gains_all = F.softplus(self.gain_logits)  # (3,)
+            return gains_all[self.slot_state].to(device=device, dtype=dtype)
         cfg = self.cfg
         gains = torch.empty(self.n_slots, device=device, dtype=dtype)
         for s in range(self.n_slots):
@@ -253,27 +324,69 @@ class HomeostaticPredictiveMemory(nn.Module):
                      + self.next_h_predictor.bias.unsqueeze(0)
         preds = preds_flat.view(B, T, self.n_slots, D)
 
-        # e_t = error at step t = || predictor_s(h_{t-1}) - h_t ||^2 averaged.
+        # --- Surprise computation ---
         h_target = h_seq.detach()
         shifted_preds = torch.zeros_like(preds)
         if T > 1:
             shifted_preds[:, 1:, :, :] = preds[:, :-1, :, :]
-        err_all = (shifted_preds - h_target.unsqueeze(2)).pow(2).mean(dim=-1).detach()
+
+        if self._use_surprise_proj:
+            # Phase B: compute prediction error in learned surprise subspace.
+            # Project both predicted and target into d_s per slot.
+            proj_target = torch.einsum(
+                "bi,sio->bso", h_target.reshape(B * T, D), self.surprise_proj.weight
+            ) + self.surprise_proj.bias.unsqueeze(0)
+            proj_target = proj_target.view(B, T, self.n_slots, cfg.surprise_dim)
+            proj_preds = torch.einsum(
+                "btsd,sdo->btso",
+                shifted_preds, self.surprise_proj.weight,
+            )  # (B, T, n_slots, surprise_dim)
+            proj_preds = proj_preds + self.surprise_proj.bias.unsqueeze(0).unsqueeze(0)
+            err_all = (proj_preds - proj_target).pow(2).mean(dim=-1).detach()
+        else:
+            # Original: surprise in raw h_t space.
+            err_all = (shifted_preds - h_target.unsqueeze(2)).pow(2).mean(dim=-1).detach()
         err_all[:, 0, :] = 0.0  # no prior at t=0, no surprise
 
         # Write candidates precomputed: (B, T, n_slots, slot_dim).
-        writes_flat = torch.einsum("bi,sio->bso", h_flat, self.write_encoder.weight) \
-                      + self.write_encoder.bias.unsqueeze(0)
-        writes_all = writes_flat.view(B, T, self.n_slots, self.slot_dim)
+        use_retroactive = cfg.retroactive_window > 0
+        if not use_retroactive:
+            writes_flat = torch.einsum("bi,sio->bso", h_flat, self.write_encoder.weight) \
+                          + self.write_encoder.bias.unsqueeze(0)
+            writes_all = writes_flat.view(B, T, self.n_slots, self.slot_dim)
+        else:
+            writes_all = None
+
+        # C4: precompute timescale divisor for gate scaling.
+        use_timescale = cfg.slot_timescales is not None
+        if use_timescale:
+            ts_vec = self.timescale_vec.unsqueeze(0)  # (1, n_slots)
+
+        # --- Content gating precomputation (Phase C) ---
+        use_content_gating = cfg.content_gating
+        if use_content_gating:
+            # Precompute content queries for all timesteps.
+            cq_flat = torch.einsum("bi,sio->bso", h_flat, self.content_query.weight) \
+                      + self.content_query.bias.unsqueeze(0)
+            content_queries_all = cq_flat.view(B, T, self.n_slots, self.slot_dim)
+            inv_sqrt_d = 1.0 / math.sqrt(self.slot_dim)
 
         # --- Recurrent loop ---
         w_prev = self.w0.unsqueeze(0).expand(B, -1, -1).contiguous()
-        sigma_safe = self.sigma.clamp(min=cfg.sigma_floor)
+
+        # Adaptive sigma floor (Phase B, critique #6).
+        if cfg.sigma_floor_adaptive:
+            adaptive_floor = cfg.sigma_floor_scale * self.mu.abs().clamp(min=cfg.sigma_floor)
+            effective_floor = torch.maximum(
+                torch.full_like(self.sigma, cfg.sigma_floor), adaptive_floor
+            )
+            sigma_safe = self.sigma.clamp(min=cfg.sigma_floor)
+            sigma_safe = torch.maximum(sigma_safe, effective_floor)
+        else:
+            sigma_safe = self.sigma.clamp(min=cfg.sigma_floor)
+
         in_warmup = bool(self.global_step.item() < cfg.warmup_steps) if self.training else False
 
-        # Work with a local copy of slot_state. Writing back to the buffer happens
-        # at the end -- this avoids in-place mutation of tensors that nn.Embedding
-        # saved for backward.
         cur_state = self.slot_state.detach().clone().to(device)
 
         per_step_slot: List[Tensor] = []
@@ -283,11 +396,17 @@ class HomeostaticPredictiveMemory(nn.Module):
         err_sum = torch.zeros(self.n_slots, device=device)
         err_sq_sum = torch.zeros(self.n_slots, device=device)
         write_mag_sum = torch.zeros(self.n_slots, device=device)
+        # Phase A (critique #5): force-unlock write decomposition.
+        write_regular_sum = torch.zeros(self.n_slots, device=device)
+        write_forced_sum = torch.zeros(self.n_slots, device=device)
         force_unlocks_step = 0
         _probe_gate_list: List[Tensor] = []
         _probe_z_list: List[Tensor] = []
 
         def _state_gain_from(state_tensor: Tensor, out_dtype: torch.dtype) -> Tensor:
+            if cfg.learnable_gains:
+                gains_all = F.softplus(self.gain_logits)  # (3,)
+                return gains_all[state_tensor].to(dtype=out_dtype)
             gains = torch.empty(self.n_slots, device=device, dtype=out_dtype)
             for s in range(self.n_slots):
                 cur = int(state_tensor[s].item())
@@ -304,7 +423,6 @@ class HomeostaticPredictiveMemory(nn.Module):
             e_t = err_all[:, t]                        # (B, n_slots), detached
             z_t = (e_t - self.mu.unsqueeze(0)) / sigma_safe.unsqueeze(0)
 
-            # Fresh per-step embedding lookup on the (possibly just-updated) local state.
             state_emb = self.state_embed(cur_state)     # (n_slots, E)
 
             h_b = h_t.unsqueeze(1).expand(-1, self.n_slots, -1)
@@ -314,7 +432,7 @@ class HomeostaticPredictiveMemory(nn.Module):
 
             gh = torch.einsum("bsi,sio->bso", gate_in, self.gate_fc1.weight) \
                  + self.gate_fc1.bias.unsqueeze(0)
-            gh = torch.nn.functional.gelu(gh)
+            gh = F.gelu(gh)
             gate_logits = (torch.einsum("bsi,sio->bso", gh, self.gate_fc2.weight)
                            + self.gate_fc2.bias.unsqueeze(0)).squeeze(-1)
 
@@ -328,15 +446,22 @@ class HomeostaticPredictiveMemory(nn.Module):
             state_gain = _state_gain_from(cur_state, out_dtype=g_t.dtype)
             g_t = g_t * state_gain.unsqueeze(0)
 
+            # Track gate magnitude before force-unlock for decomposition.
+            g_before_force = g_t.detach().clone()
+
             if not in_warmup:
                 z_mag = z_t.abs()
-                force_mask_batch = z_mag > cfg.critical_z
+                # Phase B (critique #6): MSE gate — only force-unlock when absolute
+                # error exceeds threshold, preventing z-reinflation on tiny errors.
+                if cfg.min_surprise_threshold > 0:
+                    force_mask_batch = (z_mag > cfg.critical_z) & (e_t > cfg.min_surprise_threshold)
+                else:
+                    force_mask_batch = z_mag > cfg.critical_z
                 if force_mask_batch.any():
                     boost = force_mask_batch.to(g_t.dtype)
                     g_t = torch.clamp(g_t + boost, max=1.0)
                     force_mask_slot = force_mask_batch.any(dim=0)
                     if force_mask_slot.any():
-                        # Update the LOCAL state tensor, not the buffer yet.
                         cur_state = torch.where(
                             force_mask_slot,
                             torch.full_like(cur_state, STATE_OPEN),
@@ -348,7 +473,35 @@ class HomeostaticPredictiveMemory(nn.Module):
                 _probe_gate_list.append(g_t.detach())
                 _probe_z_list.append(z_t.detach())
 
-            writes = writes_all[:, t]
+            # --- C4: multi-timescale gate scaling ---
+            if use_timescale:
+                g_t = g_t / ts_vec
+
+            # --- Phase C: content-conditional write gating ---
+            if use_content_gating:
+                cq = content_queries_all[:, t]  # (B, n_slots, slot_dim)
+                relevance = (cq * self.slot_key.unsqueeze(0)).sum(dim=-1) * inv_sqrt_d  # (B, n_slots)
+                content_weight = torch.softmax(relevance, dim=-1)  # (B, n_slots)
+                g_t = g_t * content_weight
+
+            # --- C3: retroactive binding writes ---
+            if use_retroactive:
+                W = cfg.retroactive_window
+                start = max(0, t - W + 1)
+                h_window = h_seq[:, start:t + 1]
+                W_actual = h_window.shape[1]
+                mix_logits = torch.einsum(
+                    "bi,sio->bso", h_t, self.retro_mix.weight
+                ) + self.retro_mix.bias.unsqueeze(0)
+                mix_logits = mix_logits[:, :, :W_actual]
+                mix_weights = torch.softmax(mix_logits, dim=-1)
+                h_mix = torch.einsum("bsw,bwd->bsd", mix_weights, h_window)
+                writes = torch.einsum(
+                    "bsi,sio->bso", h_mix, self.write_encoder.weight
+                ) + self.write_encoder.bias.unsqueeze(0)
+            else:
+                writes = writes_all[:, t]
+
             g_exp = g_t.unsqueeze(-1)
             w_new = (1.0 - g_exp) * w_prev + g_exp * writes
             per_step_slot.append(w_new)
@@ -360,12 +513,17 @@ class HomeostaticPredictiveMemory(nn.Module):
                 z_abs_max = torch.maximum(z_abs_max, z_t.abs().amax(dim=0))
                 err_sum += e_t.mean(dim=0)
                 err_sq_sum += e_t.pow(2).mean(dim=0)
-                write_mag_sum += writes.detach().pow(2).mean(dim=-1).mean(dim=0)
+                w_mag = writes.detach().pow(2).mean(dim=-1).mean(dim=0)
+                write_mag_sum += w_mag
+                # Decompose write magnitude: regular gate vs force-unlock contribution.
+                g_forced_delta = (g_t.detach() - g_before_force).clamp(min=0.0)
+                write_regular_sum += (g_before_force.mean(dim=0) * w_mag)
+                write_forced_sum += (g_forced_delta.mean(dim=0) * w_mag)
 
         slot_seq = torch.stack(per_step_slot, dim=1)  # (B, T, n_slots, slot_dim)
 
         if self._probe_mode and _probe_gate_list:
-            self._probe_gates = torch.stack(_probe_gate_list, dim=1)  # (B, T, n_slots)
+            self._probe_gates = torch.stack(_probe_gate_list, dim=1)
             self._probe_z = torch.stack(_probe_z_list, dim=1)
         else:
             self._probe_gates = None
@@ -395,16 +553,20 @@ class HomeostaticPredictiveMemory(nn.Module):
                 self.mu.mul_(decay).add_((1.0 - decay) * batch_mu)
                 self.sigma.mul_(decay).add_((1.0 - decay) * batch_sigma)
                 self.gate_ema.mul_(decay).add_((1.0 - decay) * (gate_running_sum / float(T)))
-                # Commit cur_state (which reflects any force-unlocks) back to the buffer.
                 self.slot_state.copy_(cur_state.detach())
                 self.force_unlock_count += int(force_unlocks_step)
                 self._advance_state_machine()
                 self.global_step += 1
         else:
-            # eval mode: still commit force-unlocks if any occurred
             if force_unlocks_step > 0:
                 with torch.no_grad():
                     self.slot_state.copy_(cur_state.detach())
+
+        # Force-unlock write decomposition fractions.
+        total_write_contrib = write_regular_sum + write_forced_sum
+        safe_total = total_write_contrib.clamp(min=1e-8)
+        regular_frac = float((write_regular_sum / safe_total).mean().item())
+        forced_frac = float((write_forced_sum / safe_total).mean().item())
 
         diag: Dict[str, float] = {
             "hpm_gate_mean": float((gate_running_sum / float(T)).mean().item()),
@@ -418,6 +580,8 @@ class HomeostaticPredictiveMemory(nn.Module):
             "hpm_force_unlocks_step": float(force_unlocks_step),
             "hpm_mu": float(self.mu.mean().item()),
             "hpm_sigma": float(self.sigma.mean().item()),
+            "hpm_write_regular_frac": regular_frac,
+            "hpm_write_forced_frac": forced_frac,
         }
         return hpm_seq, diag
 

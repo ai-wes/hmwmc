@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HPM Architecture — Homeostatic Predictive Memory</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 40px 24px;
+  }
+  .container {
+    max-width: 1400px;
+    width: 100%;
+  }
+  h1 {
+    text-align: center;
+    font-size: 32px;
+    font-weight: 700;
+    color: #e6edf3;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 15px;
+    color: #8b949e;
+    margin-bottom: 40px;
+    max-width: 700px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.5;
+  }
+
+  /* ── Section layout ── */
+  .section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    align-items: start;
+    margin-bottom: 48px;
+    padding: 32px;
+    border-radius: 16px;
+    border: 1px solid #21262d;
+    background: #161b22;
+  }
+  .section.full-width {
+    grid-template-columns: 1fr;
+  }
+  .section-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    font-size: 15px;
+    font-weight: 700;
+    margin-right: 10px;
+    flex-shrink: 0;
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .section-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #e6edf3;
+  }
+  .explanation {
+    font-size: 14px;
+    line-height: 1.7;
+    color: #8b949e;
+  }
+  .explanation strong {
+    color: #c9d1d9;
+    font-weight: 600;
+  }
+  .explanation em {
+    font-style: normal;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: 'Consolas', 'SF Mono', monospace;
+    font-size: 13px;
+  }
+  .text-block {
+    padding-right: 16px;
+  }
+  .diagram-block {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  .diagram-block svg {
+    width: 100%;
+    max-width: 580px;
+    height: auto;
+  }
+
+  /* ── Color themes per section ── */
+  .section.input { border-color: #1f4878; }
+  .section.input .section-number { background: #58a6ff; color: #0d1117; }
+  .section.input em { background: #58a6ff22; color: #79c0ff; }
+
+  .section.surprise { border-color: #5c3d0e; }
+  .section.surprise .section-number { background: #d29922; color: #0d1117; }
+  .section.surprise em { background: #d2992222; color: #e3b341; }
+
+  .section.gate { border-color: #1a4a25; }
+  .section.gate .section-number { background: #3fb950; color: #0d1117; }
+  .section.gate em { background: #3fb95022; color: #56d364; }
+
+  .section.state { border-color: #5c1a1a; }
+  .section.state .section-number { background: #f85149; color: #0d1117; }
+  .section.state em { background: #f8514922; color: #ff7b72; }
+
+  .section.memory { border-color: #3d2a5c; }
+  .section.memory .section-number { background: #bc8cff; color: #0d1117; }
+  .section.memory em { background: #bc8cff22; color: #d2a8ff; }
+
+  .section.read { border-color: #1f4878; }
+  .section.read .section-number { background: #58a6ff; color: #0d1117; }
+  .section.read em { background: #58a6ff22; color: #79c0ff; }
+
+  .section.recurrence { border-color: #30363d; }
+  .section.recurrence .section-number { background: #8b949e; color: #0d1117; }
+  .section.recurrence em { background: #8b949e22; color: #c9d1d9; }
+
+  /* ── Flow connector ── */
+  .flow-arrow {
+    text-align: center;
+    margin: -24px 0;
+    position: relative;
+    z-index: 2;
+  }
+  .flow-arrow svg {
+    width: 40px;
+    height: 40px;
+  }
+
+  /* ── Legend ── */
+  .legend {
+    display: flex;
+    gap: 28px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 32px;
+    font-size: 13px;
+    color: #8b949e;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .legend-swatch {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+  }
+
+  /* ── Overview diagram ── */
+  .overview-diagram {
+    margin-bottom: 48px;
+  }
+  .overview-diagram svg {
+    width: 100%;
+    max-width: 1100px;
+    display: block;
+    margin: 0 auto;
+    height: auto;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Homeostatic Predictive Memory (HPM)</h1>
+  <p class="subtitle">
+    A surprise-gated working memory that decides <em style="font-style:italic; background:none; color:#8b949e; font-family:inherit; padding:0;">when</em> to remember based on
+    how unexpected an event is, relative to what each memory slot has learned to expect.
+  </p>
+
+  <!-- ================================================================== -->
+  <!-- OVERVIEW PIPELINE DIAGRAM                                           -->
+  <!-- ================================================================== -->
+  <div class="overview-diagram">
+    <svg viewBox="0 0 1060 120" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="ov-arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#58a6ff"/>
+        </marker>
+      </defs>
+      <!-- Boxes -->
+      <rect x="10" y="30" width="130" height="60" rx="10" fill="#58a6ff22" stroke="#58a6ff" stroke-width="1.5"/>
+      <text x="75" y="56" text-anchor="middle" fill="#58a6ff" font-size="13" font-weight="600">① Input</text>
+      <text x="75" y="74" text-anchor="middle" fill="#8b949e" font-size="10">h_seq (B,T,D)</text>
+
+      <rect x="185" y="30" width="140" height="60" rx="10" fill="#d2992222" stroke="#d29922" stroke-width="1.5"/>
+      <text x="255" y="56" text-anchor="middle" fill="#d29922" font-size="13" font-weight="600">② Predict</text>
+      <text x="255" y="74" text-anchor="middle" fill="#8b949e" font-size="10">e_t → z_t surprise</text>
+
+      <rect x="370" y="30" width="130" height="60" rx="10" fill="#3fb95022" stroke="#3fb950" stroke-width="1.5"/>
+      <text x="435" y="56" text-anchor="middle" fill="#3fb950" font-size="13" font-weight="600">③ Gate</text>
+      <text x="435" y="74" text-anchor="middle" fill="#8b949e" font-size="10">g_t plasticity</text>
+
+      <rect x="545" y="30" width="150" height="60" rx="10" fill="#f8514922" stroke="#f85149" stroke-width="1.5"/>
+      <text x="620" y="56" text-anchor="middle" fill="#f85149" font-size="13" font-weight="600">④ State Machine</text>
+      <text x="620" y="74" text-anchor="middle" fill="#8b949e" font-size="10">OPEN→CLOSE→LOCK</text>
+
+      <rect x="740" y="30" width="140" height="60" rx="10" fill="#bc8cff22" stroke="#bc8cff" stroke-width="1.5"/>
+      <text x="810" y="56" text-anchor="middle" fill="#bc8cff" font-size="13" font-weight="600">⑤ Write Slots</text>
+      <text x="810" y="74" text-anchor="middle" fill="#8b949e" font-size="10">w_t memory</text>
+
+      <rect x="925" y="30" width="120" height="60" rx="10" fill="#58a6ff22" stroke="#58a6ff" stroke-width="1.5"/>
+      <text x="985" y="56" text-anchor="middle" fill="#58a6ff" font-size="13" font-weight="600">⑥ Read</text>
+      <text x="985" y="74" text-anchor="middle" fill="#8b949e" font-size="10">hpm_seq out</text>
+
+      <!-- Arrows -->
+      <line x1="140" y1="60" x2="183" y2="60" stroke="#58a6ff" stroke-width="2" marker-end="url(#ov-arr)"/>
+      <line x1="325" y1="60" x2="368" y2="60" stroke="#d29922" stroke-width="2" marker-end="url(#ov-arr)"/>
+      <line x1="500" y1="60" x2="543" y2="60" stroke="#3fb950" stroke-width="2" marker-end="url(#ov-arr)"/>
+      <line x1="695" y1="60" x2="738" y2="60" stroke="#f85149" stroke-width="2" marker-end="url(#ov-arr)"/>
+      <line x1="880" y1="60" x2="923" y2="60" stroke="#bc8cff" stroke-width="2" marker-end="url(#ov-arr)"/>
+
+      <!-- Recurrence arc -->
+      <path d="M810 90 C 810 115, 255 115, 255 90" stroke="#8b949e" stroke-width="1.5" fill="none" stroke-dasharray="6,4" marker-end="url(#ov-arr)"/>
+      <text x="530" y="114" text-anchor="middle" fill="#8b949e" font-size="10">recurrence: w_{t-1} feeds back each step</text>
+    </svg>
+  </div>
+
+
+  <!-- ================================================================== -->
+  <!-- SECTION 1: INPUT                                                    -->
+  <!-- ================================================================== -->
+  <div class="section input">
+    <div class="text-block">
+      <div class="section-header">
+        <span class="section-number">1</span>
+        <span class="section-title">Input: Hidden State Sequence</span>
+      </div>
+      <div class="explanation">
+        <p>
+          HPM receives the <strong>hidden state sequence</strong> from the main world model backbone —
+          that's the output of the 6 transformer-style blocks after episodic memory integration.
+        </p>
+        <br>
+        <p>
+          The input is <em>h_seq</em> with shape <em>(B, T, D)</em> where B is batch size,
+          T is episode length (24–64 steps depending on tier), and D is the model dimension (256).
+        </p>
+        <br>
+        <p>
+          At each timestep t, HPM sees <em>h_t</em> — the model's current belief about the world state.
+          HPM's job is to decide: <strong>"Is this moment worth remembering?"</strong>
+        </p>
+        <br>
+        <p>
+          Crucially, HPM operates <strong>separately from the main sequence</strong>. It doesn't modify
+          the backbone's output — it produces a parallel memory track that the QueryHead reads later.
+          This separation means next-step prediction keeps working normally while HPM learns
+          what to retain for answering questions.
+        </p>
+      </div>
+    </div>
+    <div class="diagram-block">
+      <svg viewBox="0 0 400 280" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="a1" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#58a6ff"/>
+          </marker>
+        </defs>
+        <!-- World model -->
+        <rect x="50" y="20" width="300" height="50" rx="10" fill="#1f6feb11" stroke="#30363d" stroke-width="1"/>
+        <text x="200" y="42" text-anchor="middle" fill="#8b949e" font-size="12">World Model Backbone (6 layers)</text>
+        <text x="200" y="58" text-anchor="middle" fill="#58586e" font-size="10">vision + audio + text + numeric → fused → blocks → episodic</text>
+
+        <line x1="200" y1="70" x2="200" y2="95" stroke="#58a6ff" stroke-width="2" marker-end="url(#a1)"/>
+
+        <!-- h_seq -->
+        <rect x="100" y="98" width="200" height="55" rx="10" fill="#58a6ff18" stroke="#58a6ff" stroke-width="2"/>
+        <text x="200" y="122" text-anchor="middle" fill="#58a6ff" font-size="16" font-weight="700">h_seq</text>
+        <text x="200" y="142" text-anchor="middle" fill="#79c0ff" font-size="12">(B, T, D=256)</text>
+
+        <!-- Split into timesteps -->
+        <line x1="150" y1="153" x2="100" y2="190" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#a1)"/>
+        <line x1="200" y1="153" x2="200" y2="190" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#a1)"/>
+        <line x1="250" y1="153" x2="300" y2="190" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#a1)"/>
+
+        <rect x="60" y="194" width="70" height="36" rx="6" fill="#58a6ff11" stroke="#58a6ff" stroke-width="1"/>
+        <text x="95" y="216" text-anchor="middle" fill="#79c0ff" font-size="11">h₀</text>
+
+        <rect x="165" y="194" width="70" height="36" rx="6" fill="#58a6ff11" stroke="#58a6ff" stroke-width="1"/>
+        <text x="200" y="216" text-anchor="middle" fill="#79c0ff" font-size="11">h_t</text>
+
+        <rect x="270" y="194" width="70" height="36" rx="6" fill="#58a6ff11" stroke="#58a6ff" stroke-width="1"/>
+        <text x="305" y="216" text-anchor="middle" fill="#79c0ff" font-size="11">h_T</text>
+
+        <text x="147" y="218" text-anchor="middle" fill="#484f58" font-size="18">…</text>
+        <text x="253" y="218" text-anchor="middle" fill="#484f58" font-size="18">…</text>
+
+        <text x="200" y="258" text-anchor="middle" fill="#8b949e" font-size="11">Each timestep processed sequentially through HPM</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ── Flow arrow ── -->
+  <div class="flow-arrow">
+    <svg viewBox="0 0 40 40"><polygon points="12,8 28,8 20,28" fill="#d29922"/></svg>
+  </div>
+
+  <!-- ================================================================== -->
+  <!-- SECTION 2: SURPRISE COMPUTATION                                     -->
+  <!-- ================================================================== -->
+  <div class="section surprise">
+    <div class="text-block">
+      <div class="section-header">
+        <span class="section-number">2</span>
+        <span class="section-title">Surprise Computation</span>
+      </div>
+      <div class="explanation">
+        <p>
+          This is the core insight of HPM: <strong>memory writes are gated by how surprising an event is,
+          relative to what each slot has learned to expect</strong> — not by raw prediction error magnitude.
+        </p>
+        <br>
+        <p>
+          Each of the 4 slots has its own <strong>one-step-ahead predictor</strong> — a per-slot linear layer
+          (<em>SlotLinear</em>) that tries to predict <em>h_t</em> from <em>h_{t-1}</em>.
+          The prediction error is: <em>e_t = mean( (pred − h_t)² )</em>
+        </p>
+        <br>
+        <p>
+          Raw error alone isn't useful — a freshly initialized model has high error everywhere.
+          So HPM <strong>z-scores the error</strong> against running statistics:
+        </p>
+        <br>
+        <p style="text-align: center; font-size: 16px; color: #e3b341; font-weight: 600; margin: 8px 0;">
+          z_t = (e_t − μ) / σ
+        </p>
+        <br>
+        <p>
+          The running mean <em>μ</em> and standard deviation <em>σ</em> are tracked per-slot
+          via EMA (decay=0.99). This means a mature model with low σ becomes <strong>more sensitive to rare events</strong>,
+          while a young model with high σ writes conservatively. Signal-to-noise is handled by construction.
+        </p>
+        <br>
+        <p>
+          <strong>All of this is detached from gradients.</strong> The surprise signal is purely a control
+          mechanism — it tells the gate how much to open, but the learning signal flows through
+          the gate and write path, not through the surprise computation itself.
+        </p>
+      </div>
+    </div>
+    <div class="diagram-block">
+      <svg viewBox="0 0 440 380" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="a2" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#d29922"/>
+          </marker>
+          <marker id="a2b" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#58a6ff"/>
+          </marker>
+        </defs>
+
+        <!-- h_{t-1} input -->
+        <rect x="20" y="20" width="110" height="40" rx="8" fill="#58a6ff15" stroke="#58a6ff" stroke-width="1"/>
+        <text x="75" y="44" text-anchor="middle" fill="#79c0ff" font-size="12">h_{t−1}</text>
+
+        <!-- Predictor -->
+        <rect x="170" y="10" width="200" height="60" rx="10" fill="#d2992218" stroke="#d29922" stroke-width="2"/>
+        <text x="270" y="34" text-anchor="middle" fill="#d29922" font-size="14" font-weight="600">Per-Slot Predictor</text>
+        <text x="270" y="54" text-anchor="middle" fill="#8b949e" font-size="11">SlotLinear(D → D) × 4 slots</text>
+
+        <line x1="130" y1="40" x2="168" y2="40" stroke="#d29922" stroke-width="2" marker-end="url(#a2)"/>
+
+        <!-- pred_t -->
+        <rect x="195" y="95" width="150" height="36" rx="8" fill="#d2992210" stroke="#d29922" stroke-width="1"/>
+        <text x="270" y="118" text-anchor="middle" fill="#e3b341" font-size="12">pred_t (B, slots, D)</text>
+
+        <line x1="270" y1="70" x2="270" y2="93" stroke="#d29922" stroke-width="1.5" marker-end="url(#a2)"/>
+
+        <!-- h_t input -->
+        <rect x="20" y="120" width="110" height="40" rx="8" fill="#58a6ff15" stroke="#58a6ff" stroke-width="1"/>
+        <text x="75" y="144" text-anchor="middle" fill="#79c0ff" font-size="12">h_t</text>
+
+        <!-- Comparison -->
+        <rect x="180" y="152" width="180" height="50" rx="10" fill="#d2992212" stroke="#d29922" stroke-width="1.5"/>
+        <text x="270" y="173" text-anchor="middle" fill="#e3b341" font-size="13" font-weight="600">e_t = MSE</text>
+        <text x="270" y="192" text-anchor="middle" fill="#8b949e" font-size="10">|| pred_t − h_t ||² / D</text>
+
+        <line x1="270" y1="131" x2="270" y2="150" stroke="#d29922" stroke-width="1.5" marker-end="url(#a2)"/>
+        <line x1="130" y1="140" x2="178" y2="170" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#a2b)"/>
+
+        <!-- Z-score -->
+        <rect x="170" y="228" width="200" height="60" rx="10" fill="#d2992225" stroke="#d29922" stroke-width="2"/>
+        <text x="270" y="254" text-anchor="middle" fill="#d29922" font-size="16" font-weight="700">z_t = (e_t − μ) / σ</text>
+        <text x="270" y="276" text-anchor="middle" fill="#8b949e" font-size="11">normalized surprise per slot</text>
+
+        <line x1="270" y1="202" x2="270" y2="226" stroke="#d29922" stroke-width="2" marker-end="url(#a2)"/>
+
+        <!-- μ, σ boxes -->
+        <rect x="30" y="230" width="80" height="30" rx="6" fill="#d2992208" stroke="#d29922" stroke-width="0.8" stroke-dasharray="4,3"/>
+        <text x="70" y="249" text-anchor="middle" fill="#e3b341" font-size="10">μ (EMA)</text>
+
+        <rect x="30" y="268" width="80" height="30" rx="6" fill="#d2992208" stroke="#d29922" stroke-width="0.8" stroke-dasharray="4,3"/>
+        <text x="70" y="287" text-anchor="middle" fill="#e3b341" font-size="10">σ (EMA)</text>
+
+        <line x1="110" y1="250" x2="168" y2="250" stroke="#d29922" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#a2)"/>
+        <line x1="110" y1="280" x2="168" y2="268" stroke="#d29922" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#a2)"/>
+
+        <!-- Detached badge -->
+        <rect x="160" y="310" width="220" height="28" rx="6" fill="#f8514910" stroke="#f85149" stroke-width="1"/>
+        <text x="270" y="329" text-anchor="middle" fill="#f85149" font-size="11" font-weight="500">⚠ All detached — no gradient flows here</text>
+
+        <!-- Output arrow -->
+        <text x="270" y="365" text-anchor="middle" fill="#8b949e" font-size="11">z_t feeds → Gate MLP (next stage)</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ── Flow arrow ── -->
+  <div class="flow-arrow">
+    <svg viewBox="0 0 40 40"><polygon points="12,8 28,8 20,28" fill="#3fb950"/></svg>
+  </div>
+
+  <!-- ================================================================== -->
+  <!-- SECTION 3: GATE                                                     -->
+  <!-- ================================================================== -->
+  <div class="section gate">
+    <div class="text-block">
+      <div class="section-header">
+        <span class="section-number">3</span>
+        <span class="section-title">Gate: How Much to Write</span>
+      </div>
+      <div class="explanation">
+        <p>
+          The gate decides <strong>how much of the current hidden state to write into each memory slot</strong>.
+          A gate value near 1.0 means "overwrite the slot with new content." A gate near 0.0 means
+          "keep what's already stored."
+        </p>
+        <br>
+        <p>
+          The gate MLP takes three inputs concatenated together:
+        </p>
+        <br>
+        <p>
+          • <em>h_t</em> — what's happening right now (256 dims)<br>
+          • <em>z_t</em> — how surprising it is (1 dim per slot)<br>
+          • <em>state_embed</em> — the slot's current state as a learned embedding (8 dims)
+        </p>
+        <br>
+        <p>
+          These pass through a <strong>two-layer MLP</strong> (fc1 with GELU → fc2 → sigmoid)
+          that is <em>independent per slot</em> via <em>SlotLinear</em> — each slot has its
+          own weights, so they can learn different gating policies.
+        </p>
+        <br>
+        <p>
+          The raw gate <em>g_raw</em> is then <strong>scaled by a state-dependent gain</strong>:
+        </p>
+        <br>
+        <p>
+          • <strong style="color:#3fb950">OPEN</strong> slots: gain = 1.0 (full plasticity)<br>
+          • <strong style="color:#d29922">CLOSING</strong> slots: gain = 0.5 (reducing plasticity)<br>
+          • <strong style="color:#f85149">LOCKED</strong> slots: gain = 0.1 (nearly frozen — preserving content)
+        </p>
+        <br>
+        <p>
+          This is where <strong>gradient flows</strong>. Unlike the surprise computation,
+          the gate MLP is fully differentiable. The downstream loss (from query answers)
+          teaches the gate <em>which moments are worth remembering</em>.
+        </p>
+      </div>
+    </div>
+    <div class="diagram-block">
+      <svg viewBox="0 0 440 380" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="a3" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#3fb950"/>
+          </marker>
+          <marker id="a3b" markerWidth="8" markerHeight="5" refX="7" refY="2.5" orient="auto">
+            <polygon points="0 0, 7 2.5, 0 5" fill="#8b949e"/>
+          </marker>
+        </defs>
+
+        <!-- Three inputs -->
+        <rect x="20" y="20" width="100" height="40" rx="8" fill="#58a6ff12" stroke="#58a6ff" stroke-width="1"/>
+        <text x="70" y="44" text-anchor="middle" fill="#79c0ff" font-size="11">h_t (256d)</text>
+
+        <rect x="20" y="75" width="100" height="40" rx="8" fill="#d2992212" stroke="#d29922" stroke-width="1"/>
+        <text x="70" y="99" text-anchor="middle" fill="#e3b341" font-size="11">z_t (1d)</text>
+
+        <rect x="20" y="130" width="100" height="40" rx="8" fill="#8b949e12" stroke="#8b949e" stroke-width="1"/>
+        <text x="70" y="154" text-anchor="middle" fill="#8b949e" font-size="11">state_emb (8d)</text>
+
+        <!-- Concat -->
+        <rect x="155" y="55" width="70" height="80" rx="6" fill="#3fb95010" stroke="#3fb950" stroke-width="1"/>
+        <text x="190" y="82" text-anchor="middle" fill="#56d364" font-size="10" font-weight="600">CAT</text>
+        <text x="190" y="100" text-anchor="middle" fill="#8b949e" font-size="9">265d</text>
+        <text x="190" y="115" text-anchor="middle" fill="#8b949e" font-size="9">per slot</text>
+
+        <line x1="120" y1="40" x2="153" y2="75" stroke="#58a6ff" stroke-width="1.5"/>
+        <line x1="120" y1="95" x2="153" y2="95" stroke="#d29922" stroke-width="1.5"/>
+        <line x1="120" y1="150" x2="153" y2="115" stroke="#8b949e" stroke-width="1"/>
+
+        <!-- fc1 -->
+        <rect x="260" y="45" width="140" height="44" rx="8" fill="#3fb95015" stroke="#3fb950" stroke-width="1.5"/>
+        <text x="330" y="66" text-anchor="middle" fill="#3fb950" font-size="12" font-weight="600">fc1 (SlotLinear)</text>
+        <text x="330" y="82" text-anchor="middle" fill="#8b949e" font-size="10">265 → 64, GELU</text>
+
+        <line x1="225" y1="95" x2="258" y2="72" stroke="#3fb950" stroke-width="2" marker-end="url(#a3)"/>
+
+        <!-- fc2 -->
+        <rect x="260" y="108" width="140" height="44" rx="8" fill="#3fb95015" stroke="#3fb950" stroke-width="1.5"/>
+        <text x="330" y="128" text-anchor="middle" fill="#3fb950" font-size="12" font-weight="600">fc2 (SlotLinear)</text>
+        <text x="330" y="145" text-anchor="middle" fill="#8b949e" font-size="10">64 → 1, sigmoid</text>
+
+        <line x1="330" y1="89" x2="330" y2="106" stroke="#3fb950" stroke-width="2" marker-end="url(#a3)"/>
+
+        <!-- g_raw -->
+        <rect x="278" y="174" width="105" height="36" rx="8" fill="#3fb95020" stroke="#3fb950" stroke-width="1.5"/>
+        <text x="330" y="197" text-anchor="middle" fill="#56d364" font-size="13" font-weight="600">g_raw ∈ [0,1]</text>
+
+        <line x1="330" y1="152" x2="330" y2="172" stroke="#3fb950" stroke-width="2" marker-end="url(#a3)"/>
+
+        <!-- Multiply by gain -->
+        <text x="330" y="232" text-anchor="middle" fill="#8b949e" font-size="16">×</text>
+
+        <!-- Gain table -->
+        <rect x="60" y="220" width="180" height="75" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1"/>
+        <text x="150" y="242" text-anchor="middle" fill="#c9d1d9" font-size="11" font-weight="600">State-dependent gain:</text>
+        <text x="150" y="260" text-anchor="middle" fill="#3fb950" font-size="11">OPEN     → gain = 1.0</text>
+        <text x="150" y="276" text-anchor="middle" fill="#d29922" font-size="11">CLOSING → gain = 0.5</text>
+        <text x="150" y="292" text-anchor="middle" fill="#f85149" font-size="11">LOCKED  → gain = 0.1</text>
+
+        <line x1="240" y1="258" x2="318" y2="232" stroke="#8b949e" stroke-width="1.5" marker-end="url(#a3b)"/>
+
+        <!-- Final g_t -->
+        <rect x="255" y="258" width="150" height="46" rx="10" fill="#3fb95025" stroke="#3fb950" stroke-width="2"/>
+        <text x="330" y="278" text-anchor="middle" fill="#3fb950" font-size="15" font-weight="700">g_t</text>
+        <text x="330" y="296" text-anchor="middle" fill="#8b949e" font-size="10">final gate per slot</text>
+
+        <line x1="330" y1="210" x2="330" y2="256" stroke="#3fb950" stroke-width="2" marker-end="url(#a3)"/>
+
+        <text x="330" y="330" text-anchor="middle" fill="#56d364" font-size="11" font-weight="500">✓ Gradients flow through this entire path</text>
+        <text x="330" y="350" text-anchor="middle" fill="#8b949e" font-size="10">Loss teaches gate which moments matter</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ── Flow arrow ── -->
+  <div class="flow-arrow">
+    <svg viewBox="0 0 40 40"><polygon points="12,8 28,8 20,28" fill="#f85149"/></svg>
+  </div>
+
+  <!-- ================================================================== -->
+  <!-- SECTION 4: STATE MACHINE & FORCE UNLOCK                             -->
+  <!-- ================================================================== -->
+  <div class="section state">
+    <div class="text-block">
+      <div class="section-header">
+        <span class="section-number">4</span>
+        <span class="section-title">State Machine & Force Unlock</span>
+      </div>
+      <div class="explanation">
+        <p>
+          Each memory slot has its own <strong>three-state machine</strong> that controls long-term
+          plasticity. This is directly inspired by the PNN (Progressive Neural Network) regulator
+          elsewhere in the codebase, but applied to per-timestep memory writes instead of per-generation
+          synaptic plasticity.
+        </p>
+        <br>
+        <p>
+          The state transitions are driven by <em>gate_ema</em> — an exponential moving average
+          of the gate values. When a slot consistently writes little, it drifts toward LOCKED:
+        </p>
+        <br>
+        <p>
+          <strong style="color:#3fb950">OPEN</strong> — Slot is actively updating. Full gate gain.
+          If gate_ema drops below 0.10, transition to CLOSING.
+        </p>
+        <br>
+        <p>
+          <strong style="color:#d29922">CLOSING</strong> — Slot is settling. Gate gain halved to 0.5.
+          If gate_ema drops below 0.03, transition to LOCKED. If it rises above 0.25, reopen.
+        </p>
+        <br>
+        <p>
+          <strong style="color:#f85149">LOCKED</strong> — Slot is preserving content. Gate gain = 0.1.
+          Normal events barely overwrite. But if <em>|z_t| > 3.0</em> (a truly extraordinary surprise),
+          the slot is <strong>force-unlocked back to OPEN</strong> and gate is boosted to ~1.0.
+        </p>
+        <br>
+        <p>
+          The force-unlock is the <strong>emergency override</strong>. It means a locked slot that committed
+          to tracking, say, a handoff chain will break open if something extremely unexpected happens —
+          like a false-cue correction or a surprise chain-2 event. The first 50 steps (warmup) suppress
+          force-unlocks while σ stabilizes.
+        </p>
+        <br>
+        <p>
+          The hypothesis is that this mechanism could lead to <strong>unsupervised slot specialization</strong>:
+          different slots naturally locking onto different event types, then unlocking only for their
+          "specialty" surprises.
+        </p>
+      </div>
+    </div>
+    <div class="diagram-block">
+      <svg viewBox="0 0 440 350" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="a4" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#8b949e"/>
+          </marker>
+          <marker id="a4r" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#f85149"/>
+          </marker>
+        </defs>
+
+        <!-- Three states -->
+        <circle cx="100" cy="100" r="48" fill="#3fb95015" stroke="#3fb950" stroke-width="2.5"/>
+        <text x="100" y="95" text-anchor="middle" fill="#3fb950" font-size="16" font-weight="700">OPEN</text>
+        <text x="100" y="115" text-anchor="middle" fill="#8b949e" font-size="10">gain = 1.0</text>
+
+        <circle cx="270" cy="100" r="48" fill="#d2992215" stroke="#d29922" stroke-width="2.5"/>
+        <text x="270" y="90" text-anchor="middle" fill="#d29922" font-size="14" font-weight="700">CLOSING</text>
+        <text x="270" y="110" text-anchor="middle" fill="#8b949e" font-size="10">gain = 0.5</text>
+
+        <circle cx="270" cy="260" r="48" fill="#f8514915" stroke="#f85149" stroke-width="2.5"/>
+        <text x="270" y="255" text-anchor="middle" fill="#f85149" font-size="15" font-weight="700">LOCKED</text>
+        <text x="270" y="275" text-anchor="middle" fill="#8b949e" font-size="10">gain = 0.1</text>
+
+        <!-- OPEN → CLOSING -->
+        <line x1="148" y1="95" x2="220" y2="95" stroke="#8b949e" stroke-width="2" marker-end="url(#a4)"/>
+        <text x="184" y="86" text-anchor="middle" fill="#8b949e" font-size="9">ema &lt; 0.10</text>
+
+        <!-- CLOSING → OPEN (reopen) -->
+        <line x1="220" y1="110" x2="148" y2="110" stroke="#3fb950" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#a4)"/>
+        <text x="184" y="130" text-anchor="middle" fill="#3fb950" font-size="9">ema &gt; 0.25</text>
+
+        <!-- CLOSING → LOCKED -->
+        <line x1="270" y1="148" x2="270" y2="210" stroke="#8b949e" stroke-width="2" marker-end="url(#a4)"/>
+        <text x="305" y="182" fill="#8b949e" font-size="9">ema &lt; 0.03</text>
+
+        <!-- LOCKED → OPEN (force unlock) -->
+        <path d="M222 260 C 130 260, 80 180, 100 148" stroke="#f85149" stroke-width="3" fill="none" marker-end="url(#a4r)"/>
+        <text x="110" y="218" fill="#f85149" font-size="11" font-weight="600">|z| &gt; 3.0</text>
+        <text x="108" y="233" fill="#f85149" font-size="9">FORCE UNLOCK</text>
+
+        <!-- z_t input -->
+        <rect x="330" y="230" width="90" height="36" rx="6" fill="#d2992215" stroke="#d29922" stroke-width="1"/>
+        <text x="375" y="252" text-anchor="middle" fill="#e3b341" font-size="11">z_t surprise</text>
+        <line x1="330" y1="252" x2="318" y2="258" stroke="#f85149" stroke-width="1.5" stroke-dasharray="3,2"/>
+
+        <!-- Warmup note -->
+        <rect x="15" y="295" width="280" height="28" rx="6" fill="#21262d" stroke="#30363d" stroke-width="1"/>
+        <text x="155" y="314" text-anchor="middle" fill="#8b949e" font-size="10">Warmup (first 50 steps): force-unlock suppressed while σ stabilizes</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ── Flow arrow ── -->
+  <div class="flow-arrow">
+    <svg viewBox="0 0 40 40"><polygon points="12,8 28,8 20,28" fill="#bc8cff"/></svg>
+  </div>
+
+  <!-- ================================================================== -->
+  <!-- SECTION 5: SLOT MEMORY & WRITE                                      -->
+  <!-- ================================================================== -->
+  <div class="section memory">
+    <div class="text-block">
+      <div class="section-header">
+        <span class="section-number">5</span>
+        <span class="section-title">Slot Memory & Write</span>
+      </div>
+      <div class="explanation">
+        <p>
+          HPM has <strong>4 independent memory slots</strong>, each storing a <em>(B, slot_dim)</em> vector.
+          The write update is a simple leaky recurrence:
+        </p>
+        <br>
+        <p style="text-align: center; font-size: 16px; color: #d2a8ff; font-weight: 600; margin: 8px 0;">
+          w_t = (1 − g_t) · w_{t-1} + g_t · write_enc(h_t)
+        </p>
+        <br>
+        <p>
+          When the gate <em>g_t</em> is near 0 (not surprising), the old memory <em>w_{t-1}</em>
+          passes through almost unchanged. When <em>g_t</em> is near 1 (very surprising), the slot
+          is overwritten with fresh content from the <em>write encoder</em>.
+        </p>
+        <br>
+        <p>
+          Each slot has its own <strong>write encoder</strong> — another <em>SlotLinear(D → slot_dim)</em>
+          — so different slots can learn to encode different aspects of the hidden state.
+        </p>
+        <br>
+        <p>
+          This recurrence is <strong>the mechanism by which gradient flows back in time</strong>.
+          If the model needs to answer "who held the token 20 steps ago?", the gradient from
+          the query loss travels backward through the chain of (1-g) multiplications until
+          it reaches the step where g was high (the surprise event), and strengthens
+          the gate and write encoder at that original moment.
+        </p>
+        <br>
+        <p>
+          With optional <em>competitive=True</em>, gate logits pass through softmax across slots
+          before sigmoid — creating winner-take-all dynamics where the most surprised slot captures
+          the write, and others are suppressed. This is the mechanism that could drive
+          unsupervised slot specialization.
+        </p>
+      </div>
+    </div>
+    <div class="diagram-block">
+      <svg viewBox="0 0 480 380" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="a5" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#bc8cff"/>
+          </marker>
+          <marker id="a5g" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#3fb950"/>
+          </marker>
+        </defs>
+
+        <!-- 4 Slots -->
+        <rect x="20" y="20" width="100" height="150" rx="10" fill="#1a3a5c44" stroke="#58a6ff" stroke-width="1.5"/>
+        <text x="70" y="46" text-anchor="middle" fill="#58a6ff" font-size="13" font-weight="600">Slot 0</text>
+        <rect x="35" y="58" width="70" height="24" rx="5" fill="#58a6ff18" stroke="#58a6ff" stroke-width="0.8"/>
+        <text x="70" y="74" text-anchor="middle" fill="#79c0ff" font-size="10">w₀[t]</text>
+        <text x="70" y="100" text-anchor="middle" fill="#8b949e" font-size="9">μ₀ σ₀</text>
+        <text x="70" y="116" text-anchor="middle" fill="#8b949e" font-size="9">gate_ema₀</text>
+        <text x="70" y="136" text-anchor="middle" fill="#3fb950" font-size="10" font-weight="500">OPEN</text>
+        <text x="70" y="158" text-anchor="middle" fill="#8b949e" font-size="8">enc₀ • pred₀</text>
+
+        <rect x="132" y="20" width="100" height="150" rx="10" fill="#2a3a1c44" stroke="#3fb950" stroke-width="1.5"/>
+        <text x="182" y="46" text-anchor="middle" fill="#3fb950" font-size="13" font-weight="600">Slot 1</text>
+        <rect x="147" y="58" width="70" height="24" rx="5" fill="#3fb95018" stroke="#3fb950" stroke-width="0.8"/>
+        <text x="182" y="74" text-anchor="middle" fill="#56d364" font-size="10">w₁[t]</text>
+        <text x="182" y="100" text-anchor="middle" fill="#8b949e" font-size="9">μ₁ σ₁</text>
+        <text x="182" y="116" text-anchor="middle" fill="#8b949e" font-size="9">gate_ema₁</text>
+        <text x="182" y="136" text-anchor="middle" fill="#d29922" font-size="10" font-weight="500">CLOSING</text>
+        <text x="182" y="158" text-anchor="middle" fill="#8b949e" font-size="8">enc₁ • pred₁</text>
+
+        <rect x="244" y="20" width="100" height="150" rx="10" fill="#3a2a1c44" stroke="#d29922" stroke-width="1.5"/>
+        <text x="294" y="46" text-anchor="middle" fill="#d29922" font-size="13" font-weight="600">Slot 2</text>
+        <rect x="259" y="58" width="70" height="24" rx="5" fill="#d2992218" stroke="#d29922" stroke-width="0.8"/>
+        <text x="294" y="74" text-anchor="middle" fill="#e3b341" font-size="10">w₂[t]</text>
+        <text x="294" y="100" text-anchor="middle" fill="#8b949e" font-size="9">μ₂ σ₂</text>
+        <text x="294" y="116" text-anchor="middle" fill="#8b949e" font-size="9">gate_ema₂</text>
+        <text x="294" y="136" text-anchor="middle" fill="#f85149" font-size="10" font-weight="500">LOCKED</text>
+        <text x="294" y="158" text-anchor="middle" fill="#8b949e" font-size="8">enc₂ • pred₂</text>
+
+        <rect x="356" y="20" width="100" height="150" rx="10" fill="#2a1a3a44" stroke="#bc8cff" stroke-width="1.5"/>
+        <text x="406" y="46" text-anchor="middle" fill="#bc8cff" font-size="13" font-weight="600">Slot 3</text>
+        <rect x="371" y="58" width="70" height="24" rx="5" fill="#bc8cff18" stroke="#bc8cff" stroke-width="0.8"/>
+        <text x="406" y="74" text-anchor="middle" fill="#d2a8ff" font-size="10">w₃[t]</text>
+        <text x="406" y="100" text-anchor="middle" fill="#8b949e" font-size="9">μ₃ σ₃</text>
+        <text x="406" y="116" text-anchor="middle" fill="#8b949e" font-size="9">gate_ema₃</text>
+        <text x="406" y="136" text-anchor="middle" fill="#3fb950" font-size="10" font-weight="500">OPEN</text>
+        <text x="406" y="158" text-anchor="middle" fill="#8b949e" font-size="8">enc₃ • pred₃</text>
+
+        <!-- Update equation -->
+        <rect x="30" y="200" width="420" height="56" rx="10" fill="#bc8cff10" stroke="#bc8cff" stroke-width="2"/>
+        <text x="240" y="225" text-anchor="middle" fill="#d2a8ff" font-size="15" font-weight="700">w_t = (1 − g_t) · w_{t-1}  +  g_t · write_enc(h_t)</text>
+        <text x="240" y="246" text-anchor="middle" fill="#8b949e" font-size="10">per slot, per timestep — gate controls interpolation</text>
+
+        <!-- g_t input arrow -->
+        <rect x="30" y="278" width="80" height="30" rx="6" fill="#3fb95015" stroke="#3fb950" stroke-width="1"/>
+        <text x="70" y="297" text-anchor="middle" fill="#3fb950" font-size="11">g_t</text>
+        <line x1="110" y1="290" x2="150" y2="256" stroke="#3fb950" stroke-width="1.5" marker-end="url(#a5g)"/>
+
+        <!-- w_{t-1} input arrow -->
+        <rect x="130" y="278" width="100" height="30" rx="6" fill="#bc8cff10" stroke="#bc8cff" stroke-width="1" stroke-dasharray="4,3"/>
+        <text x="180" y="297" text-anchor="middle" fill="#bc8cff" font-size="11">w_{t-1}</text>
+        <line x1="200" y1="278" x2="215" y2="256" stroke="#bc8cff" stroke-width="1.5" marker-end="url(#a5)"/>
+
+        <!-- write_enc(h_t) -->
+        <rect x="250" y="278" width="130" height="30" rx="6" fill="#58a6ff10" stroke="#58a6ff" stroke-width="1"/>
+        <text x="315" y="297" text-anchor="middle" fill="#79c0ff" font-size="11">write_enc(h_t)</text>
+        <line x1="300" y1="278" x2="285" y2="256" stroke="#58a6ff" stroke-width="1.5"/>
+
+        <!-- Gradient note -->
+        <text x="240" y="340" text-anchor="middle" fill="#bc8cff" font-size="11" font-weight="500">Gradient travels backward through (1−g) chain → original surprise event</text>
+        <text x="240" y="360" text-anchor="middle" fill="#8b949e" font-size="10">This is how HPM learns to retain the right moments for answering questions</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ── Flow arrow ── -->
+  <div class="flow-arrow">
+    <svg viewBox="0 0 40 40"><polygon points="12,8 28,8 20,28" fill="#58a6ff"/></svg>
+  </div>
+
+  <!-- ================================================================== -->
+  <!-- SECTION 6: READ & OUTPUT                                            -->
+  <!-- ================================================================== -->
+  <div class="section read">
+    <div class="text-block">
+      <div class="section-header">
+        <span class="section-number">6</span>
+        <span class="section-title">Read & Output</span>
+      </div>
+      <div class="explanation">
+        <p>
+          After running through all T timesteps, HPM has a <strong>slot sequence</strong>
+          of shape <em>(B, T, 4, slot_dim)</em> — what each of the 4 slots remembered
+          at each moment in time.
+        </p>
+        <br>
+        <p>
+          The read mode aggregates across slots to produce a single output per timestep:
+        </p>
+        <br>
+        <p>
+          • <strong>concat</strong> (default): Simply concatenate all 4 slot vectors.
+          Output dim = 4 × 256 = 1024. Preserves slot identity — the QueryHead can learn
+          which slot carries which information.
+        </p>
+        <br>
+        <p>
+          • <strong>mean</strong>: Average across slots. Output dim = 256. Loses slot identity
+          but is more compact.
+        </p>
+        <br>
+        <p>
+          • <strong>attn</strong>: Query-conditioned attention — a learned projection of h_t
+          attends over the slot vectors, so the read dynamically picks the most relevant slot
+          per timestep. Output dim = 256.
+        </p>
+        <br>
+        <p>
+          The output <em>hpm_seq</em> is <strong>concatenated alongside</strong> the backbone's
+          main <em>sequence</em> output and the holder features before feeding into the
+          <strong>QueryHead</strong>. The QueryHead's input is:
+          <em>[sequence (256d) ; holder_features (max_entities) ; hpm_seq (1024d)]</em>.
+        </p>
+        <br>
+        <p>
+          HPM never modifies the main sequence — prediction heads (next-step, per-modality)
+          operate on the unaltered backbone output. HPM's contribution is <strong>exclusively
+          read by the query answering system</strong>.
+        </p>
+      </div>
+    </div>
+    <div class="diagram-block">
+      <svg viewBox="0 0 440 360" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="a6" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#58a6ff"/>
+          </marker>
+          <marker id="a6p" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#bc8cff"/>
+          </marker>
+        </defs>
+
+        <!-- Slot sequence -->
+        <rect x="100" y="15" width="240" height="44" rx="8" fill="#bc8cff12" stroke="#bc8cff" stroke-width="1.5"/>
+        <text x="220" y="35" text-anchor="middle" fill="#bc8cff" font-size="12" font-weight="600">slot_seq (B, T, 4, slot_dim)</text>
+        <text x="220" y="50" text-anchor="middle" fill="#8b949e" font-size="10">what each slot remembers at each step</text>
+
+        <!-- Three read modes -->
+        <rect x="20" y="85" width="120" height="55" rx="8" fill="#58a6ff18" stroke="#58a6ff" stroke-width="2"/>
+        <text x="80" y="106" text-anchor="middle" fill="#58a6ff" font-size="12" font-weight="600">concat</text>
+        <text x="80" y="125" text-anchor="middle" fill="#8b949e" font-size="10">[w₀;w₁;w₂;w₃]</text>
+        <text x="80" y="138" text-anchor="middle" fill="#79c0ff" font-size="9">→ 1024d</text>
+
+        <rect x="160" y="85" width="120" height="55" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1"/>
+        <text x="220" y="106" text-anchor="middle" fill="#8b949e" font-size="12" font-weight="500">mean</text>
+        <text x="220" y="125" text-anchor="middle" fill="#8b949e" font-size="10">avg(w₀…w₃)</text>
+        <text x="220" y="138" text-anchor="middle" fill="#8b949e" font-size="9">→ 256d</text>
+
+        <rect x="300" y="85" width="120" height="55" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1"/>
+        <text x="360" y="106" text-anchor="middle" fill="#8b949e" font-size="12" font-weight="500">attn</text>
+        <text x="360" y="125" text-anchor="middle" fill="#8b949e" font-size="10">q(h_t)·slots</text>
+        <text x="360" y="138" text-anchor="middle" fill="#8b949e" font-size="9">→ 256d</text>
+
+        <line x1="170" y1="59" x2="80" y2="83" stroke="#bc8cff" stroke-width="1.5" marker-end="url(#a6p)"/>
+        <line x1="220" y1="59" x2="220" y2="83" stroke="#8b949e" stroke-width="1"/>
+        <line x1="270" y1="59" x2="360" y2="83" stroke="#8b949e" stroke-width="1"/>
+
+        <!-- hpm_seq -->
+        <rect x="120" y="170" width="200" height="48" rx="10" fill="#58a6ff22" stroke="#58a6ff" stroke-width="2.5"/>
+        <text x="220" y="192" text-anchor="middle" fill="#58a6ff" font-size="15" font-weight="700">hpm_seq</text>
+        <text x="220" y="210" text-anchor="middle" fill="#79c0ff" font-size="11">(B, T, 1024)</text>
+
+        <line x1="80" y1="140" x2="150" y2="170" stroke="#58a6ff" stroke-width="2" marker-end="url(#a6)"/>
+
+        <!-- QueryHead input -->
+        <rect x="50" y="250" width="340" height="60" rx="10" fill="#1f6feb10" stroke="#58a6ff" stroke-width="1.5"/>
+        <text x="220" y="272" text-anchor="middle" fill="#79c0ff" font-size="13" font-weight="600">QueryHead Input</text>
+        <text x="220" y="296" text-anchor="middle" fill="#8b949e" font-size="11">[ sequence (256) ; holder (5) ; hpm_seq (1024) ] = 1285d</text>
+
+        <!-- Three inputs to QueryHead -->
+        <rect x="70" y="326" width="80" height="24" rx="5" fill="#58a6ff10" stroke="#58a6ff" stroke-width="0.8"/>
+        <text x="110" y="342" text-anchor="middle" fill="#79c0ff" font-size="9">backbone (256)</text>
+
+        <rect x="190" y="326" width="60" height="24" rx="5" fill="#d2992210" stroke="#d29922" stroke-width="0.8"/>
+        <text x="220" y="342" text-anchor="middle" fill="#e3b341" font-size="9">holder (5)</text>
+
+        <rect x="290" y="326" width="80" height="24" rx="5" fill="#bc8cff10" stroke="#bc8cff" stroke-width="0.8"/>
+        <text x="330" y="342" text-anchor="middle" fill="#d2a8ff" font-size="9">HPM (1024)</text>
+
+        <line x1="220" y1="218" x2="220" y2="248" stroke="#58a6ff" stroke-width="2" marker-end="url(#a6)"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ── Flow arrow ── -->
+  <div class="flow-arrow">
+    <svg viewBox="0 0 40 40"><polygon points="12,8 28,8 20,28" fill="#8b949e"/></svg>
+  </div>
+
+  <!-- ================================================================== -->
+  <!-- SECTION 7: PUTTING IT ALL TOGETHER                                  -->
+  <!-- ================================================================== -->
+  <div class="section recurrence full-width">
+    <div>
+      <div class="section-header">
+        <span class="section-number">∞</span>
+        <span class="section-title">The Full Cycle — What Happens at Each Timestep</span>
+      </div>
+      <div class="explanation" style="max-width: 900px;">
+        <p>
+          For every timestep t from 0 to T, HPM runs this cycle:
+        </p>
+        <br>
+        <p>
+          <strong>1. Predict:</strong> Each slot's predictor guesses
+          what h_t will be, based on h_{t-1}. At t=0 there's no prior, so surprise is zero.
+        </p>
+        <br>
+        <p>
+          <strong>2. Measure surprise:</strong> Compare prediction to reality.
+          Raw error is z-scored against the slot's running statistics. A z-score of 3+ means
+          "this is a 3-sigma event for this particular slot" — very rare relative to what it's
+          learned to expect.
+        </p>
+        <br>
+        <p>
+          <strong>3. Compute gate:</strong> The gate MLP combines the current hidden state,
+          the surprise signal, and the slot's state embedding to produce a write probability.
+          The state machine scales this by the slot's current plasticity.
+        </p>
+        <br>
+        <p>
+          <strong>4. Force-unlock check:</strong> If any slot sees |z| > 3.0 and we're past
+          warmup, that slot is emergency-reopened regardless of its state.
+        </p>
+        <br>
+        <p>
+          <strong>5. Write:</strong> Each slot updates via the leaky recurrence. High gate
+          means overwrite with new content. Low gate means keep the old memory.
+        </p>
+        <br>
+        <p>
+          <strong>6. Advance state machine:</strong> After the full sequence, update each
+          slot's OPEN/CLOSING/LOCKED state based on its average gate activity.
+        </p>
+        <br>
+        <p>
+          <strong>After all T steps:</strong> Read out the slot contents, aggregate them,
+          and hand the <em>hpm_seq</em> to the QueryHead. The backbone's main output
+          is untouched — prediction heads never see HPM's memory.
+        </p>
+        <br>
+        <p style="color: #c9d1d9; font-weight: 600;">
+          The key insight: plasticity is governed by second-order statistics of prediction
+          (surprise relative to expected surprise), not first-order error. A fresh model has
+          high σ and writes conservatively. A mature model has low σ and is naturally sensitive
+          to rare events. The memory bootstraps off the prediction mechanism — signal-to-noise
+          is handled by construction.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Legend ── -->
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#58a6ff"></div>
+      <span>Hidden state / data flow (gradient-carrying)</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#d29922"></div>
+      <span>Prediction error / surprise (detached — no gradient)</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#3fb950"></div>
+      <span>Gate / plasticity control (gradient-carrying)</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#f85149"></div>
+      <span>Force unlock / emergency override</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#bc8cff"></div>
+      <span>Slot memory / recurrence / read output</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#8b949e"></div>
+      <span>Running stats / diagnostics (detached)</span>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

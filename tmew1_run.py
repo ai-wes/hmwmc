@@ -567,6 +567,8 @@ def run_curriculum(
     num_categorical_answers = max(world_cfg.max_entities, world_cfg.num_latent_rules)
 
     hpm_dim = model.hpm.output_dim if getattr(model, "hpm", None) is not None else 0
+    if getattr(model, "hpm_slow", None) is not None:
+        hpm_dim += model.hpm_slow.output_dim
     query_head = QueryHead(
         model.cfg.d_model + world_cfg.max_entities + hpm_dim,
         num_categorical_answers,
@@ -730,6 +732,12 @@ def run_curriculum(
                     # PNN state metrics for aux_latent spike correlation
                     step_metrics["pnn_open"] = n_open
                     step_metrics["pnn_unlocks"] = _accum_unlocks
+                    # HPM diagnostics: extract from last forward pass output
+                    if hasattr(model, 'hpm') and model.hpm is not None:
+                        _hpm_out = getattr(model, '_last_hpm_diagnostics', None)
+                        if _hpm_out:
+                            for _hk, _hv in _hpm_out.items():
+                                step_metrics[_hk] = float(_hv)
                     log_training_snapshot(
                         score_logger,
                         step_label=(

@@ -77,7 +77,7 @@ BRANCH_FAMILIES = ("A", "B", "C", "AB")
 BRANCH_IDS = (
     "A1", "A2", "A3", "A4",
     "B1", "B2", "B3", "B4",
-    "C1", "C2",
+    "C1", "C2", "C3", "C4",
     "AB1",
 )
 
@@ -237,6 +237,8 @@ class BranchConfig:
     hpm_read_mode: Optional[str] = None               # "concat" | "mean" | "attn"
     hpm_competitive: Optional[bool] = None
     hpm_slot_dim: Optional[int] = None
+    hpm_retroactive_window: Optional[int] = None      # C3: window size for retroactive binding
+    hpm_slot_timescales: Optional[Tuple[float, ...]] = None  # C4: per-slot persistence multipliers
 
     # --- training overrides ---
     epochs_per_tier: int = 4
@@ -559,6 +561,44 @@ def make_branch_preset(branch_id: str) -> BranchConfig:
             ),
         )
 
+    if branch_id == "C3":
+        return BranchConfig(
+            branch_id="C3",
+            family="C",
+            description="HPM Level-3: retroactive binding over 4-step window",
+            hpm_n_slots=4,
+            hpm_competitive=True,
+            hpm_read_mode="concat",
+            hpm_retroactive_window=4,
+            rubric=PromotionRubric(
+                target_metric="qacc/who_holds_token",
+                min_gain_points=5.0,
+                max_regression_points=3.0,
+                stability_floors={"latent_acc": 0.90},
+            ),
+        )
+
+    if branch_id == "C4":
+        return BranchConfig(
+            branch_id="C4",
+            family="C",
+            description="HPM Level-4: multi-timescale slots (fast/slow memory lanes)",
+            hpm_n_slots=4,
+            hpm_competitive=False,
+            hpm_read_mode="concat",
+            # Slot 0: fast (timescale 0.5 => gate doubled, rapid turnover)
+            # Slot 1: normal (1.0)
+            # Slot 2: slow (2.0 => gate halved)
+            # Slot 3: glacial (4.0 => gate quartered, episode-level retention)
+            hpm_slot_timescales=(0.5, 1.0, 2.0, 4.0),
+            rubric=PromotionRubric(
+                target_metric="qacc/who_holds_token",
+                min_gain_points=5.0,
+                max_regression_points=3.0,
+                stability_floors={"latent_acc": 0.90},
+            ),
+        )
+
     if branch_id == "AB1":
         return BranchConfig(
             branch_id="AB1",
@@ -651,6 +691,10 @@ def apply_hpm_overrides(branch: BranchConfig) -> "HPMConfig":
         kwargs["competitive"] = branch.hpm_competitive
     if branch.hpm_slot_dim is not None:
         kwargs["slot_dim"] = branch.hpm_slot_dim
+    if branch.hpm_retroactive_window is not None:
+        kwargs["retroactive_window"] = branch.hpm_retroactive_window
+    if branch.hpm_slot_timescales is not None:
+        kwargs["slot_timescales"] = branch.hpm_slot_timescales
     if not kwargs:
         return base
     return replace(base, **kwargs)

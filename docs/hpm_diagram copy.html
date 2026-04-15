@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HPM Architecture — Homeostatic Predictive Memory</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 32px 16px;
+  }
+  .container {
+    max-width: 1200px;
+    width: 100%;
+  }
+  h1 {
+    text-align: center;
+    font-size: 28px;
+    font-weight: 600;
+    color: #e6edf3;
+    margin-bottom: 6px;
+    letter-spacing: -0.5px;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 14px;
+    color: #8b949e;
+    margin-bottom: 28px;
+  }
+  svg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+  .legend {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 20px;
+    font-size: 12px;
+    color: #8b949e;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .legend-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Homeostatic Predictive Memory (HPM)</h1>
+  <p class="subtitle">Surprise-gated working memory with per-slot state machines &amp; z-scored prediction error</p>
+
+  <svg viewBox="0 0 1100 820" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#58a6ff"/>
+      </marker>
+      <marker id="arr-orange" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#d29922"/>
+      </marker>
+      <marker id="arr-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#3fb950"/>
+      </marker>
+      <marker id="arr-red" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#f85149"/>
+      </marker>
+      <marker id="arr-purple" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#bc8cff"/>
+      </marker>
+      <marker id="arr-gray" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#8b949e"/>
+      </marker>
+
+      <!-- Glow filter -->
+      <filter id="glow">
+        <feGaussianBlur stdDeviation="3" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+
+      <!-- Slot gradient fills -->
+      <linearGradient id="slot0" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#1a3a5c"/><stop offset="100%" stop-color="#0f2137"/>
+      </linearGradient>
+      <linearGradient id="slot1" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#2a3a1c"/><stop offset="100%" stop-color="#1a2a0f"/>
+      </linearGradient>
+      <linearGradient id="slot2" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#3a2a1c"/><stop offset="100%" stop-color="#2a1a0f"/>
+      </linearGradient>
+      <linearGradient id="slot3" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#2a1a3a"/><stop offset="100%" stop-color="#1a0f2a"/>
+      </linearGradient>
+    </defs>
+
+    <!-- ================================================================== -->
+    <!-- BACKGROUND REGIONS                                                  -->
+    <!-- ================================================================== -->
+
+    <!-- Input region -->
+    <rect x="20" y="30" width="160" height="760" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <text x="100" y="22" text-anchor="middle" fill="#8b949e" font-size="11" font-weight="600">INPUT</text>
+
+    <!-- Surprise computation region -->
+    <rect x="200" y="30" width="240" height="350" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <text x="320" y="22" text-anchor="middle" fill="#8b949e" font-size="11" font-weight="600">SURPRISE COMPUTATION</text>
+
+    <!-- Gate region -->
+    <rect x="460" y="30" width="220" height="350" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <text x="570" y="22" text-anchor="middle" fill="#8b949e" font-size="11" font-weight="600">GATE &amp; STATE MACHINE</text>
+
+    <!-- Slot memory region -->
+    <rect x="200" y="410" width="480" height="380" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <text x="440" y="402" text-anchor="middle" fill="#8b949e" font-size="11" font-weight="600">SLOT MEMORY (4 SLOTS)</text>
+
+    <!-- Read/Output region -->
+    <rect x="700" y="30" width="180" height="760" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <text x="790" y="22" text-anchor="middle" fill="#8b949e" font-size="11" font-weight="600">READ &amp; OUTPUT</text>
+
+    <!-- Stats region -->
+    <rect x="900" y="30" width="180" height="350" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <text x="990" y="22" text-anchor="middle" fill="#8b949e" font-size="11" font-weight="600">RUNNING STATS (detached)</text>
+
+    <!-- ================================================================== -->
+    <!-- INPUT COLUMN                                                        -->
+    <!-- ================================================================== -->
+
+    <!-- h_seq input -->
+    <rect x="40" y="60" width="120" height="50" rx="8" fill="#1f6feb" fill-opacity="0.2" stroke="#58a6ff" stroke-width="1.5"/>
+    <text x="100" y="82" text-anchor="middle" fill="#58a6ff" font-size="13" font-weight="600">h_seq</text>
+    <text x="100" y="99" text-anchor="middle" fill="#8b949e" font-size="10">(B, T, D)</text>
+
+    <!-- h_t at step t -->
+    <rect x="40" y="150" width="120" height="44" rx="8" fill="#1f6feb" fill-opacity="0.15" stroke="#58a6ff" stroke-width="1"/>
+    <text x="100" y="170" text-anchor="middle" fill="#79c0ff" font-size="12" font-weight="500">h_t</text>
+    <text x="100" y="185" text-anchor="middle" fill="#8b949e" font-size="9">(B, D) at step t</text>
+
+    <!-- h_{t-1} -->
+    <rect x="40" y="230" width="120" height="44" rx="8" fill="#1f6feb" fill-opacity="0.1" stroke="#58a6ff" stroke-width="1" stroke-dasharray="4,3"/>
+    <text x="100" y="250" text-anchor="middle" fill="#79c0ff" font-size="12" font-weight="500">h_{t−1}</text>
+    <text x="100" y="265" text-anchor="middle" fill="#8b949e" font-size="9">previous step</text>
+
+    <!-- w_{t-1} (slot memory from prev step) -->
+    <rect x="40" y="490" width="120" height="60" rx="8" fill="#bc8cff" fill-opacity="0.12" stroke="#bc8cff" stroke-width="1" stroke-dasharray="4,3"/>
+    <text x="100" y="515" text-anchor="middle" fill="#bc8cff" font-size="12" font-weight="500">w_{t−1}</text>
+    <text x="100" y="533" text-anchor="middle" fill="#8b949e" font-size="9">(B, n_slots, slot_dim)</text>
+    <text x="100" y="545" text-anchor="middle" fill="#8b949e" font-size="9">previous memory</text>
+
+    <!-- w0 initial -->
+    <rect x="40" y="590" width="120" height="44" rx="8" fill="#bc8cff" fill-opacity="0.08" stroke="#bc8cff" stroke-width="1" stroke-dasharray="2,4"/>
+    <text x="100" y="610" text-anchor="middle" fill="#bc8cff" font-size="11" font-weight="500">w₀</text>
+    <text x="100" y="625" text-anchor="middle" fill="#8b949e" font-size="9">learnable init</text>
+
+    <!-- Arrow: h_seq → h_t -->
+    <line x1="100" y1="110" x2="100" y2="148" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#arr)"/>
+
+    <!-- Arrow: h_seq → h_{t-1} -->
+    <line x1="100" y1="110" x2="100" y2="228" stroke="#58a6ff" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arr)"/>
+
+    <!-- ================================================================== -->
+    <!-- SURPRISE COMPUTATION                                                -->
+    <!-- ================================================================== -->
+
+    <!-- Predictor -->
+    <rect x="220" y="60" width="200" height="50" rx="8" fill="#d29922" fill-opacity="0.15" stroke="#d29922" stroke-width="1.5"/>
+    <text x="320" y="80" text-anchor="middle" fill="#d29922" font-size="12" font-weight="600">SlotLinear: Predictor</text>
+    <text x="320" y="99" text-anchor="middle" fill="#8b949e" font-size="10">h_{t−1} → pred_t  (per slot)</text>
+
+    <!-- Error node -->
+    <rect x="245" y="140" width="150" height="50" rx="8" fill="#d29922" fill-opacity="0.1" stroke="#d29922" stroke-width="1"/>
+    <text x="320" y="160" text-anchor="middle" fill="#e3b341" font-size="12" font-weight="500">e_t = MSE</text>
+    <text x="320" y="177" text-anchor="middle" fill="#8b949e" font-size="10">||pred_t − h_t||² / D</text>
+
+    <!-- Z-score node -->
+    <rect x="245" y="220" width="150" height="56" rx="8" fill="#d29922" fill-opacity="0.15" stroke="#d29922" stroke-width="1.5" filter="url(#glow)"/>
+    <text x="320" y="242" text-anchor="middle" fill="#d29922" font-size="13" font-weight="600">z_t</text>
+    <text x="320" y="260" text-anchor="middle" fill="#8b949e" font-size="10">(e_t − μ) / σ</text>
+
+    <!-- "detached" label -->
+    <rect x="260" y="295" width="120" height="22" rx="4" fill="#f85149" fill-opacity="0.1" stroke="#f85149" stroke-width="0.8"/>
+    <text x="320" y="310" text-anchor="middle" fill="#f85149" font-size="9">all detached from grad</text>
+
+    <!-- State embed -->
+    <rect x="245" y="330" width="150" height="40" rx="8" fill="#8b949e" fill-opacity="0.1" stroke="#8b949e" stroke-width="1"/>
+    <text x="320" y="352" text-anchor="middle" fill="#8b949e" font-size="11">state_embed(slot_state)</text>
+
+    <!-- Arrows in surprise column -->
+    <!-- h_{t-1} → predictor -->
+    <line x1="160" y1="252" x2="218" y2="85" stroke="#d29922" stroke-width="1.5" marker-end="url(#arr-orange)"/>
+    <!-- h_t → error (comparison) -->
+    <line x1="160" y1="172" x2="243" y2="165" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#arr)"/>
+    <!-- predictor → error -->
+    <line x1="320" y1="110" x2="320" y2="138" stroke="#d29922" stroke-width="1.5" marker-end="url(#arr-orange)"/>
+    <!-- error → z-score -->
+    <line x1="320" y1="190" x2="320" y2="218" stroke="#d29922" stroke-width="1.5" marker-end="url(#arr-orange)"/>
+
+    <!-- ================================================================== -->
+    <!-- GATE & STATE MACHINE                                                -->
+    <!-- ================================================================== -->
+
+    <!-- Gate MLP -->
+    <rect x="480" y="60" width="180" height="70" rx="8" fill="#3fb950" fill-opacity="0.15" stroke="#3fb950" stroke-width="1.5"/>
+    <text x="570" y="82" text-anchor="middle" fill="#3fb950" font-size="12" font-weight="600">Gate MLP</text>
+    <text x="570" y="99" text-anchor="middle" fill="#8b949e" font-size="10">[h_t ; z_t ; state_emb]</text>
+    <text x="570" y="116" text-anchor="middle" fill="#8b949e" font-size="10">→ fc1(GELU) → fc2 → σ</text>
+
+    <!-- g_t raw -->
+    <rect x="505" y="155" width="130" height="40" rx="8" fill="#3fb950" fill-opacity="0.1" stroke="#3fb950" stroke-width="1"/>
+    <text x="570" y="178" text-anchor="middle" fill="#56d364" font-size="12" font-weight="500">g_t_raw</text>
+
+    <!-- State gain multiply -->
+    <rect x="480" y="215" width="180" height="54" rx="8" fill="#3fb950" fill-opacity="0.2" stroke="#3fb950" stroke-width="1.5" filter="url(#glow)"/>
+    <text x="570" y="235" text-anchor="middle" fill="#3fb950" font-size="12" font-weight="600">g_t = g_raw × gain</text>
+    <text x="570" y="255" text-anchor="middle" fill="#8b949e" font-size="10">OPEN=1.0  CLOSING=0.5  LOCKED=0.1</text>
+
+    <!-- Force unlock -->
+    <rect x="490" y="290" width="160" height="44" rx="8" fill="#f85149" fill-opacity="0.15" stroke="#f85149" stroke-width="1.5"/>
+    <text x="570" y="307" text-anchor="middle" fill="#f85149" font-size="11" font-weight="600">Force Unlock</text>
+    <text x="570" y="324" text-anchor="middle" fill="#8b949e" font-size="10">if |z_t| > 3.0 → OPEN, g↑1</text>
+
+    <!-- State machine -->
+    <!-- OPEN circle -->
+    <circle cx="492" cy="365" r="18" fill="#3fb950" fill-opacity="0.2" stroke="#3fb950" stroke-width="1.5"/>
+    <text x="492" y="369" text-anchor="middle" fill="#3fb950" font-size="9" font-weight="600">OPEN</text>
+    <!-- CLOSING circle -->
+    <circle cx="570" cy="365" r="18" fill="#d29922" fill-opacity="0.2" stroke="#d29922" stroke-width="1.5"/>
+    <text x="570" y="369" text-anchor="middle" fill="#d29922" font-size="8" font-weight="600">CLOSE</text>
+    <!-- LOCKED circle -->
+    <circle cx="648" cy="365" r="18" fill="#f85149" fill-opacity="0.2" stroke="#f85149" stroke-width="1.5"/>
+    <text x="648" y="369" text-anchor="middle" fill="#f85149" font-size="8" font-weight="600">LOCK</text>
+    <!-- Transitions -->
+    <path d="M510 363 L550 363" stroke="#8b949e" stroke-width="1" marker-end="url(#arr-gray)"/>
+    <path d="M588 363 L628 363" stroke="#8b949e" stroke-width="1" marker-end="url(#arr-gray)"/>
+    <path d="M648 347 C 648 325, 492 325, 492 347" stroke="#f85149" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#arr-red)"/>
+    <text x="570" y="340" text-anchor="middle" fill="#f85149" font-size="8">force unlock</text>
+
+    <!-- Arrows into gate -->
+    <!-- h_t → gate -->
+    <path d="M160 172 L176 172 C 460 172, 460 85, 478 85" stroke="#58a6ff" stroke-width="1.2" fill="none" marker-end="url(#arr)"/>
+    <!-- z_t → gate -->
+    <line x1="395" y1="248" x2="478" y2="95" stroke="#d29922" stroke-width="1.5" marker-end="url(#arr-orange)"/>
+    <!-- state_embed → gate -->
+    <path d="M395 350 C 430 350, 430 105, 478 105" stroke="#8b949e" stroke-width="1" fill="none" marker-end="url(#arr-gray)"/>
+    <!-- gate MLP → g_raw -->
+    <line x1="570" y1="130" x2="570" y2="153" stroke="#3fb950" stroke-width="1.5" marker-end="url(#arr-green)"/>
+    <!-- g_raw → g_t -->
+    <line x1="570" y1="195" x2="570" y2="213" stroke="#3fb950" stroke-width="1.5" marker-end="url(#arr-green)"/>
+    <!-- z_t → force unlock -->
+    <line x1="395" y1="260" x2="488" y2="305" stroke="#f85149" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#arr-red)"/>
+
+    <!-- ================================================================== -->
+    <!-- SLOT MEMORY — 4 slots                                               -->
+    <!-- ================================================================== -->
+
+    <!-- Slot 0 -->
+    <rect x="220" y="435" width="100" height="130" rx="8" fill="url(#slot0)" stroke="#58a6ff" stroke-width="1.2"/>
+    <text x="270" y="456" text-anchor="middle" fill="#58a6ff" font-size="11" font-weight="600">Slot 0</text>
+    <text x="270" y="475" text-anchor="middle" fill="#8b949e" font-size="9">write_enc₀</text>
+    <rect x="234" y="485" width="72" height="24" rx="4" fill="#58a6ff" fill-opacity="0.1" stroke="#58a6ff" stroke-width="0.8"/>
+    <text x="270" y="501" text-anchor="middle" fill="#79c0ff" font-size="9">w₀[t]</text>
+    <text x="270" y="525" text-anchor="middle" fill="#8b949e" font-size="8">μ₀  σ₀</text>
+    <text x="270" y="540" text-anchor="middle" fill="#8b949e" font-size="8">gate_ema₀</text>
+    <text x="270" y="555" text-anchor="middle" fill="#3fb950" font-size="8" font-weight="500">OPEN</text>
+
+    <!-- Slot 1 -->
+    <rect x="332" y="435" width="100" height="130" rx="8" fill="url(#slot1)" stroke="#3fb950" stroke-width="1.2"/>
+    <text x="382" y="456" text-anchor="middle" fill="#3fb950" font-size="11" font-weight="600">Slot 1</text>
+    <text x="382" y="475" text-anchor="middle" fill="#8b949e" font-size="9">write_enc₁</text>
+    <rect x="346" y="485" width="72" height="24" rx="4" fill="#3fb950" fill-opacity="0.1" stroke="#3fb950" stroke-width="0.8"/>
+    <text x="382" y="501" text-anchor="middle" fill="#56d364" font-size="9">w₁[t]</text>
+    <text x="382" y="525" text-anchor="middle" fill="#8b949e" font-size="8">μ₁  σ₁</text>
+    <text x="382" y="540" text-anchor="middle" fill="#8b949e" font-size="8">gate_ema₁</text>
+    <text x="382" y="555" text-anchor="middle" fill="#d29922" font-size="8" font-weight="500">CLOSING</text>
+
+    <!-- Slot 2 -->
+    <rect x="444" y="435" width="100" height="130" rx="8" fill="url(#slot2)" stroke="#d29922" stroke-width="1.2"/>
+    <text x="494" y="456" text-anchor="middle" fill="#d29922" font-size="11" font-weight="600">Slot 2</text>
+    <text x="494" y="475" text-anchor="middle" fill="#8b949e" font-size="9">write_enc₂</text>
+    <rect x="458" y="485" width="72" height="24" rx="4" fill="#d29922" fill-opacity="0.1" stroke="#d29922" stroke-width="0.8"/>
+    <text x="494" y="501" text-anchor="middle" fill="#e3b341" font-size="9">w₂[t]</text>
+    <text x="494" y="525" text-anchor="middle" fill="#8b949e" font-size="8">μ₂  σ₂</text>
+    <text x="494" y="540" text-anchor="middle" fill="#8b949e" font-size="8">gate_ema₂</text>
+    <text x="494" y="555" text-anchor="middle" fill="#f85149" font-size="8" font-weight="500">LOCKED</text>
+
+    <!-- Slot 3 -->
+    <rect x="556" y="435" width="100" height="130" rx="8" fill="url(#slot3)" stroke="#bc8cff" stroke-width="1.2"/>
+    <text x="606" y="456" text-anchor="middle" fill="#bc8cff" font-size="11" font-weight="600">Slot 3</text>
+    <text x="606" y="475" text-anchor="middle" fill="#8b949e" font-size="9">write_enc₃</text>
+    <rect x="570" y="485" width="72" height="24" rx="4" fill="#bc8cff" fill-opacity="0.1" stroke="#bc8cff" stroke-width="0.8"/>
+    <text x="606" y="501" text-anchor="middle" fill="#d2a8ff" font-size="9">w₃[t]</text>
+    <text x="606" y="525" text-anchor="middle" fill="#8b949e" font-size="8">μ₃  σ₃</text>
+    <text x="606" y="540" text-anchor="middle" fill="#8b949e" font-size="8">gate_ema₃</text>
+    <text x="606" y="555" text-anchor="middle" fill="#3fb950" font-size="8" font-weight="500">OPEN</text>
+
+    <!-- Update equation -->
+    <rect x="240" y="590" width="396" height="50" rx="8" fill="#1f6feb" fill-opacity="0.06" stroke="#58a6ff" stroke-width="1" stroke-dasharray="4,3"/>
+    <text x="438" y="612" text-anchor="middle" fill="#79c0ff" font-size="13" font-weight="600">w_t = (1 − g_t) · w_{t−1}  +  g_t · write_enc(h_t)</text>
+    <text x="438" y="630" text-anchor="middle" fill="#8b949e" font-size="10">leaky recurrence — gradient flows back through gate to surprise event</text>
+
+    <!-- Competitive gating (optional) -->
+    <rect x="240" y="660" width="396" height="40" rx="8" fill="#bc8cff" fill-opacity="0.06" stroke="#bc8cff" stroke-width="0.8" stroke-dasharray="3,3"/>
+    <text x="438" y="677" text-anchor="middle" fill="#bc8cff" font-size="10">Optional: competitive=True → softmax(gate_logits) × urgency</text>
+    <text x="438" y="692" text-anchor="middle" fill="#8b949e" font-size="9">winner-take-all-ish: only most surprised slot writes strongly</text>
+
+    <!-- Recurrence arrows -->
+    <!-- w_{t-1} → slot area -->
+    <line x1="160" y1="520" x2="218" y2="497" stroke="#bc8cff" stroke-width="1.2" marker-end="url(#arr-purple)"/>
+
+    <!-- g_t → slot write -->
+    <path d="M570 269 L570 285 L660 285 L660 433" stroke="#3fb950" stroke-width="1.5" fill="none" marker-end="url(#arr-green)"/>
+
+    <!-- h_t → write encoders -->
+    <path d="M100 194 L100 420 L230 420 L340 433" stroke="#58a6ff" stroke-width="1.2" fill="none" marker-end="url(#arr)"/>
+
+    <!-- ================================================================== -->
+    <!-- READ & OUTPUT                                                       -->
+    <!-- ================================================================== -->
+
+    <!-- Read mode selector -->
+    <rect x="720" y="60" width="140" height="70" rx="8" fill="#bc8cff" fill-opacity="0.15" stroke="#bc8cff" stroke-width="1.5"/>
+    <text x="790" y="82" text-anchor="middle" fill="#bc8cff" font-size="12" font-weight="600">Read Mode</text>
+    <text x="790" y="99" text-anchor="middle" fill="#d2a8ff" font-size="10" font-weight="500">concat | mean | attn</text>
+    <text x="790" y="116" text-anchor="middle" fill="#8b949e" font-size="9">concat: [w₀;w₁;w₂;w₃]</text>
+
+    <!-- hpm_seq output -->
+    <rect x="720" y="160" width="140" height="50" rx="8" fill="#1f6feb" fill-opacity="0.25" stroke="#58a6ff" stroke-width="2" filter="url(#glow)"/>
+    <text x="790" y="181" text-anchor="middle" fill="#58a6ff" font-size="13" font-weight="700">hpm_seq</text>
+    <text x="790" y="199" text-anchor="middle" fill="#8b949e" font-size="10">(B, T, hpm_dim)</text>
+
+    <!-- Concat to QueryHead -->
+    <rect x="720" y="240" width="140" height="70" rx="8" fill="#58a6ff" fill-opacity="0.1" stroke="#58a6ff" stroke-width="1"/>
+    <text x="790" y="260" text-anchor="middle" fill="#79c0ff" font-size="11" font-weight="500">→ QueryHead</text>
+    <text x="790" y="277" text-anchor="middle" fill="#8b949e" font-size="9">[sequence ; holder</text>
+    <text x="790" y="291" text-anchor="middle" fill="#8b949e" font-size="9"> ; hpm_seq]</text>
+    <text x="790" y="303" text-anchor="middle" fill="#8b949e" font-size="9">D + max_ent + hpm_dim</text>
+
+    <!-- Diagnostics output -->
+    <rect x="720" y="340" width="140" height="110" rx="8" fill="#8b949e" fill-opacity="0.08" stroke="#8b949e" stroke-width="1"/>
+    <text x="790" y="360" text-anchor="middle" fill="#8b949e" font-size="11" font-weight="600">Diagnostics</text>
+    <text x="790" y="379" text-anchor="middle" fill="#8b949e" font-size="9">gate_mean</text>
+    <text x="790" y="393" text-anchor="middle" fill="#8b949e" font-size="9">z_abs_mean / z_abs_max</text>
+    <text x="790" y="407" text-anchor="middle" fill="#8b949e" font-size="9">open / closing / locked %</text>
+    <text x="790" y="421" text-anchor="middle" fill="#8b949e" font-size="9">force_unlocks</text>
+    <text x="790" y="435" text-anchor="middle" fill="#8b949e" font-size="9">μ, σ, write_mag</text>
+
+    <!-- Arrows: slots → read → output -->
+    <path d="M656 480 L718 95" stroke="#bc8cff" stroke-width="1.5" fill="none" marker-end="url(#arr-purple)"/>
+    <line x1="790" y1="130" x2="790" y2="158" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#arr)"/>
+    <line x1="790" y1="210" x2="790" y2="238" stroke="#58a6ff" stroke-width="1.2" marker-end="url(#arr)"/>
+
+    <!-- ================================================================== -->
+    <!-- RUNNING STATS (detached)                                            -->
+    <!-- ================================================================== -->
+
+    <rect x="920" y="60" width="140" height="44" rx="8" fill="#d29922" fill-opacity="0.08" stroke="#d29922" stroke-width="0.8"/>
+    <text x="990" y="78" text-anchor="middle" fill="#e3b341" font-size="11" font-weight="500">μ per slot</text>
+    <text x="990" y="94" text-anchor="middle" fill="#8b949e" font-size="9">EMA of e_t (decay=0.99)</text>
+
+    <rect x="920" y="120" width="140" height="44" rx="8" fill="#d29922" fill-opacity="0.08" stroke="#d29922" stroke-width="0.8"/>
+    <text x="990" y="138" text-anchor="middle" fill="#e3b341" font-size="11" font-weight="500">σ per slot</text>
+    <text x="990" y="154" text-anchor="middle" fill="#8b949e" font-size="9">EMA of std(e_t), floor=1e-3</text>
+
+    <rect x="920" y="180" width="140" height="44" rx="8" fill="#3fb950" fill-opacity="0.08" stroke="#3fb950" stroke-width="0.8"/>
+    <text x="990" y="198" text-anchor="middle" fill="#56d364" font-size="11" font-weight="500">gate_ema</text>
+    <text x="990" y="214" text-anchor="middle" fill="#8b949e" font-size="9">drives state transitions</text>
+
+    <rect x="920" y="240" width="140" height="44" rx="8" fill="#8b949e" fill-opacity="0.08" stroke="#8b949e" stroke-width="0.8"/>
+    <text x="990" y="258" text-anchor="middle" fill="#8b949e" font-size="11" font-weight="500">slot_state[s]</text>
+    <text x="990" y="274" text-anchor="middle" fill="#8b949e" font-size="9">O / C / L per slot</text>
+
+    <rect x="920" y="300" width="140" height="44" rx="8" fill="#8b949e" fill-opacity="0.05" stroke="#8b949e" stroke-width="0.8"/>
+    <text x="990" y="318" text-anchor="middle" fill="#8b949e" font-size="11">global_step</text>
+    <text x="990" y="334" text-anchor="middle" fill="#8b949e" font-size="9">warmup &lt; 50 suppresses unlock</text>
+
+    <!-- Feedback arrows from e_t → stats -->
+    <path d="M395 165 C 800 165, 800 82, 918 82" stroke="#d29922" stroke-width="1" stroke-dasharray="3,3" fill="none" marker-end="url(#arr-orange)"/>
+    <path d="M395 180 C 810 180, 810 142, 918 142" stroke="#d29922" stroke-width="1" stroke-dasharray="3,3" fill="none" marker-end="url(#arr-orange)"/>
+
+    <!-- ================================================================== -->
+    <!-- TEMPORAL FLOW ANNOTATION (bottom)                                   -->
+    <!-- ================================================================== -->
+
+    <rect x="220" y="720" width="456" height="60" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1"/>
+    <text x="448" y="740" text-anchor="middle" fill="#e6edf3" font-size="12" font-weight="600">Temporal Recurrence: t = 0 → T</text>
+    <text x="448" y="758" text-anchor="middle" fill="#8b949e" font-size="10">For each timestep: predict → surprise → gate → write → advance state</text>
+    <text x="448" y="773" text-anchor="middle" fill="#8b949e" font-size="10">Gradient flows backward through leaky w_t recurrence to original event</text>
+
+    <!-- Time arrow -->
+    <line x1="240" y1="715" x2="656" y2="715" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#arr)"/>
+    <text x="250" y="712" fill="#58a6ff" font-size="9">t=0</text>
+    <text x="640" y="712" fill="#58a6ff" font-size="9">t=T</text>
+
+  </svg>
+
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#58a6ff"></div>
+      <span>Hidden state / data flow</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#d29922"></div>
+      <span>Prediction error / surprise (detached)</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#3fb950"></div>
+      <span>Gate computation / plasticity control</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#f85149"></div>
+      <span>Force unlock (emergency override)</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#bc8cff"></div>
+      <span>Slot memory / read output</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#8b949e"></div>
+      <span>Running stats / diagnostics (no grad)</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>

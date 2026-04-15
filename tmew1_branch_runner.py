@@ -130,6 +130,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--hpm-competitive", action="store_true", default=None)
     p.add_argument("--hpm-slot-dim", type=int, default=None)
+    p.add_argument("--hpm-retroactive-window", type=int, default=None,
+                   help="C3: retroactive binding window size (0=disabled)")
+    p.add_argument("--hpm-slot-timescales", type=str, default=None,
+                   help="C4: comma-separated per-slot timescale multipliers")
 
     # Resume behavior (baseline runs benefit from this most)
     p.add_argument("--resume", type=str, default=None)
@@ -188,6 +192,12 @@ def merge_cli_into_branch(args: argparse.Namespace, branch: BranchConfig) -> Bra
         patch["hpm_competitive"] = True
     if args.hpm_slot_dim is not None:
         patch["hpm_slot_dim"] = args.hpm_slot_dim
+    if args.hpm_retroactive_window is not None:
+        patch["hpm_retroactive_window"] = args.hpm_retroactive_window
+    if args.hpm_slot_timescales is not None:
+        patch["hpm_slot_timescales"] = tuple(
+            float(x.strip()) for x in args.hpm_slot_timescales.split(",")
+        )
 
     if not patch:
         return branch
@@ -248,7 +258,8 @@ def run_branch(branch: BranchConfig, out_dir: str, baseline_record: Optional[Dic
     # WorldModelConfig's default factory so the branch's HPMConfig is picked up
     # without forking build_model. This is the minimum-invasive way to
     # inject HPM overrides into the existing pipeline.
-    if any([branch.hpm_n_slots, branch.hpm_read_mode, branch.hpm_competitive, branch.hpm_slot_dim]):
+    if any([branch.hpm_n_slots, branch.hpm_read_mode, branch.hpm_competitive,
+            branch.hpm_slot_dim, branch.hpm_retroactive_window, branch.hpm_slot_timescales]):
         import homeostatic_multimodal_world_model_chunked as hmwm
         original_default = hmwm.WorldModelConfig.__dataclass_fields__["hpm_config"].default_factory
         hmwm.WorldModelConfig.__dataclass_fields__["hpm_config"].default_factory = (lambda cfg=hpm_cfg: cfg)
