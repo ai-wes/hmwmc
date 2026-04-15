@@ -267,6 +267,13 @@ def build_default_metric_specs() -> dict[str, MetricSpec]:
         "hpm_sigma": MetricSpec(ScoreDirection.HIGHER_IS_BETTER, 0.0, 2.0),
         "hpm_write_regular_frac": MetricSpec(ScoreDirection.HIGHER_IS_BETTER, 0.0, 1.0),
         "hpm_write_forced_frac": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 1.0),
+        # HPM v2: top-k routing diagnostics
+        "hpm_slot_key_cos": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 1.0),
+        "hpm_load_std": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 1.0),
+        "hpm_age_mean": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 50.0),
+        # Entity table diagnostics (HPM v2, item #1)
+        "entity_route_entropy": MetricSpec(ScoreDirection.HIGHER_IS_BETTER, 0.0, 2.0),
+        "entity_state_norm": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 5.0),
     }
 
 
@@ -281,6 +288,7 @@ _METRIC_GROUPS: list[tuple[str, list[str]]] = [
                   "what_was_true_rule"]),
     ("PNN",      ["pnn_"]),
     ("HPM",      ["hpm_"]),
+    ("Entity",   ["entity_"]),
 ]
 
 

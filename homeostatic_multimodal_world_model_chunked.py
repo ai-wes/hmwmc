@@ -20,7 +20,7 @@ uploaded component files when available in the same directory.
 
 from dataclasses import dataclass, field
 
-from hpm import HomeostaticPredictiveMemory, HPMConfig
+from hpm import HomeostaticPredictiveMemory, HPMConfig, EntityTable, EntityTableConfig
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, MutableMapping, Optional, Sequence, Tuple
@@ -433,6 +433,9 @@ class WorldModelConfig:
     # Dual-bank HPM: optional slow-plasticity bank for structural/rule memory.
     # When set, a second HPM module runs in parallel with different hyperparams.
     hpm_slow_config: Optional[HPMConfig] = None
+
+    # Entity table: persistent GRU-based entity state (HPM v2, item #1).
+    entity_table_config: Optional[EntityTableConfig] = None
 
 
 # -----------------------------------------------------------------------------
@@ -1343,6 +1346,8 @@ class ForwardOutput:
     vision_pred: Optional[Tensor] = None
     hpm_sequence: Optional[Tensor] = None
     hpm_diagnostics: Optional[Dict[str, float]] = None
+    entity_sequence: Optional[Tensor] = None
+    entity_diagnostics: Optional[Dict[str, float]] = None
 
 
 # -----------------------------------------------------------------------------
@@ -1391,11 +1396,17 @@ class HomeostaticMultimodalWorldModel(nn.Module):
         self._last_forward_report: Optional[Dict[str, Any]] = None
         self._last_layer_diagnostics: List[Dict[str, float]] = []
         self._last_hpm_diagnostics: Optional[Dict[str, float]] = None
+        self._last_entity_diagnostics: Optional[Dict[str, float]] = None
 
         # Dual-bank HPM: optional slow-plasticity bank for structural/rule memory.
         self.hpm_slow: Optional[HomeostaticPredictiveMemory] = None
         if cfg.hpm_slow_config is not None and cfg.hpm_slow_config.enabled:
             self.hpm_slow = HomeostaticPredictiveMemory(cfg.d_model, cfg.hpm_slow_config)
+
+        # Entity table (HPM v2, item #1).
+        self.entity_table: Optional[EntityTable] = None
+        if cfg.entity_table_config is not None and cfg.entity_table_config.enabled:
+            self.entity_table = EntityTable(cfg.d_model, cfg.entity_table_config)
 
     def init_state(self, batch_size: int, device: torch.device | None = None) -> WorldModelState:
         device = device or next(self.parameters()).device
@@ -1592,6 +1603,18 @@ class HomeostaticMultimodalWorldModel(nn.Module):
                 hpm_diagnostics = {f"slow_{k}": v for k, v in hpm_slow_diag.items()}
         self._last_hpm_diagnostics = hpm_diagnostics
 
+        # Entity table pass (HPM v2, item #1).
+        entity_sequence: Optional[Tensor] = None
+        entity_diagnostics: Optional[Dict[str, float]] = None
+        if self.entity_table is not None:
+            entity_sequence, entity_diagnostics = self.entity_table(sequence)
+            # Concatenate entity output with hpm_sequence so QueryHead sees it.
+            if hpm_sequence is not None:
+                hpm_sequence = torch.cat([hpm_sequence, entity_sequence], dim=-1)
+            else:
+                hpm_sequence = entity_sequence
+        self._last_entity_diagnostics = entity_diagnostics
+
         layer_diagnostics = []
         for layer_stats in per_layer_diagnostics:
             if not layer_stats:
@@ -1635,6 +1658,8 @@ class HomeostaticMultimodalWorldModel(nn.Module):
             vision_pred=vision_pred,
             hpm_sequence=hpm_sequence,
             hpm_diagnostics=hpm_diagnostics,
+            entity_sequence=entity_sequence,
+            entity_diagnostics=entity_diagnostics,
         )
 
     def controller_step(self, loss_value: Tensor | float) -> Dict[str, Any]:

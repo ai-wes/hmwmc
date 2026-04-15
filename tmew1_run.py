@@ -305,6 +305,12 @@ def train_one_step(
 
     total = losses.total + tcfg.aux_latent_weight * aux + q_loss + 0.3 * holder_loss
 
+    # HPM v2: extract diversity regularizer (Tensor) and add to total.
+    _hpm_diag = getattr(model, '_last_hpm_diagnostics', None)
+    _div_loss = _hpm_diag.pop("_diversity_loss", None) if _hpm_diag else None
+    if _div_loss is not None:
+        total = total + _div_loss
+
     # ── NaN guard: skip backward + optimizer if loss exploded ──────────
     if torch.isnan(total) or torch.isinf(total):
         import logging as _log
@@ -569,6 +575,8 @@ def run_curriculum(
     hpm_dim = model.hpm.output_dim if getattr(model, "hpm", None) is not None else 0
     if getattr(model, "hpm_slow", None) is not None:
         hpm_dim += model.hpm_slow.output_dim
+    if getattr(model, "entity_table", None) is not None:
+        hpm_dim += model.entity_table.output_dim
     query_head = QueryHead(
         model.cfg.d_model + world_cfg.max_entities + hpm_dim,
         num_categorical_answers,
@@ -738,6 +746,11 @@ def run_curriculum(
                         if _hpm_out:
                             for _hk, _hv in _hpm_out.items():
                                 step_metrics[_hk] = float(_hv)
+                    # Entity table diagnostics (HPM v2, item #1).
+                    _ent_out = getattr(model, '_last_entity_diagnostics', None)
+                    if _ent_out:
+                        for _ek, _ev in _ent_out.items():
+                            step_metrics[_ek] = float(_ev)
                     log_training_snapshot(
                         score_logger,
                         step_label=(
