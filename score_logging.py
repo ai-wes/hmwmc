@@ -260,14 +260,59 @@ def build_default_metric_specs() -> dict[str, MetricSpec]:
         "hpm_gate_mean": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 1.0),
         "hpm_z_abs_mean": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 5.0),
         "hpm_z_abs_max": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 10.0),
-        "hpm_err_mean": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 1.0),
-        "hpm_write_mag": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 1.0),
+        "hpm_err_mean": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 5.0),
+        "hpm_write_mag": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 3.0),
         "hpm_force_unlocks_step": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 10.0),
-        "hpm_mu": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 1.0),
+        "hpm_mu": MetricSpec(ScoreDirection.LOWER_IS_BETTER, -3.0, 3.0),
         "hpm_sigma": MetricSpec(ScoreDirection.HIGHER_IS_BETTER, 0.0, 2.0),
         "hpm_write_regular_frac": MetricSpec(ScoreDirection.HIGHER_IS_BETTER, 0.0, 1.0),
         "hpm_write_forced_frac": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 1.0),
     }
+
+
+# Metric display groups — controls section ordering in log output.
+# Each tuple is (section_label, list_of_metric_prefixes_or_names).
+# Metrics are matched in order; first match wins. Unmatched go to "Other".
+_METRIC_GROUPS: list[tuple[str, list[str]]] = [
+    ("Loss",     ["total", "next_step", "aux_latent", "q_loss", "holder_loss",
+                  "loss/", "text_entropy", "stress"]),
+    ("Accuracy", ["latent_acc", "entity_acc", "binary_acc", "holder_acc",
+                  "qacc/", "who_holds_token", "who_was_first_tagged",
+                  "what_was_true_rule"]),
+    ("PNN",      ["pnn_"]),
+    ("HPM",      ["hpm_"]),
+]
+
+
+def _group_metrics(
+    metrics: Mapping[str, float],
+) -> list[tuple[str, list[str]]]:
+    """Partition metric keys into ordered groups. Every key appears exactly once."""
+    buckets: dict[str, list[str]] = {label: [] for label, _ in _METRIC_GROUPS}
+    buckets["Other"] = []
+    assigned: set[str] = set()
+
+    for key in metrics:
+        placed = False
+        for label, prefixes in _METRIC_GROUPS:
+            for pfx in prefixes:
+                if key == pfx or key.startswith(pfx):
+                    buckets[label].append(key)
+                    assigned.add(key)
+                    placed = True
+                    break
+            if placed:
+                break
+        if not placed:
+            buckets["Other"].append(key)
+
+    result: list[tuple[str, list[str]]] = []
+    for label, _ in _METRIC_GROUPS:
+        if buckets[label]:
+            result.append((label, buckets[label]))
+    if buckets["Other"]:
+        result.append(("Other", buckets["Other"]))
+    return result
 
 
 def log_training_snapshot(
@@ -289,7 +334,19 @@ def log_training_snapshot(
             ScoreDirection.LOWER_IS_BETTER, floor, floor + 1.0,
         )
     score_logger.logger.info(f"=== {step_label} ===")
-    score_logger.log_scores(metrics, metric_specs)
+
+    groups = _group_metrics(metrics)
+    use_color = any(
+        getattr(h, "formatter", None) and getattr(h.formatter, "use_color", False)
+        for h in score_logger.logger.handlers
+    )
+    for group_label, keys in groups:
+        if use_color:
+            score_logger.logger.info(f"  {_Ansi.CYAN}{_Ansi.BOLD}── {group_label} ──{_Ansi.RESET}")
+        else:
+            score_logger.logger.info(f"  ── {group_label} ──")
+        group_metrics = {k: metrics[k] for k in keys}
+        score_logger.log_scores(group_metrics, metric_specs)
 
 
 if __name__ == "__main__":
