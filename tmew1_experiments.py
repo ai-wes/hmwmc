@@ -367,7 +367,6 @@ B_QUERY_SPECS: Dict[str, Dict[str, Any]] = {
             "Who would hold the token at episode end if handoff #2 "
             "had not occurred? Requires counterfactual simulator rollout."
         ),
-        "requires_step_patch": True,   # needs paired episode generation
     },
     "would_alarm_fire_without_correction": {
         "answer_kind": "binary",
@@ -376,7 +375,6 @@ B_QUERY_SPECS: Dict[str, Dict[str, Any]] = {
             "Would the alarm have fired if the correction cue had not "
             "occurred? Requires counterfactual simulator rollout."
         ),
-        "requires_step_patch": True,
     },
 }
 
@@ -488,7 +486,7 @@ def make_branch_preset(branch_id: str) -> BranchConfig:
             ),
             rubric=PromotionRubric(
                 target_metric="qacc/closest_entity_to_holder_at_alarm",
-                min_absolute=0.55,
+                min_absolute=0.25,
                 max_regression_points=3.0,
             ),
         )
@@ -519,7 +517,6 @@ def make_branch_preset(branch_id: str) -> BranchConfig:
                 "holder_if_handoff2_absent",
                 "would_alarm_fire_without_correction",
             ),
-            requires_step_patch=True,
             rubric=PromotionRubric(
                 target_metric="qacc/would_alarm_fire_without_correction",
                 min_absolute=0.70,

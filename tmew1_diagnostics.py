@@ -21,6 +21,7 @@ Usage from tmew1_run.py:
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -189,7 +190,14 @@ def generate_episode_with_diagnostics(
     ever_occluded = np.zeros((cfg.max_entities,), dtype=np.bool_)
     ever_tagged = np.zeros((cfg.max_entities,), dtype=np.bool_)
 
+    # Snapshots for B4 counterfactual rollouts
+    _cf_correction_snapshot: Optional[Tuple[Any, Any]] = None  # (WorldState, HandoffState) at correction_step
+
     for t in range(T):
+        # Save snapshot right before correction for counterfactual replay
+        if has_false_cue and t == correction_step and _cf_correction_snapshot is None:
+            _cf_correction_snapshot = (copy.deepcopy(state), copy.deepcopy(handoff))
+
         if has_false_cue and false_cue_step <= t < correction_step:
             true_rule_saved = state.active_rule
             state.active_rule = decoy_rule
@@ -250,6 +258,37 @@ def generate_episode_with_diagnostics(
             audio[t] = _inject_false_cue(audio[t], t, false_cue_step, correction_step)
 
     trigger_source_id = handoff.first_tagged_id if handoff.first_tagged_id >= 0 else -1
+
+    # ── B4 counterfactual rollouts ──────────────────────────────────────
+    # 1) holder_if_handoff2_absent: who holds the token at episode end if
+    #    the 2nd handoff (index 1) never happened?
+    cf_holder_no_handoff2: Optional[int] = None
+    if len(handoff.transfer_history) >= 2:
+        # Replay the handoff chain, skipping entry at index 1
+        _cf_holder = handoff.transfer_history[0][2]  # after 1st handoff
+        # The 2nd handoff (index 1) is skipped, so holder stays as _cf_holder.
+        # For handoffs 3+ (index 2+), they only occur if the holder at that
+        # moment matches the from_id. Replay sequentially.
+        for _hi in range(2, len(handoff.transfer_history)):
+            _ht, _hfrom, _hto = handoff.transfer_history[_hi]
+            if _hfrom == _cf_holder:
+                _cf_holder = _hto
+        cf_holder_no_handoff2 = _cf_holder
+
+    # 2) would_alarm_fire_without_correction: in a false-cue episode, if
+    #    the correction never arrived (decoy rule stays active from
+    #    correction_step onward), would the alarm still fire?
+    cf_alarm_without_correction: Optional[int] = None  # 0 or 1, or None
+    if has_false_cue and _cf_correction_snapshot is not None:
+        cf_state, cf_handoff = _cf_correction_snapshot
+        # Keep the decoy rule active (don't restore true_rule)
+        cf_state.active_rule = decoy_rule
+        cf_alarm_fired = cf_state.alarm_fired  # may already have fired
+        for _ct in range(correction_step, T):
+            cf_events = _step_world_with_handoff(cf_state, cf_handoff, cfg, _ct, tier.max_delay)
+            if cf_events.get("alarm_fire"):
+                cf_alarm_fired = True
+        cf_alarm_without_correction = 1 if cf_alarm_fired else 0
 
     def _first_visible_entity_at(step: int) -> Optional[int]:
         if step < 0 or step >= T:
@@ -331,8 +370,10 @@ def generate_episode_with_diagnostics(
             return entity_never_occluded is not None
         if qtype == "entity_never_tagged":
             return entity_never_tagged is not None
-        if qtype in {"holder_if_handoff2_absent", "would_alarm_fire_without_correction"}:
-            return False
+        if qtype in {"holder_if_handoff2_absent"}:
+            return cf_holder_no_handoff2 is not None
+        if qtype in {"would_alarm_fire_without_correction"}:
+            return cf_alarm_without_correction is not None
         return True
 
     candidate_pool = active_query_types
@@ -388,6 +429,10 @@ def generate_episode_with_diagnostics(
         elif qtype == "chain_never_fired":
             target = 1 if ((fired_at >= 0) ^ (chain2_fired_at >= 0)) else 0
             queries.append(Query(qtype, target, time_asked, is_binary=True))
+        elif qtype == "holder_if_handoff2_absent":
+            queries.append(Query(qtype, int(cf_holder_no_handoff2), time_asked, is_binary=False))
+        elif qtype == "would_alarm_fire_without_correction":
+            queries.append(Query(qtype, int(cf_alarm_without_correction), time_asked, is_binary=True))
 
     return EpisodeWithDiagnostics(
         vision=vision,
