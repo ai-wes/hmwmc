@@ -274,6 +274,12 @@ def build_default_metric_specs() -> dict[str, MetricSpec]:
         # Entity table diagnostics (HPM v2, item #1)
         "entity_route_entropy": MetricSpec(ScoreDirection.HIGHER_IS_BETTER, 0.0, 2.0),
         "entity_state_norm": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 5.0),
+        # HPM continuous plasticity diagnostics (v2: cleanup)
+        "hpm_plasticity_mean": MetricSpec(ScoreDirection.HIGHER_IS_BETTER, 0.0, 1.0),
+        "hpm_slot_age_mean": MetricSpec(ScoreDirection.LOWER_IS_BETTER, 0.0, 50.0),
+        # Event tape diagnostics (item #6)
+        "event_tape_n_events": MetricSpec(ScoreDirection.HIGHER_IS_BETTER, 0.0, 20.0),
+        "event_tape_fill_rate": MetricSpec(ScoreDirection.HIGHER_IS_BETTER, 0.0, 1.0),
     }
 
 
@@ -289,6 +295,7 @@ _METRIC_GROUPS: list[tuple[str, list[str]]] = [
     ("PNN",      ["pnn_"]),
     ("HPM",      ["hpm_"]),
     ("Entity",   ["entity_"]),
+    ("EventTape", ["event_tape_"]),
 ]
 
 

@@ -20,7 +20,11 @@ uploaded component files when available in the same directory.
 
 from dataclasses import dataclass, field
 
-from hpm import HomeostaticPredictiveMemory, HPMConfig, EntityTable, EntityTableConfig
+from hpm import (
+    HomeostaticPredictiveMemory, HPMConfig,
+    EntityTable, EntityTableConfig,
+    EventTape, EventTapeConfig,
+)
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, MutableMapping, Optional, Sequence, Tuple
@@ -436,6 +440,9 @@ class WorldModelConfig:
 
     # Entity table: persistent GRU-based entity state (HPM v2, item #1).
     entity_table_config: Optional[EntityTableConfig] = None
+
+    # Event tape: append-only boundary snapshot buffer (item #6).
+    event_tape_config: Optional[EventTapeConfig] = None
 
 
 # -----------------------------------------------------------------------------
@@ -1348,6 +1355,13 @@ class ForwardOutput:
     hpm_diagnostics: Optional[Dict[str, float]] = None
     entity_sequence: Optional[Tensor] = None
     entity_diagnostics: Optional[Dict[str, float]] = None
+    # Entity table per-step states for event tape and retrieval head.
+    entity_states: Optional[Tensor] = None           # (B, T, n_e, d_e)
+    # Event tape outputs (item #6).
+    event_tape_entries: Optional[Tensor] = None      # (B, max_events, D)
+    event_tape_mask: Optional[Tensor] = None         # (B, max_events) bool
+    event_tape_times: Optional[Tensor] = None        # (B, max_events) long
+    event_tape_diagnostics: Optional[Dict[str, float]] = None
 
 
 # -----------------------------------------------------------------------------
@@ -1407,6 +1421,16 @@ class HomeostaticMultimodalWorldModel(nn.Module):
         self.entity_table: Optional[EntityTable] = None
         if cfg.entity_table_config is not None and cfg.entity_table_config.enabled:
             self.entity_table = EntityTable(cfg.d_model, cfg.entity_table_config)
+
+        # Event tape (item #6): snapshots high-surprise boundaries.
+        self.event_tape: Optional[EventTape] = None
+        if cfg.event_tape_config is not None and cfg.event_tape_config.enabled:
+            d_entity_total = 0
+            if (cfg.event_tape_config.include_entity_state
+                    and cfg.entity_table_config is not None
+                    and cfg.entity_table_config.enabled):
+                d_entity_total = cfg.entity_table_config.n_entities * cfg.entity_table_config.d_entity
+            self.event_tape = EventTape(cfg.d_model, cfg.event_tape_config, d_entity_total)
 
     def init_state(self, batch_size: int, device: torch.device | None = None) -> WorldModelState:
         device = device or next(self.parameters()).device
@@ -1587,11 +1611,17 @@ class HomeostaticMultimodalWorldModel(nn.Module):
         # so next-step prediction heads continue to operate on pure block output).
         hpm_sequence: Optional[Tensor] = None
         hpm_diagnostics: Optional[Dict[str, float]] = None
+        z_per_step: Optional[Tensor] = None
         if self.hpm is not None:
             hpm_sequence, hpm_diagnostics = self.hpm(sequence)
+            # Extract per-step z-scores for EventTape (internal tensor, not logged).
+            z_per_step = hpm_diagnostics.pop("_z_per_step", None) if hpm_diagnostics else None
         # Dual-bank HPM: run slow bank and concatenate outputs.
         if self.hpm_slow is not None:
             hpm_slow_seq, hpm_slow_diag = self.hpm_slow(sequence)
+            # Pop internal tensors from slow bank diag too.
+            if hpm_slow_diag:
+                hpm_slow_diag.pop("_z_per_step", None)
             if hpm_sequence is not None:
                 hpm_sequence = torch.cat([hpm_sequence, hpm_slow_seq], dim=-1)
             else:
@@ -1606,14 +1636,24 @@ class HomeostaticMultimodalWorldModel(nn.Module):
         # Entity table pass (HPM v2, item #1).
         entity_sequence: Optional[Tensor] = None
         entity_diagnostics: Optional[Dict[str, float]] = None
+        entity_states: Optional[Tensor] = None
         if self.entity_table is not None:
-            entity_sequence, entity_diagnostics = self.entity_table(sequence)
+            entity_sequence, entity_diagnostics, entity_states = self.entity_table(sequence)
             # Concatenate entity output with hpm_sequence so QueryHead sees it.
             if hpm_sequence is not None:
                 hpm_sequence = torch.cat([hpm_sequence, entity_sequence], dim=-1)
             else:
                 hpm_sequence = entity_sequence
         self._last_entity_diagnostics = entity_diagnostics
+
+        # Event tape (item #6): snapshot high-surprise boundaries.
+        event_tape_entries: Optional[Tensor] = None
+        event_tape_mask: Optional[Tensor] = None
+        event_tape_times: Optional[Tensor] = None
+        event_tape_diagnostics: Optional[Dict[str, float]] = None
+        if self.event_tape is not None and z_per_step is not None:
+            event_tape_entries, event_tape_mask, event_tape_times, event_tape_diagnostics = \
+                self.event_tape(sequence, z_per_step, entity_states)
 
         layer_diagnostics = []
         for layer_stats in per_layer_diagnostics:
@@ -1660,6 +1700,11 @@ class HomeostaticMultimodalWorldModel(nn.Module):
             hpm_diagnostics=hpm_diagnostics,
             entity_sequence=entity_sequence,
             entity_diagnostics=entity_diagnostics,
+            entity_states=entity_states,
+            event_tape_entries=event_tape_entries,
+            event_tape_mask=event_tape_mask,
+            event_tape_times=event_tape_times,
+            event_tape_diagnostics=event_tape_diagnostics,
         )
 
     def controller_step(self, loss_value: Tensor | float) -> Dict[str, Any]:

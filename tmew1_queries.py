@@ -395,6 +395,149 @@ class QueryHead(nn.Module):
         return entity_logits, binary_logits
 
 
+class IterativeQueryHead(nn.Module):
+    """
+    2-step iterative retrieval head with cross-attention over entity table
+    and event tape.
+
+    Step 1: Cross-attend from query to [entity_state + event_tape]
+    Step 2: Use result to construct follow-up query, cross-attend again
+
+    This allows the head to trace chains: read entity A's holder → use that
+    to look up when the handoff occurred → identify the holder after handoff.
+    Designed to close the handoff-count accuracy cliff (0.87 @ 0 → 0.30 @ 6+).
+    """
+
+    def __init__(
+        self,
+        d_input: int,          # augmented sequence dim (d_model + max_entities + hpm_dim)
+        d_memory: int,         # memory entry dim (d_model, matches event tape output)
+        max_entities: int,
+        num_query_types: int,
+        d_entity: int = 0,     # per-entity dim for projection to d_memory
+        n_attn_heads: int = 4,
+        n_retrieval_steps: int = 2,
+    ):
+        super().__init__()
+        d = d_memory
+        self.d_memory = d
+        self.max_entities = max_entities
+        self.num_query_types = num_query_types
+        self.n_retrieval_steps = n_retrieval_steps
+
+        self.qtype_embed = nn.Embedding(num_query_types, d)
+
+        # Project augmented sequence to working dim.
+        self.input_proj = nn.Linear(d_input, d)
+
+        # Fuse projected state + query type.
+        self.query_fuse = nn.Sequential(
+            nn.Linear(2 * d, d),
+            nn.GELU(),
+        )
+
+        # Entity state projection (d_entity → d_memory).
+        self.entity_proj = nn.Linear(d_entity, d) if d_entity > 0 else None
+
+        # Iterative cross-attention layers.
+        self.cross_attn = nn.ModuleList([
+            nn.MultiheadAttention(d, n_attn_heads, batch_first=True)
+            for _ in range(n_retrieval_steps)
+        ])
+        self.cross_ffn = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(d, d * 2),
+                nn.GELU(),
+                nn.Linear(d * 2, d),
+            )
+            for _ in range(n_retrieval_steps)
+        ])
+        self.cross_norm1 = nn.ModuleList([
+            nn.LayerNorm(d) for _ in range(n_retrieval_steps)
+        ])
+        self.cross_norm2 = nn.ModuleList([
+            nn.LayerNorm(d) for _ in range(n_retrieval_steps)
+        ])
+
+        # Output heads.
+        self.entity_head = nn.Linear(d, max_entities)
+        self.binary_head = nn.Linear(d, 2)
+
+    def forward(
+        self,
+        sequence: Tensor,
+        query_times: Tensor,
+        query_types: Tensor,
+        entity_state: Optional[Tensor] = None,       # (B, n_e, d_entity)
+        event_tape: Optional[Tensor] = None,          # (B, max_events, d_memory)
+        event_tape_mask: Optional[Tensor] = None,     # (B, max_events) bool
+    ) -> Tuple[Tensor, Tensor]:
+        """
+        sequence:    (B, T, d_input)  — augmented sequence
+        query_times: (B, Q) long
+        query_types: (B, Q) long
+        entity_state: (B, n_e, d_entity) — current entity table state
+        event_tape:   (B, max_events, d_memory) — projected tape entries
+        event_tape_mask: (B, max_events) bool — True for valid entries
+
+        Returns: (entity_logits (B, Q, max_entities), binary_logits (B, Q, 2))
+        """
+        b, t, d_in = sequence.shape
+        q = query_times.size(1)
+        d = self.d_memory
+        device = sequence.device
+
+        # Gather sequence states at query times and project down.
+        time_idx = query_times.unsqueeze(-1).expand(-1, -1, d_in)
+        states = torch.gather(sequence, dim=1, index=time_idx)  # (B, Q, d_input)
+        states_proj = self.input_proj(states)  # (B, Q, d)
+
+        type_emb = self.qtype_embed(query_types)  # (B, Q, d)
+        query = self.query_fuse(torch.cat([states_proj, type_emb], dim=-1))  # (B, Q, d)
+
+        # Build memory bank.
+        memory_parts: List[Tensor] = []
+        mask_parts: List[Tensor] = []
+
+        if entity_state is not None and self.entity_proj is not None:
+            entity_mem = self.entity_proj(entity_state)  # (B, n_e, d)
+            memory_parts.append(entity_mem)
+            mask_parts.append(torch.ones(b, entity_state.size(1),
+                                         dtype=torch.bool, device=device))
+
+        if event_tape is not None:
+            memory_parts.append(event_tape)
+            if event_tape_mask is not None:
+                mask_parts.append(event_tape_mask)
+            else:
+                mask_parts.append(torch.ones(b, event_tape.size(1),
+                                             dtype=torch.bool, device=device))
+
+        if memory_parts:
+            memory = torch.cat(memory_parts, dim=1)  # (B, M, d)
+            mem_mask = torch.cat(mask_parts, dim=1)  # (B, M)
+            # MultiheadAttention key_padding_mask: True = ignore.
+            key_padding_mask = ~mem_mask
+
+            # Iterative cross-attention.
+            h = query
+            for i in range(self.n_retrieval_steps):
+                attn_out, _ = self.cross_attn[i](
+                    h, memory, memory,
+                    key_padding_mask=key_padding_mask,
+                )
+                h = self.cross_norm1[i](h + attn_out)
+                h = self.cross_norm2[i](h + self.cross_ffn[i](h))
+            fused = h
+        else:
+            # Fallback: no memory, use query directly.
+            fused = query
+
+        entity_logits = self.entity_head(fused)  # (B, Q, max_entities)
+        binary_logits = self.binary_head(fused)  # (B, Q, 2)
+        return entity_logits, binary_logits
+
+
 # -----------------------------------------------------------------------------
 # Sequence augmentation
 # -----------------------------------------------------------------------------
@@ -511,6 +654,7 @@ def query_train_step_addon(
     batch: Dict[str, Tensor],
     query_type_to_idx: Optional[Dict[str, int]] = None,
     weight: float = 0.5,
+    **query_kwargs,
 ) -> Tuple[Tensor, Dict[str, float]]:
     """
     Call this from inside the main train_step after model.forward and before
@@ -525,10 +669,15 @@ def query_train_step_addon(
         total.backward()
         optimizer.step()
         model.controller_step(total.detach())   # after optimizer.step(); mutates parameters
+
+    Extra **query_kwargs are forwarded to query_head.forward() — used by
+    IterativeQueryHead for entity_state, event_tape, event_tape_mask.
     """
     t_max = output_sequence.size(1) - 1
     qtimes = batch["query_times"].clamp(max=t_max)
-    entity_logits, binary_logits = query_head(output_sequence, qtimes, batch["query_types"])
+    entity_logits, binary_logits = query_head(
+        output_sequence, qtimes, batch["query_types"], **query_kwargs,
+    )
     qtypes = batch["query_types"]
     targets = batch["query_targets"]
     is_binary = batch["query_is_binary"]

@@ -32,7 +32,7 @@ from tmew1_train import (
     build_model,
     shift_targets,
 )
-from tmew1_queries import QueryHead, augment_sequence_with_holder_audio, query_train_step_addon
+from tmew1_queries import QueryHead, IterativeQueryHead, augment_sequence_with_holder_audio, query_train_step_addon
 from tmew1_diagnostics import (
     generate_episode_with_diagnostics,
     get_extended_query_type_to_idx,
@@ -176,6 +176,19 @@ def build_query_input(
         aug = torch.cat([aug, output.hpm_sequence.to(aug.dtype)], dim=-1)
     return aug
 
+
+def get_retrieval_context(output: ForwardOutput):
+    """Extract entity_state, event_tape, event_tape_mask from ForwardOutput for IterativeQueryHead."""
+    entity_state = None
+    if output.entity_states is not None:
+        # Use the FINAL entity state (B, n_e, d_e) for retrieval head memory.
+        entity_state = output.entity_states[:, -1]  # (B, n_e, d_e)
+    return {
+        "entity_state": entity_state,
+        "event_tape": output.event_tape_entries,
+        "event_tape_mask": output.event_tape_mask,
+    }
+
 # -----------------------------------------------------------------------------
 # Per-query-type accuracy logging
 # -----------------------------------------------------------------------------
@@ -195,7 +208,13 @@ def per_qtype_accuracy(
         max_entities=holder_feature_dim,
         use_audio="audio" in enabled,
     )
-    entity_logits, binary_logits = query_head(augmented_seq, qtimes, batch["query_types"])
+    if isinstance(query_head, IterativeQueryHead):
+        ctx = get_retrieval_context(output)
+        entity_logits, binary_logits = query_head(
+            augmented_seq, qtimes, batch["query_types"], **ctx,
+        )
+    else:
+        entity_logits, binary_logits = query_head(augmented_seq, qtimes, batch["query_types"])
 
     targets = batch["query_targets"]
     is_binary = batch["query_is_binary"]
@@ -289,6 +308,7 @@ def train_one_step(
                 batch,
                 query_type_to_idx=get_extended_query_type_to_idx(),
                 weight=0.5,
+                **(get_retrieval_context(output) if isinstance(query_head, IterativeQueryHead) else {}),
             )
 
     holder_loss = torch.zeros((), device=output.sequence.device)
@@ -577,11 +597,31 @@ def run_curriculum(
         hpm_dim += model.hpm_slow.output_dim
     if getattr(model, "entity_table", None) is not None:
         hpm_dim += model.entity_table.output_dim
-    query_head = QueryHead(
-        model.cfg.d_model + world_cfg.max_entities + hpm_dim,
-        num_categorical_answers,
-        len(get_extended_query_types()),
+
+    d_input = model.cfg.d_model + world_cfg.max_entities + hpm_dim
+
+    # Use IterativeQueryHead when entity table or event tape are present.
+    _use_iterative = (
+        getattr(model, "entity_table", None) is not None
+        or getattr(model, "event_tape", None) is not None
     )
+    if _use_iterative:
+        d_entity = 0
+        if getattr(model, "entity_table", None) is not None:
+            d_entity = model.entity_table.cfg.d_entity
+        query_head = IterativeQueryHead(
+            d_input=d_input,
+            d_memory=model.cfg.d_model,
+            max_entities=num_categorical_answers,
+            num_query_types=len(get_extended_query_types()),
+            d_entity=d_entity,
+        )
+    else:
+        query_head = QueryHead(
+            d_input,
+            num_categorical_answers,
+            len(get_extended_query_types()),
+        )
 
     holder_head = CurrentHolderHead(model.cfg.d_model, world_cfg.max_entities)
 
@@ -751,6 +791,10 @@ def run_curriculum(
                     if _ent_out:
                         for _ek, _ev in _ent_out.items():
                             step_metrics[_ek] = float(_ev)
+                    # Event tape diagnostics (item #6).
+                    if hasattr(output, 'event_tape_diagnostics') and output.event_tape_diagnostics:
+                        for _tk, _tv in output.event_tape_diagnostics.items():
+                            step_metrics[_tk] = float(_tv)
                     log_training_snapshot(
                         score_logger,
                         step_label=(

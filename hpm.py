@@ -158,6 +158,24 @@ class HPMConfig:
     # Split μ/σ EMAs by slot state (OPEN/CLOSING/LOCKED) instead of global.
     per_state_stats: bool = False
 
+    # =====================================================================
+    # v2: cleanup diff — kill state machine, fix σ floor, fix force-unlock
+    # =====================================================================
+
+    # Replace OPEN/CLOSING/LOCKED state machine and force-unlock with a
+    # single continuous plasticity scalar per slot:
+    #   plasticity = sigmoid(scale * age_factor * content_mismatch * |z| - bias)
+    # This is a deletion, not an addition — reduces complexity.
+    continuous_plasticity: bool = False
+    plasticity_age_tau: float = 10.0   # age saturation timescale
+    # Hard sigma floor: clamp sigma ≥ this value. Prevents convergence-collapse
+    # (sigma 0.94→0.31) that the adaptive floor failed to catch.
+    # 0.5 = 50% of init value (1.0). Set 0 to use only sigma_floor.
+    sigma_hard_floor: float = 0.5
+    # Load-balance penalty in the non-topk gate path (content_gating=True).
+    # Zero = disabled. Penalises overused slots: −γ·running_write_share_s.
+    gate_load_balance: float = 0.0
+
 
 # =========================================================================
 # Entity Table configuration
@@ -170,6 +188,20 @@ class EntityTableConfig:
     d_entity: int = 64
     # Read aggregation: "concat" or "attn".
     read_mode: str = "concat"
+
+
+# =========================================================================
+# Event Tape configuration
+# =========================================================================
+@dataclass
+class EventTapeConfig:
+    """Append-only event tape that snapshots high-surprise boundaries."""
+    enabled: bool = False
+    max_events: int = 32
+    # Minimum total surprise (max |z| across slots) to trigger a tape write.
+    surprise_threshold: float = 2.0
+    # Whether to include entity table state snapshots in tape entries.
+    include_entity_state: bool = True
 
 
 STATE_OPEN = 0
@@ -312,7 +344,116 @@ class EntityTable(nn.Module):
             "entity_route_entropy": route_entropy_sum / max(T, 1),
             "entity_state_norm": float(entity_state.detach().norm(dim=-1).mean().item()),
         }
-        return entity_seq, diag
+        return entity_seq, diag, entity_stack
+
+
+# -----------------------------------------------------------------------------
+# Event Tape — append-only boundary snapshot buffer (item #6)
+# -----------------------------------------------------------------------------
+class EventTape(nn.Module):
+    """
+    Append-only event tape that snapshots high-surprise boundaries.
+
+    At each timestep where total surprise (max |z| across slots) exceeds
+    a threshold, stores (t, h_t, entity_state_t). At query time, the
+    IterativeQueryHead attends over tape entries directly.
+
+    This exploits the strong boundary signal (17.9× event/non-event ratio)
+    that HPM v1 surprise detection produces, making it available for
+    structured retrieval at query time.
+    """
+
+    def __init__(self, d_model: int, cfg: EventTapeConfig, d_entity_total: int = 0):
+        super().__init__()
+        self.cfg = cfg
+        self.d_model = d_model
+        self.d_entity_total = d_entity_total
+
+        entry_dim = d_model + d_entity_total
+        self.entry_proj = nn.Linear(entry_dim, d_model)
+        self.time_embed = nn.Embedding(512, d_model)
+
+    @property
+    def output_dim(self) -> int:
+        return self.d_model
+
+    def forward(
+        self,
+        h_seq: Tensor,
+        z_per_step: Tensor,
+        entity_states: Optional[Tensor] = None,
+    ) -> Tuple[Tensor, Tensor, Tensor, Dict[str, float]]:
+        """
+        Args:
+            h_seq:         (B, T, D) — hidden states from block pipeline.
+            z_per_step:    (B, T, n_slots) — z-scores from HPM.
+            entity_states: (B, T, n_e, d_e) or None — per-step entity table state.
+
+        Returns:
+            tape_entries: (B, max_events, D) — projected tape content.
+            tape_mask:    (B, max_events) bool — True for valid entries.
+            tape_times:   (B, max_events) long — timestep of each entry.
+            diagnostics:  dict.
+        """
+        B, T, D = h_seq.shape
+        cfg = self.cfg
+        device = h_seq.device
+        dtype = h_seq.dtype
+
+        if T == 0:
+            empty_e = torch.zeros(B, 0, D, device=device, dtype=dtype)
+            empty_m = torch.zeros(B, 0, dtype=torch.bool, device=device)
+            empty_t = torch.zeros(B, 0, dtype=torch.long, device=device)
+            return empty_e, empty_m, empty_t, {}
+
+        # Total surprise per timestep: max |z| across slots.
+        total_surprise = z_per_step.abs().max(dim=-1).values  # (B, T)
+
+        tape_h = torch.zeros(B, cfg.max_events, D, device=device, dtype=dtype)
+        tape_times = torch.zeros(B, cfg.max_events, dtype=torch.long, device=device)
+        tape_mask = torch.zeros(B, cfg.max_events, dtype=torch.bool, device=device)
+        d_ent = self.d_entity_total
+        tape_entity = (
+            torch.zeros(B, cfg.max_events, d_ent, device=device, dtype=dtype)
+            if d_ent > 0 and cfg.include_entity_state and entity_states is not None
+            else None
+        )
+
+        n_events_total = 0
+        for b in range(B):
+            event_times_b = (total_surprise[b] > cfg.surprise_threshold).nonzero(as_tuple=False).squeeze(-1)
+            n_ev = event_times_b.numel()
+            if n_ev == 0:
+                continue
+            if n_ev > cfg.max_events:
+                _, top_idx = total_surprise[b, event_times_b].topk(cfg.max_events)
+                event_times_b = event_times_b[top_idx].sort().values
+                n_ev = cfg.max_events
+            tape_h[b, :n_ev] = h_seq[b, event_times_b]
+            tape_times[b, :n_ev] = event_times_b
+            tape_mask[b, :n_ev] = True
+            if tape_entity is not None and entity_states is not None:
+                tape_entity[b, :n_ev] = entity_states[b, event_times_b].reshape(n_ev, -1)
+            n_events_total += n_ev
+
+        # Project entries: concat h + entity (if available), project to d_model.
+        if tape_entity is not None:
+            raw_entries = torch.cat([tape_h, tape_entity], dim=-1)
+        elif d_ent > 0:
+            pad = torch.zeros(B, cfg.max_events, d_ent, device=device, dtype=dtype)
+            raw_entries = torch.cat([tape_h, pad], dim=-1)
+        else:
+            raw_entries = tape_h
+
+        tape_entries = self.entry_proj(raw_entries) + self.time_embed(
+            tape_times.clamp(max=511)
+        )
+
+        diag: Dict[str, float] = {
+            "event_tape_n_events": float(n_events_total) / max(B, 1),
+            "event_tape_fill_rate": float(tape_mask.float().mean().item()),
+        }
+        return tape_entries, tape_mask, tape_times, diag
 
 
 # -----------------------------------------------------------------------------
@@ -444,6 +585,17 @@ class HomeostaticPredictiveMemory(nn.Module):
         self._probe_gates: Optional[Tensor] = None  # (B, T, n_slots)
         self._probe_z: Optional[Tensor] = None       # (B, T, n_slots)
 
+        # --- Continuous plasticity (v2: cleanup, replaces state machine) ---
+        self._use_continuous_plasticity = cfg.continuous_plasticity
+        if cfg.continuous_plasticity:
+            self.register_buffer("slot_age", torch.zeros(self.n_slots))
+            # Learned scale and bias for the plasticity sigmoid.
+            self.plasticity_scale = nn.Parameter(torch.tensor(1.0))
+            self.plasticity_bias = nn.Parameter(torch.tensor(1.0))
+            # Running write share for load balance in non-topk path.
+            if cfg.gate_load_balance > 0 and not cfg.topk_routing:
+                self.register_buffer("_gate_load", torch.zeros(self.n_slots))
+
     # ---- public ----------------------------------------------------------
     @property
     def output_dim(self) -> int:
@@ -463,6 +615,10 @@ class HomeostaticPredictiveMemory(nn.Module):
                 self._sticky.zero_()
                 self._load.zero_()
                 self._age.zero_()
+            if self._use_continuous_plasticity:
+                self.slot_age.zero_()
+                if hasattr(self, '_gate_load'):
+                    self._gate_load.zero_()
 
     def describe_state(self) -> str:
         return " ".join(
@@ -592,18 +748,12 @@ class HomeostaticPredictiveMemory(nn.Module):
 
         # Non-per-state sigma (precomputed once, used when per_state_stats is False).
         if not self._use_per_state_stats:
-            if cfg.sigma_floor_adaptive:
-                adaptive_floor = cfg.sigma_floor_scale * self.mu.abs().clamp(min=cfg.sigma_floor)
-                effective_floor = torch.maximum(
-                    torch.full_like(self.sigma, cfg.sigma_floor), adaptive_floor
-                )
-                sigma_safe = self.sigma.clamp(min=cfg.sigma_floor)
-                sigma_safe = torch.maximum(sigma_safe, effective_floor)
-            else:
-                sigma_safe = self.sigma.clamp(min=cfg.sigma_floor)
+            _floor = max(cfg.sigma_hard_floor, cfg.sigma_floor)
+            sigma_safe = self.sigma.clamp(min=_floor)
 
         # Accumulators.
         per_step_slot: List[Tensor] = []
+        z_per_step_list: List[Tensor] = []
         gate_running_sum = torch.zeros(self.n_slots, device=device)
         z_abs_sum = torch.zeros(self.n_slots, device=device)
         z_abs_max = torch.zeros(self.n_slots, device=device)
@@ -613,8 +763,15 @@ class HomeostaticPredictiveMemory(nn.Module):
         write_regular_sum = torch.zeros(self.n_slots, device=device)
         write_forced_sum = torch.zeros(self.n_slots, device=device)
         force_unlocks_step = 0
+        plasticity_sum = torch.zeros(self.n_slots, device=device)
         _probe_gate_list: List[Tensor] = []
         _probe_z_list: List[Tensor] = []
+
+        # Continuous plasticity state (v2: cleanup).
+        if self._use_continuous_plasticity:
+            cp_slot_age = self.slot_age.clone()
+            if hasattr(self, '_gate_load'):
+                cp_gate_load = self._gate_load.clone()
 
         # Per-state stats accumulators (item #7).
         if self._use_per_state_stats:
@@ -654,10 +811,8 @@ class HomeostaticPredictiveMemory(nn.Module):
             if self._use_per_state_stats:
                 mu_sel = self.mu[cur_state, slot_idx]      # (n_slots,)
                 sig_sel = self.sigma[cur_state, slot_idx]  # (n_slots,)
-                sig_sel = sig_sel.clamp(min=cfg.sigma_floor)
-                if cfg.sigma_floor_adaptive:
-                    af = cfg.sigma_floor_scale * mu_sel.abs().clamp(min=cfg.sigma_floor)
-                    sig_sel = torch.maximum(sig_sel, af)
+                _floor_ps = max(cfg.sigma_hard_floor, cfg.sigma_floor)
+                sig_sel = sig_sel.clamp(min=_floor_ps)
                 z_t = (e_t - mu_sel.unsqueeze(0)) / sig_sel.unsqueeze(0)
             else:
                 z_t = (e_t - self.mu.unsqueeze(0)) / sigma_safe.unsqueeze(0)
@@ -725,60 +880,145 @@ class HomeostaticPredictiveMemory(nn.Module):
                 # No force-unlock in topk mode — age penalty handles it.
 
             else:
-                # --- Original gate logic ---
-                state_emb = self.state_embed(cur_state)
-                h_b = h_t.unsqueeze(1).expand(-1, self.n_slots, -1)
-                st_b = state_emb.unsqueeze(0).expand(B, -1, -1)
+                # --- Original gate logic (with continuous plasticity option) ---
 
-                if z_multi is not None:
-                    # Factorized z as gate input (item #3).
-                    z_in = z_multi  # (B, n_slots, n_channels)
-                else:
-                    z_in = z_t.unsqueeze(-1)  # (B, n_slots, 1)
+                # Retroactive binding: compute h_mix BEFORE gate so the
+                # cause-window content influences the gate decision (#4 fix).
+                h_gate_input = h_t  # default: current hidden state
+                if use_retroactive:
+                    W = cfg.retroactive_window
+                    start = max(0, t - W + 1)
+                    h_window = h_seq[:, start:t + 1]
+                    W_actual = h_window.shape[1]
+                    mix_logits = torch.einsum("bi,sio->bso", h_t, self.retro_mix.weight) \
+                                 + self.retro_mix.bias.unsqueeze(0)
+                    mix_logits = mix_logits[:, :, :W_actual]
+                    mix_weights = torch.softmax(mix_logits, dim=-1)
+                    h_mix = torch.einsum("bsw,bwd->bsd", mix_weights, h_window)
+                    # Use the retro-mixed representation for gate input.
+                    # h_mix is (B, n_slots, D) — average across slots for gate.
+                    h_gate_input = h_mix.mean(dim=1)  # (B, D)
 
-                gate_inp = torch.cat([h_b, z_in, st_b], dim=-1)
-                gh = torch.einsum("bsi,sio->bso", gate_inp, self.gate_fc1.weight) \
-                     + self.gate_fc1.bias.unsqueeze(0)
-                gh = F.gelu(gh)
-                gate_logits = (torch.einsum("bsi,sio->bso", gh, self.gate_fc2.weight)
-                               + self.gate_fc2.bias.unsqueeze(0)).squeeze(-1)
-
-                if cfg.competitive and self.n_slots > 1:
-                    base_prob = torch.softmax(gate_logits, dim=-1)
-                    urgency = torch.sigmoid(gate_logits.max(dim=-1, keepdim=True).values)
-                    g_t = base_prob * urgency
-                else:
+                if self._use_continuous_plasticity:
+                    # --- Continuous plasticity (v2: cleanup, #2+#3) ---
+                    # Gate MLP: use zero-vector for state embed (dims preserved).
+                    h_b = h_gate_input.unsqueeze(1).expand(-1, self.n_slots, -1)
+                    zero_st = torch.zeros(B, self.n_slots, cfg.state_embed_dim,
+                                          device=device, dtype=dtype)
+                    if z_multi is not None:
+                        z_in = z_multi
+                    else:
+                        z_in = z_t.unsqueeze(-1)
+                    gate_inp = torch.cat([h_b, z_in, zero_st], dim=-1)
+                    gh = torch.einsum("bsi,sio->bso", gate_inp, self.gate_fc1.weight) \
+                         + self.gate_fc1.bias.unsqueeze(0)
+                    gh = F.gelu(gh)
+                    gate_logits = (torch.einsum("bsi,sio->bso", gh, self.gate_fc2.weight)
+                                   + self.gate_fc2.bias.unsqueeze(0)).squeeze(-1)
                     g_t = torch.sigmoid(gate_logits)
 
-                state_gain = _state_gain_from(cur_state, out_dtype=g_t.dtype)
-                g_t = g_t * state_gain.unsqueeze(0)
-
-                g_before_force = g_t.detach().clone()
-
-                if not in_warmup:
-                    z_mag = z_t.abs()
-                    if cfg.min_surprise_threshold > 0:
-                        force_mask_batch = (z_mag > cfg.critical_z) & (e_t > cfg.min_surprise_threshold)
+                    # Continuous plasticity scalar: age × content_mismatch × surprise.
+                    age_factor = 1.0 - torch.exp(-cp_slot_age / cfg.plasticity_age_tau)  # (n_slots,)
+                    # Content mismatch: 1 - cosine_sim(content_query, slot_content).
+                    if _has_slot_keys:
+                        cq_t = content_queries_all[:, t]  # (B, n_slots, slot_dim)
+                        w_norm = F.normalize(w_prev, dim=-1)
+                        cq_norm = F.normalize(cq_t, dim=-1)
+                        content_mismatch = 1.0 - (cq_norm * w_norm).sum(dim=-1)  # (B, n_slots) in [0, 2]
                     else:
-                        force_mask_batch = z_mag > cfg.critical_z
-                    if force_mask_batch.any():
-                        boost = force_mask_batch.to(g_t.dtype)
-                        g_t = torch.clamp(g_t + boost, max=1.0)
-                        force_mask_slot = force_mask_batch.any(dim=0)
-                        if force_mask_slot.any():
-                            cur_state = torch.where(
-                                force_mask_slot,
-                                torch.full_like(cur_state, STATE_OPEN),
-                                cur_state,
-                            )
-                            force_unlocks_step += int(force_mask_slot.sum().item())
+                        # Fallback: L2 distance between write-encoded h_t and slot.
+                        w_t_proj = writes_all[:, t]  # (B, n_slots, slot_dim) — already projected
+                        content_mismatch = (w_t_proj - w_prev).pow(2).mean(dim=-1)
+                    surprise_factor = z_t.abs()  # (B, n_slots)
 
-                # Content gating (Phase C) — skipped when topk handles it.
-                if cfg.content_gating and _has_slot_keys:
-                    cq = content_queries_all[:, t]
-                    relevance = (cq * self.slot_key.unsqueeze(0)).sum(dim=-1) * _inv_sqrt_d
-                    content_weight = torch.softmax(relevance, dim=-1)
-                    g_t = g_t * content_weight
+                    raw_plasticity = (
+                        self.plasticity_scale
+                        * age_factor.unsqueeze(0)
+                        * content_mismatch
+                        * surprise_factor
+                        - self.plasticity_bias
+                    )
+                    plasticity = torch.sigmoid(raw_plasticity)  # (B, n_slots) in [0, 1]
+                    g_t = g_t * plasticity
+
+                    # Load balance penalty (non-topk path).
+                    if cfg.gate_load_balance > 0 and _has_slot_keys:
+                        cq_t_ = content_queries_all[:, t] if not _has_slot_keys else cq_t
+                        relevance = (cq_t_ * self.slot_key.unsqueeze(0)).sum(dim=-1) * _inv_sqrt_d
+                        content_weight = torch.softmax(
+                            relevance - cfg.gate_load_balance * cp_gate_load.unsqueeze(0),
+                            dim=-1,
+                        )
+                        g_t = g_t * content_weight
+
+                    g_before_force = g_t.detach().clone()
+                    # No force-unlock — continuous plasticity handles it.
+
+                    # Update slot age: increment for all, reset for significantly-written.
+                    with torch.no_grad():
+                        write_strength = g_t.detach().mean(dim=0)  # (n_slots,)
+                        was_written_cp = write_strength > 0.3
+                        cp_slot_age = torch.where(was_written_cp,
+                                                  torch.zeros_like(cp_slot_age),
+                                                  cp_slot_age + 1.0)
+                        if hasattr(self, '_gate_load'):
+                            cp_gate_load = 0.95 * cp_gate_load + 0.05 * write_strength
+                        plasticity_sum += plasticity.detach().mean(dim=0)
+
+                else:
+                    # --- Legacy state-machine gate ---
+                    state_emb = self.state_embed(cur_state)
+                    h_b = h_gate_input.unsqueeze(1).expand(-1, self.n_slots, -1)
+                    st_b = state_emb.unsqueeze(0).expand(B, -1, -1)
+
+                    if z_multi is not None:
+                        z_in = z_multi
+                    else:
+                        z_in = z_t.unsqueeze(-1)
+
+                    gate_inp = torch.cat([h_b, z_in, st_b], dim=-1)
+                    gh = torch.einsum("bsi,sio->bso", gate_inp, self.gate_fc1.weight) \
+                         + self.gate_fc1.bias.unsqueeze(0)
+                    gh = F.gelu(gh)
+                    gate_logits = (torch.einsum("bsi,sio->bso", gh, self.gate_fc2.weight)
+                                   + self.gate_fc2.bias.unsqueeze(0)).squeeze(-1)
+
+                    if cfg.competitive and self.n_slots > 1:
+                        base_prob = torch.softmax(gate_logits, dim=-1)
+                        urgency = torch.sigmoid(gate_logits.max(dim=-1, keepdim=True).values)
+                        g_t = base_prob * urgency
+                    else:
+                        g_t = torch.sigmoid(gate_logits)
+
+                    state_gain = _state_gain_from(cur_state, out_dtype=g_t.dtype)
+                    g_t = g_t * state_gain.unsqueeze(0)
+
+                    g_before_force = g_t.detach().clone()
+
+                    if not in_warmup:
+                        z_mag = z_t.abs()
+                        if cfg.min_surprise_threshold > 0:
+                            force_mask_batch = (z_mag > cfg.critical_z) & (e_t > cfg.min_surprise_threshold)
+                        else:
+                            force_mask_batch = z_mag > cfg.critical_z
+                        if force_mask_batch.any():
+                            boost = force_mask_batch.to(g_t.dtype)
+                            g_t = torch.clamp(g_t + boost, max=1.0)
+                            force_mask_slot = force_mask_batch.any(dim=0)
+                            if force_mask_slot.any():
+                                cur_state = torch.where(
+                                    force_mask_slot,
+                                    torch.full_like(cur_state, STATE_OPEN),
+                                    cur_state,
+                                )
+                                force_unlocks_step += int(force_mask_slot.sum().item())
+
+                    # Content gating (Phase C) — skipped when topk handles it.
+                    if cfg.content_gating and _has_slot_keys:
+                        cq = content_queries_all[:, t]
+                        relevance = (cq * self.slot_key.unsqueeze(0)).sum(dim=-1) * _inv_sqrt_d
+                        content_weight = torch.softmax(relevance, dim=-1)
+                        g_t = g_t * content_weight
 
             if self._probe_mode:
                 _probe_gate_list.append(g_t.detach())
@@ -789,19 +1029,13 @@ class HomeostaticPredictiveMemory(nn.Module):
 
             # --- Write ---
             if use_retroactive:
-                W = cfg.retroactive_window
-                start = max(0, t - W + 1)
-                h_window = h_seq[:, start:t + 1]
-                W_actual = h_window.shape[1]
-                mix_logits = torch.einsum("bi,sio->bso", h_t, self.retro_mix.weight) \
-                             + self.retro_mix.bias.unsqueeze(0)
-                mix_logits = mix_logits[:, :, :W_actual]
-                mix_weights = torch.softmax(mix_logits, dim=-1)
-                h_mix = torch.einsum("bsw,bwd->bsd", mix_weights, h_window)
+                # h_mix was already computed before the gate (retroactive fix).
                 writes = torch.einsum("bsi,sio->bso", h_mix, self.write_encoder.weight) \
                          + self.write_encoder.bias.unsqueeze(0)
             else:
                 writes = writes_all[:, t]
+
+            z_per_step_list.append(z_t.detach())
 
             g_exp = g_t.unsqueeze(-1)
             w_new = (1.0 - g_exp) * w_prev + g_exp * writes
@@ -858,7 +1092,7 @@ class HomeostaticPredictiveMemory(nn.Module):
         if self.training and T > 0:
             with torch.no_grad():
                 decay = cfg.ema_decay
-                if self._use_per_state_stats:
+                if self._use_per_state_stats and not self._use_continuous_plasticity:
                     # Update mu/sigma per state (item #7).
                     for st in range(3):
                         mask = count_per_state[st] > 0
@@ -878,10 +1112,18 @@ class HomeostaticPredictiveMemory(nn.Module):
                     self.sigma.mul_(decay).add_((1.0 - decay) * batch_sigma)
 
                 self.gate_ema.mul_(decay).add_((1.0 - decay) * (gate_running_sum / float(T)))
-                self.slot_state.copy_(cur_state.detach())
                 self.force_unlock_count += int(force_unlocks_step)
-                self._advance_state_machine()
                 self.global_step += 1
+
+                if self._use_continuous_plasticity:
+                    # Persist continuous plasticity buffers.
+                    self.slot_age.copy_(cp_slot_age)
+                    if hasattr(self, '_gate_load'):
+                        self._gate_load.copy_(cp_gate_load)
+                else:
+                    # Legacy state machine update.
+                    self.slot_state.copy_(cur_state.detach())
+                    self._advance_state_machine()
 
                 # Persist top-k routing buffers.
                 if self._use_topk:
@@ -889,7 +1131,7 @@ class HomeostaticPredictiveMemory(nn.Module):
                     self._load.copy_(topk_load)
                     self._age.copy_(topk_age)
         else:
-            if force_unlocks_step > 0:
+            if force_unlocks_step > 0 and not self._use_continuous_plasticity:
                 with torch.no_grad():
                     self.slot_state.copy_(cur_state.detach())
 
@@ -915,6 +1157,11 @@ class HomeostaticPredictiveMemory(nn.Module):
             "hpm_write_forced_frac": forced_frac,
         }
 
+        # Continuous plasticity diagnostics.
+        if self._use_continuous_plasticity:
+            diag["hpm_plasticity_mean"] = float((plasticity_sum / float(T)).mean().item())
+            diag["hpm_slot_age_mean"] = float(cp_slot_age.mean().item())
+
         # Slot diversity regularizer (item #6).
         if cfg.slot_diversity_lambda > 0 and _has_slot_keys:
             keys_norm = F.normalize(self.slot_key, dim=-1)
@@ -929,6 +1176,10 @@ class HomeostaticPredictiveMemory(nn.Module):
             diag["hpm_load_std"] = float(topk_load.std().item())
             diag["hpm_age_mean"] = float(topk_age.mean().item())
 
+        # Expose per-step z-scores for EventTape consumption.
+        z_per_step = torch.stack(z_per_step_list, dim=1) if z_per_step_list else None
+        diag["_z_per_step"] = z_per_step  # Tensor or None — consumed by EventTape.
+
         return hpm_seq, diag
 
 
@@ -937,6 +1188,8 @@ __all__ = [
     "HPMConfig",
     "EntityTable",
     "EntityTableConfig",
+    "EventTape",
+    "EventTapeConfig",
     "SlotLinear",
     "STATE_OPEN",
     "STATE_CLOSING",
