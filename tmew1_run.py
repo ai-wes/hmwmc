@@ -792,8 +792,9 @@ def run_curriculum(
                         for _ek, _ev in _ent_out.items():
                             step_metrics[_ek] = float(_ev)
                     # Event tape diagnostics (item #6).
-                    if hasattr(output, 'event_tape_diagnostics') and output.event_tape_diagnostics:
-                        for _tk, _tv in output.event_tape_diagnostics.items():
+                    _tape_out = getattr(model, '_last_event_tape_diagnostics', None)
+                    if _tape_out:
+                        for _tk, _tv in _tape_out.items():
                             step_metrics[_tk] = float(_tv)
                     log_training_snapshot(
                         score_logger,

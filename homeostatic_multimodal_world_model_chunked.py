@@ -1411,6 +1411,7 @@ class HomeostaticMultimodalWorldModel(nn.Module):
         self._last_layer_diagnostics: List[Dict[str, float]] = []
         self._last_hpm_diagnostics: Optional[Dict[str, float]] = None
         self._last_entity_diagnostics: Optional[Dict[str, float]] = None
+        self._last_event_tape_diagnostics: Optional[Dict[str, float]] = None
 
         # Dual-bank HPM: optional slow-plasticity bank for structural/rule memory.
         self.hpm_slow: Optional[HomeostaticPredictiveMemory] = None
@@ -1654,6 +1655,7 @@ class HomeostaticMultimodalWorldModel(nn.Module):
         if self.event_tape is not None and z_per_step is not None:
             event_tape_entries, event_tape_mask, event_tape_times, event_tape_diagnostics = \
                 self.event_tape(sequence, z_per_step, entity_states)
+        self._last_event_tape_diagnostics = event_tape_diagnostics
 
         layer_diagnostics = []
         for layer_stats in per_layer_diagnostics:
