@@ -127,6 +127,11 @@ class EpisodeWithDiagnostics:
     occlusion_steps: int
     color_change_entity_id: int = -1   # entity that changed color, -1 if none
     color_change_step: int = -1        # step at which color change occurred
+    # Event timing for emergent probes
+    trigger_step: int = -1
+    alarm_step: int = -1
+    chain2_fire_step: int = -1
+    false_cue_step: int = -1           # step when false cue was injected
 
 
 # -----------------------------------------------------------------------------
@@ -450,6 +455,10 @@ def generate_episode_with_diagnostics(
         occlusion_steps=occlusion_steps,
         color_change_entity_id=handoff.color_change_entity_id,
         color_change_step=handoff.color_change_step,
+        trigger_step=trigger_at,
+        alarm_step=fired_at,
+        chain2_fire_step=chain2_fired_at,
+        false_cue_step=false_cue_step,
     )
 
 
@@ -475,6 +484,11 @@ def episode_to_diag_tensors(ep: EpisodeWithDiagnostics) -> Dict[str, Tensor]:
         "occlusion_steps": torch.tensor(ep.occlusion_steps, dtype=torch.long),
         "color_change_entity_id": torch.tensor(ep.color_change_entity_id, dtype=torch.long),
         "color_change_step": torch.tensor(ep.color_change_step, dtype=torch.long),
+        "trigger_step": torch.tensor(ep.trigger_step, dtype=torch.long),
+        "alarm_step": torch.tensor(ep.alarm_step, dtype=torch.long),
+        "chain2_fire_step": torch.tensor(ep.chain2_fire_step, dtype=torch.long),
+        "cue_corrected_at": torch.tensor(ep.cue_corrected_at, dtype=torch.long),
+        "false_cue_step": torch.tensor(ep.false_cue_step, dtype=torch.long),
     }
 
 
@@ -660,6 +674,219 @@ def recall_by_difficulty(
     }
 
 
+# -----------------------------------------------------------------------------
+# Emergent capability probes (zero-shot, untrained)
+# -----------------------------------------------------------------------------
+@torch.no_grad()
+def run_emergent_probes(
+    model,
+    loader: DataLoader,
+    device: str,
+    enabled: Sequence[str] = ("vision", "numeric", "audio"),
+) -> Dict[str, Any]:
+    """
+    Six zero-shot emergent capability probes. None are trained — they measure
+    whether the model spontaneously organizes information in architecturally
+    interesting ways.
+
+    1. HPM slot specialization: do slots preferentially respond to different event types?
+    2. Causal thread separation: are hidden reps for different causal threads distinct?
+    3. Retroactive cause binding: after correction, does h(correction) align with h(cue)?
+    4. State reactivation: after surprise, do hidden states briefly mirror earlier states?
+    5. Event chunking: does ||Δh|| spike at event boundaries vs non-events?
+    6. Surprise-event correlation: is HPM |z| higher at meaningful events?
+    """
+    model.eval()
+
+    has_hpm = hasattr(model, "hpm") and model.hpm is not None
+    if has_hpm:
+        model.hpm._probe_mode = True
+
+    # ── accumulators ──
+    chunking_ratios: List[float] = []
+    surprise_event_ratios: List[float] = []
+    thread_sep_scores: List[float] = []
+    retro_binding_scores: List[float] = []
+    reactivation_scores: List[float] = []
+    slot_event_gates: Dict[str, List[Tensor]] = {
+        "handoff": [], "trigger": [], "alarm": [], "chain2": [], "correction": [],
+    }
+
+    try:
+        for batch in loader:
+            batch = {k: v.to(device) for k, v in batch.items()}
+
+            output = model(
+                text_tokens=batch["text"][:, :-1] if "text" in enabled else None,
+                vision=batch["vision"][:, :-1] if "vision" in enabled else None,
+                audio=batch["audio"][:, :-1] if "audio" in enabled else None,
+                numeric=batch["numeric"][:, :-1] if "numeric" in enabled else None,
+            )
+
+            seq = output.sequence  # (B, T_seq, d_model)
+            B, T_seq, D = seq.shape
+
+            hpm_gates = model.hpm._probe_gates if has_hpm and model.hpm._probe_gates is not None else None
+            hpm_z = model.hpm._probe_z if has_hpm and model.hpm._probe_z is not None else None
+
+            for bi in range(B):
+                h = seq[bi]  # (T_seq, D)
+                holder = batch["holder_per_step"][bi]
+                T_eff = min(T_seq, holder.shape[0] - 1)
+                h_eff = h[:T_eff]
+                holder_eff = holder[: T_eff + 1]
+
+                if T_eff < 10:
+                    continue
+
+                # ── detect event steps ──
+                handoff_steps: set = set()
+                for t in range(1, T_eff):
+                    if holder_eff[t] != holder_eff[t - 1]:
+                        handoff_steps.add(t)
+
+                trigger_t = int(batch["trigger_step"][bi].item())
+                alarm_t = int(batch["alarm_step"][bi].item())
+                chain2_t = int(batch["chain2_fire_step"][bi].item())
+                correction_t = int(batch["cue_corrected_at"][bi].item())
+                false_cue_t = int(batch["false_cue_step"][bi].item())
+
+                all_event_steps: set = set(handoff_steps)
+                for s in [trigger_t, alarm_t, chain2_t, correction_t]:
+                    if 0 <= s < T_eff:
+                        all_event_steps.add(s)
+                non_event_steps = set(range(2, T_eff)) - all_event_steps
+
+                if not all_event_steps or not non_event_steps:
+                    continue
+
+                # ── Probe 5: Event Chunking ──
+                # Does ||Δh|| spike at event boundaries?
+                deltas = (h_eff[1:] - h_eff[:-1]).norm(dim=-1)  # (T_eff-1,)
+                event_deltas = [deltas[t - 1].item() for t in all_event_steps if 1 <= t < T_eff]
+                non_event_deltas = [deltas[t - 1].item() for t in non_event_steps if 1 <= t < T_eff]
+                if event_deltas and non_event_deltas:
+                    mean_ev = sum(event_deltas) / len(event_deltas)
+                    mean_nev = sum(non_event_deltas) / len(non_event_deltas)
+                    if mean_nev > 1e-8:
+                        chunking_ratios.append(mean_ev / mean_nev)
+
+                # ── Probe 6: Surprise-Event Correlation ──
+                # Is HPM |z| higher at meaningful events?
+                if hpm_z is not None and hpm_z.shape[1] >= T_eff:
+                    z_bi = hpm_z[bi, :T_eff].abs().mean(dim=-1)
+                    event_z = [z_bi[t].item() for t in all_event_steps if t < T_eff]
+                    non_event_z = [z_bi[t].item() for t in non_event_steps if t < T_eff]
+                    if event_z and non_event_z:
+                        mean_ez = sum(event_z) / len(event_z)
+                        mean_nz = sum(non_event_z) / len(non_event_z)
+                        if mean_nz > 1e-8:
+                            surprise_event_ratios.append(mean_ez / mean_nz)
+
+                # ── Probe 1: HPM Slot Specialization ──
+                # Do individual slots respond preferentially to specific event types?
+                if hpm_gates is not None and hpm_gates.shape[1] >= T_eff:
+                    gates_bi = hpm_gates[bi, :T_eff]  # (T_eff, n_slots)
+                    for evt_type, steps in [
+                        ("handoff", handoff_steps),
+                        ("trigger", {trigger_t} if 0 <= trigger_t < T_eff else set()),
+                        ("alarm", {alarm_t} if 0 <= alarm_t < T_eff else set()),
+                        ("chain2", {chain2_t} if 0 <= chain2_t < T_eff else set()),
+                        ("correction", {correction_t} if 0 <= correction_t < T_eff else set()),
+                    ]:
+                        step_list = [s for s in steps if 0 <= s < T_eff]
+                        if step_list:
+                            mean_gate = gates_bi[step_list].mean(dim=0)
+                            slot_event_gates[evt_type].append(mean_gate.cpu())
+
+                # ── Probe 2: Causal Thread Separation ──
+                # Thread A: handoff events. Thread B: alarm-related (trigger + alarm).
+                thread_a = [t for t in handoff_steps if t < T_eff]
+                thread_b = [t for t in [trigger_t, alarm_t] if 0 <= t < T_eff]
+                if len(thread_a) >= 1 and len(thread_b) >= 1:
+                    h_a = F.normalize(h_eff[thread_a], dim=-1)
+                    h_b = F.normalize(h_eff[thread_b], dim=-1)
+                    between = (h_a @ h_b.T).mean().item()
+                    within_vals: List[float] = []
+                    if len(thread_a) > 1:
+                        wa = h_a @ h_a.T
+                        mask_a = ~torch.eye(len(thread_a), device=device, dtype=torch.bool)
+                        within_vals.extend(wa[mask_a].tolist())
+                    if len(thread_b) > 1:
+                        wb = h_b @ h_b.T
+                        mask_b = ~torch.eye(len(thread_b), device=device, dtype=torch.bool)
+                        within_vals.extend(wb[mask_b].tolist())
+                    if within_vals:
+                        within_mean = sum(within_vals) / len(within_vals)
+                        thread_sep_scores.append(within_mean - between)
+
+                # ── Probe 3: Retroactive Cause Binding ──
+                # After correction, does h(correction) align more with h(cue) than h(random)?
+                if 0 < correction_t < T_eff and 0 <= false_cue_t < T_eff:
+                    h_corr = F.normalize(h_eff[correction_t: correction_t + 1], dim=-1)
+                    h_cue = F.normalize(h_eff[false_cue_t: false_cue_t + 1], dim=-1)
+                    binding_sim = (h_corr * h_cue).sum().item()
+                    random_steps = [t for t in range(2, correction_t) if t != false_cue_t]
+                    if random_steps:
+                        h_rand = F.normalize(h_eff[random_steps], dim=-1)
+                        rand_sim = (h_corr @ h_rand.T).mean().item()
+                        retro_binding_scores.append(binding_sim - rand_sim)
+
+                # ── Probe 4: State Reactivation After Surprise ──
+                # After a surprise event (correction), do hidden states briefly
+                # mirror specific earlier states more than temporal autocorrelation?
+                if correction_t > 5 and correction_t + 3 < T_eff:
+                    h_pre = F.normalize(h_eff[2:correction_t], dim=-1)
+                    h_post = F.normalize(h_eff[correction_t + 1: correction_t + 4], dim=-1)
+                    sims = h_post @ h_pre.T
+                    max_sims = sims.max(dim=-1).values.mean().item()
+                    if h_pre.shape[0] > 3:
+                        baseline_sims = h_pre @ h_pre.T
+                        mask_pre = ~torch.eye(h_pre.shape[0], device=device, dtype=torch.bool)
+                        baseline_max = baseline_sims[mask_pre].view(h_pre.shape[0], -1).max(dim=-1).values.mean().item()
+                        reactivation_scores.append(max_sims - baseline_max)
+    finally:
+        if has_hpm:
+            model.hpm._probe_mode = False
+            model.hpm._probe_gates = None
+            model.hpm._probe_z = None
+        model.train()
+
+    # ── Probe 1 aggregation: slot specialization index ──
+    slot_specialization = None
+    event_types_with_data = [k for k, v in slot_event_gates.items() if v]
+    if len(event_types_with_data) >= 2:
+        n_slots = slot_event_gates[event_types_with_data[0]][0].shape[0]
+        gate_matrix = torch.zeros(len(event_types_with_data), n_slots)
+        for i, etype in enumerate(event_types_with_data):
+            gate_matrix[i] = torch.stack(slot_event_gates[etype]).mean(dim=0)
+        gate_matrix = gate_matrix / (gate_matrix.sum(dim=0, keepdim=True) + 1e-8)
+        log_p = torch.log(gate_matrix + 1e-8)
+        entropy_per_slot = -(gate_matrix * log_p).sum(dim=0)
+        max_entropy = float(np.log(len(event_types_with_data)))
+        if max_entropy > 0:
+            normalized_entropy = entropy_per_slot / max_entropy
+            slot_specialization = float(1.0 - normalized_entropy.mean().item())
+
+    def _safe_mean(lst: List[float]) -> Optional[float]:
+        return float(np.mean(lst)) if lst else None
+
+    return {
+        "slot_specialization": slot_specialization,
+        "slot_specialization_n": sum(len(v) for v in slot_event_gates.values()),
+        "thread_separation": _safe_mean(thread_sep_scores),
+        "thread_separation_n": len(thread_sep_scores),
+        "retroactive_binding": _safe_mean(retro_binding_scores),
+        "retroactive_binding_n": len(retro_binding_scores),
+        "state_reactivation": _safe_mean(reactivation_scores),
+        "state_reactivation_n": len(reactivation_scores),
+        "event_chunking": _safe_mean(chunking_ratios),
+        "event_chunking_n": len(chunking_ratios),
+        "surprise_event_corr": _safe_mean(surprise_event_ratios),
+        "surprise_event_corr_n": len(surprise_event_ratios),
+    }
+
+
 def format_diagnostics(report: Dict[str, Any]) -> str:
     """Pretty-print the diagnostics report as a multi-line string with color."""
     mapper = ScoreColorMapper()
@@ -711,6 +938,31 @@ def format_diagnostics(report: Dict[str, Any]) -> str:
         for k, v in lag_data.items():
             if v["n"] > 0:
                 lines.append(f"    lag={k:>5s}  acc={_color_val(v['acc'], acc_spec)}  n={v['n']}")
+    # ── Emergent capability probes ──
+    emergent = report.get("emergent_probes")
+    if emergent:
+        lines.append("  ===== Emergent Capability Probes (zero-shot) =====")
+        _probe_defs = [
+            ("slot_specialization", "HPM slot specialization",
+             "0=uniform, 1=fully specialized; >0.3 interesting"),
+            ("thread_separation", "causal thread separation",
+             "within-between cos_sim; >0.1 interesting"),
+            ("retroactive_binding", "retroactive cause binding",
+             "correction↔cue - correction↔random; >0.05 interesting"),
+            ("state_reactivation", "state reactivation (replay)",
+             "post-surprise↔pre max_sim - baseline; >0 suggestive"),
+            ("event_chunking", "event boundary chunking",
+             "||Δh|| event/non-event ratio; >1.5 interesting"),
+            ("surprise_event_corr", "surprise-event correlation",
+             "HPM |z| event/non-event ratio; >1.5 interesting"),
+        ]
+        for key, label, hint in _probe_defs:
+            val = emergent.get(key)
+            n = emergent.get(f"{key}_n", 0)
+            if val is not None and n > 0:
+                lines.append(f"    {label}:  {val:.3f}  (n={n}, {hint})")
+            else:
+                lines.append(f"    {label}:  N/A")
     lines.append("")
     return "\n".join(lines)
 
@@ -730,6 +982,10 @@ def run_diagnostic_report(
     ds = TMEW1DiagnosticDataset(world_cfg, tier, n=n_episodes, base_seed=base_seed, enable_false_cue=True)
     loader = DataLoader(ds, batch_size=8, shuffle=False, collate_fn=collate_diag, num_workers=0)
     report = recall_by_difficulty(model, query_head, loader, device, world_cfg.max_entities, enabled=tier.enabled_modalities)
+    # Emergent capability probes (separate forward pass, smaller set)
+    probe_ds = TMEW1DiagnosticDataset(world_cfg, tier, n=min(64, n_episodes), base_seed=base_seed + 50000, enable_false_cue=True)
+    probe_loader = DataLoader(probe_ds, batch_size=8, shuffle=False, collate_fn=collate_diag, num_workers=0)
+    report["emergent_probes"] = run_emergent_probes(model, probe_loader, device, enabled=tier.enabled_modalities)
     print(format_diagnostics(report))
     return report
 
@@ -747,4 +1003,5 @@ __all__ = [
     "recall_by_difficulty",
     "format_diagnostics",
     "run_diagnostic_report",
+    "run_emergent_probes",
 ]

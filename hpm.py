@@ -169,6 +169,12 @@ class HomeostaticPredictiveMemory(nn.Module):
         self.register_buffer("global_step", torch.zeros((), dtype=torch.long))
         self.register_buffer("force_unlock_count", torch.zeros((), dtype=torch.long))
 
+        # Probe mode: when True, stores per-step gate and z-score data
+        # for emergent capability analysis. Only enable during eval.
+        self._probe_mode: bool = False
+        self._probe_gates: Optional[Tensor] = None  # (B, T, n_slots)
+        self._probe_z: Optional[Tensor] = None       # (B, T, n_slots)
+
     # ---- public ----------------------------------------------------------
     @property
     def output_dim(self) -> int:
@@ -278,6 +284,8 @@ class HomeostaticPredictiveMemory(nn.Module):
         err_sq_sum = torch.zeros(self.n_slots, device=device)
         write_mag_sum = torch.zeros(self.n_slots, device=device)
         force_unlocks_step = 0
+        _probe_gate_list: List[Tensor] = []
+        _probe_z_list: List[Tensor] = []
 
         def _state_gain_from(state_tensor: Tensor, out_dtype: torch.dtype) -> Tensor:
             gains = torch.empty(self.n_slots, device=device, dtype=out_dtype)
@@ -336,6 +344,10 @@ class HomeostaticPredictiveMemory(nn.Module):
                         )
                         force_unlocks_step += int(force_mask_slot.sum().item())
 
+            if self._probe_mode:
+                _probe_gate_list.append(g_t.detach())
+                _probe_z_list.append(z_t.detach())
+
             writes = writes_all[:, t]
             g_exp = g_t.unsqueeze(-1)
             w_new = (1.0 - g_exp) * w_prev + g_exp * writes
@@ -351,6 +363,13 @@ class HomeostaticPredictiveMemory(nn.Module):
                 write_mag_sum += writes.detach().pow(2).mean(dim=-1).mean(dim=0)
 
         slot_seq = torch.stack(per_step_slot, dim=1)  # (B, T, n_slots, slot_dim)
+
+        if self._probe_mode and _probe_gate_list:
+            self._probe_gates = torch.stack(_probe_gate_list, dim=1)  # (B, T, n_slots)
+            self._probe_z = torch.stack(_probe_z_list, dim=1)
+        else:
+            self._probe_gates = None
+            self._probe_z = None
 
         # --- read ---
         if cfg.read_mode == "concat":
