@@ -73,11 +73,12 @@ def _lazy_imports():
 # =============================================================================
 # Branch taxonomy
 # =============================================================================
-BRANCH_FAMILIES = ("A", "B", "C")
+BRANCH_FAMILIES = ("A", "B", "C", "AB")
 BRANCH_IDS = (
     "A1", "A2", "A3", "A4",
     "B1", "B2", "B3", "B4",
     "C1", "C2",
+    "AB1",
 )
 
 
@@ -558,6 +559,36 @@ def make_branch_preset(branch_id: str) -> BranchConfig:
             ),
         )
 
+    if branch_id == "AB1":
+        return BranchConfig(
+            branch_id="AB1",
+            family="AB",
+            description="Combined: A3 multi-chain concurrency + B4 counterfactual queries",
+            # A3 world overrides
+            chain2_frequency_boost=2.0,
+            chain2_temporal_overlap=True,
+            tier3_template_pool=(
+                "multi_chain", "multi_chain", "multi_chain",
+                "handoff", "handoff", "false_cue",
+                "trigger_delay", "occlusion_identity",
+            ),
+            # B4 query overrides
+            extra_query_families=(
+                "holder_if_handoff2_absent",
+                "would_alarm_fire_without_correction",
+            ),
+            rubric=PromotionRubric(
+                target_metric="qacc/would_alarm_fire_without_correction",
+                min_absolute=0.70,
+                max_regression_points=5.0,
+                stability_floors={
+                    "latent_acc": 0.90,
+                    "qacc/did_chain2_fire": 0.90,
+                    "qacc/what_was_true_rule": 0.85,
+                },
+            ),
+        )
+
     raise ValueError(f"Unknown branch_id: {branch_id}")
 
 
@@ -658,7 +689,7 @@ def check_missing_capabilities(branch: BranchConfig) -> List[str]:
             "flags for which patch is needed."
         )
 
-    if branch.family == "B":
+    if branch.extra_query_families or branch.replace_query_families:
         for q in (branch.replace_query_families or branch.extra_query_families):
             if q not in B_QUERY_SPECS:
                 missing.append(

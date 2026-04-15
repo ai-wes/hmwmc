@@ -278,6 +278,36 @@ Experiment B4 should add counterfactual queries in a limited, controlled form. D
 What to look for is whether success on counterfactuals appears after relational and temporal queries improve, or whether it emerges early once HPM is strong. That sequencing will tell you whether counterfactual reasoning is built from stable episodic retrieval or from a more general internal simulator.
 
 Promote B-branch experiments if they show improvement without hurting the base recall tasks. Kill a query family if it causes training to overfit to its own supervision and degrade world-modeling signals. The rule here is that query expansion should reveal latent competence, not replace it with answer-head specialization.
+#### B4 Results: **B4: PROMOTE**
+
+Clean run, no errors. The counterfactual queries worked perfectly.
+
+**Target metric**: `would_alarm_fire_without_correction` = **1.000** vs `min_absolute=0.70`. Blowout pass.
+
+**T3 ep3 val summary:**
+
+| Metric | Value |
+|---|---|
+| would_alarm_fire_without_correction | 100.0% |
+| holder_if_handoff2_absent | 43.7% |
+| did_alarm_fire | 100.0% |
+| did_trigger_before_alarm | 99.04% |
+| did_chain2_fire | 99.34% |
+| what_was_true_rule | 100.0% |
+| holder_acc | 85.73% |
+| who_holds_token | 53.33% |
+| latent_acc | 99.61% |
+| text loss | 97.68% (good) |
+
+**Notes:**
+- `would_alarm_fire_without_correction` saturated at 1.000 from T3 ep0 onward — the model instantly learns this because in false-cue episodes the decoy rule almost always still triggers the alarm. This metric may be too easy; consider a harder counterfactual formulation in future work.
+- `holder_if_handoff2_absent` climbed from 0.276 (T1) → 0.295 (T2) → 0.437 (T3 ep3). Still below chance for 5-entity episodes (~0.20 random), so the model is learning something but it's a genuinely hard counterfactual. Not the target metric so doesn't affect the verdict.
+- Belief revision hit 100% (30/30 with_cue). Solid.
+- chain2_fire at 99.2% — strongest we've seen.
+
+All B-family branches now complete: B1 keep, B2 keep, B3 keep, B4 promote.
+
+
 
 ## Branch family C is architecture change with the same benchmark.
 

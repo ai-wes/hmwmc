@@ -1,0 +1,33 @@
+{
+  "branch_id": "baseline",
+  "family": "A",
+  "description": "Frozen Phase-0 reference run (DEFAULT_TIERS)",
+  "max_entities": null,
+  "grid_h": null,
+  "grid_w": null,
+  "noise_std": null,
+  "tier3_episode_length": null,
+  "tier3_max_delay": null,
+  "tier3_template_pool": null,
+  "chain2_frequency_boost": 1.0,
+  "chain2_temporal_overlap": false,
+  "rule_dynamic": false,
+  "extra_query_families": [],
+  "replace_query_families": null,
+  "hpm_n_slots": null,
+  "hpm_read_mode": null,
+  "hpm_competitive": null,
+  "hpm_slot_dim": null,
+  "epochs_per_tier": 4,
+  "batch_size": 32,
+  "lr": null,
+  "train_episodes_per_tier": 2048,
+  "tiers_to_run": [
+    1,
+    2,
+    3
+  ],
+  "seed": 0,
+  "rubric": null,
+  "requires_step_patch": false
+}
