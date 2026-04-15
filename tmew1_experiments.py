@@ -365,16 +365,18 @@ B_QUERY_SPECS: Dict[str, Dict[str, Any]] = {
         "expected_qacc_metric": "qacc/holder_if_handoff2_absent",
         "description": (
             "Who would hold the token at episode end if handoff #2 "
-            "had not occurred? Requires counterfactual simulator rollout."
+            "had not occurred? Uses counterfactual handoff-chain replay."
         ),
+        "requires_step_patch": False,
     },
     "would_alarm_fire_without_correction": {
         "answer_kind": "binary",
         "expected_qacc_metric": "qacc/would_alarm_fire_without_correction",
         "description": (
             "Would the alarm have fired if the correction cue had not "
-            "occurred? Requires counterfactual simulator rollout."
+            "occurred? Uses counterfactual world-state replay from snapshot."
         ),
+        "requires_step_patch": False,
     },
 }
 
@@ -512,7 +514,7 @@ def make_branch_preset(branch_id: str) -> BranchConfig:
         return BranchConfig(
             branch_id="B4",
             family="B",
-            description="Counterfactual queries (reserve; needs paired-episode gen)",
+            description="Counterfactual queries (handoff-absent holder, alarm-without-correction)",
             extra_query_families=(
                 "holder_if_handoff2_absent",
                 "would_alarm_fire_without_correction",
