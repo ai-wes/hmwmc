@@ -406,6 +406,11 @@ class IterativeQueryHead(nn.Module):
     This allows the head to trace chains: read entity A's holder → use that
     to look up when the handoff occurred → identify the holder after handoff.
     Designed to close the handoff-count accuracy cliff (0.87 @ 0 → 0.30 @ 6+).
+
+    ET-only ablation: when ``et_only_qtypes`` is a non-empty set of query-type
+    indices, queries of those types use a memory bank built from *only* the
+    entity table state (no event tape). This tests whether the entity table
+    alone can answer holder/relational queries, isolating the routing bottleneck.
     """
 
     def __init__(
@@ -417,6 +422,7 @@ class IterativeQueryHead(nn.Module):
         d_entity: int = 0,     # per-entity dim for projection to d_memory
         n_attn_heads: int = 4,
         n_retrieval_steps: int = 2,
+        et_only_qtypes: Optional[set] = None,
     ):
         super().__init__()
         d = d_memory
@@ -424,6 +430,7 @@ class IterativeQueryHead(nn.Module):
         self.max_entities = max_entities
         self.num_query_types = num_query_types
         self.n_retrieval_steps = n_retrieval_steps
+        self.et_only_qtypes: set = et_only_qtypes or set()
 
         self.qtype_embed = nn.Embedding(num_query_types, d)
 
@@ -463,6 +470,19 @@ class IterativeQueryHead(nn.Module):
         self.entity_head = nn.Linear(d, max_entities)
         self.binary_head = nn.Linear(d, 2)
 
+    def _run_cross_attention(self, query: Tensor, memory: Tensor,
+                             key_padding_mask: Tensor) -> Tensor:
+        """Run iterative cross-attention over a memory bank."""
+        h = query
+        for i in range(self.n_retrieval_steps):
+            attn_out, _ = self.cross_attn[i](
+                h, memory, memory,
+                key_padding_mask=key_padding_mask,
+            )
+            h = self.cross_norm1[i](h + attn_out)
+            h = self.cross_norm2[i](h + self.cross_ffn[i](h))
+        return h
+
     def forward(
         self,
         sequence: Tensor,
@@ -495,16 +515,25 @@ class IterativeQueryHead(nn.Module):
         type_emb = self.qtype_embed(query_types)  # (B, Q, d)
         query = self.query_fuse(torch.cat([states_proj, type_emb], dim=-1))  # (B, Q, d)
 
-        # Build memory bank.
-        memory_parts: List[Tensor] = []
-        mask_parts: List[Tensor] = []
-
+        # ── Build memory banks ──────────────────────────────────────────
+        # Entity-only memory (always available when entity_state is provided).
+        et_memory: Optional[Tensor] = None
+        et_kpm: Optional[Tensor] = None
         if entity_state is not None and self.entity_proj is not None:
             entity_mem = self.entity_proj(entity_state)  # (B, n_e, d)
-            memory_parts.append(entity_mem)
-            mask_parts.append(torch.ones(b, entity_state.size(1),
-                                         dtype=torch.bool, device=device))
+            et_memory = entity_mem
+            et_kpm = torch.zeros(b, entity_state.size(1),
+                                 dtype=torch.bool, device=device)  # all valid
 
+        # Full memory: entity + event tape.
+        full_memory: Optional[Tensor] = None
+        full_kpm: Optional[Tensor] = None
+        memory_parts: List[Tensor] = []
+        mask_parts: List[Tensor] = []
+        if et_memory is not None:
+            memory_parts.append(et_memory)
+            mask_parts.append(torch.ones(b, et_memory.size(1),
+                                         dtype=torch.bool, device=device))
         if event_tape is not None:
             memory_parts.append(event_tape)
             if event_tape_mask is not None:
@@ -512,26 +541,44 @@ class IterativeQueryHead(nn.Module):
             else:
                 mask_parts.append(torch.ones(b, event_tape.size(1),
                                              dtype=torch.bool, device=device))
-
         if memory_parts:
-            memory = torch.cat(memory_parts, dim=1)  # (B, M, d)
-            mem_mask = torch.cat(mask_parts, dim=1)  # (B, M)
-            # MultiheadAttention key_padding_mask: True = ignore.
-            key_padding_mask = ~mem_mask
+            full_memory = torch.cat(memory_parts, dim=1)  # (B, M, d)
+            full_kpm = ~torch.cat(mask_parts, dim=1)      # True = ignore
 
-            # Iterative cross-attention.
-            h = query
-            for i in range(self.n_retrieval_steps):
-                attn_out, _ = self.cross_attn[i](
-                    h, memory, memory,
-                    key_padding_mask=key_padding_mask,
-                )
-                h = self.cross_norm1[i](h + attn_out)
-                h = self.cross_norm2[i](h + self.cross_ffn[i](h))
-            fused = h
+        # ── Route queries: ET-only vs full ──────────────────────────────
+        # When et_only_qtypes is non-empty AND entity memory is available,
+        # split queries into two groups and run cross-attention separately.
+        has_et_only = bool(self.et_only_qtypes) and et_memory is not None
+
+        if has_et_only:
+            # Build per-query mask: True where query type is ET-only.
+            et_mask = torch.zeros(b, q, dtype=torch.bool, device=device)
+            for qt_idx in self.et_only_qtypes:
+                et_mask |= (query_types == qt_idx)
+
+            fused = torch.zeros(b, q, d, device=device, dtype=query.dtype)
+
+            # ET-only path.
+            if et_mask.any():
+                # For simplicity, process all queries through ET-only memory
+                # but only write results for ET-masked positions.
+                h_et = self._run_cross_attention(query, et_memory, et_kpm)
+                fused[et_mask] = h_et[et_mask]
+
+            # Full-memory path for remaining queries.
+            normal_mask = ~et_mask
+            if normal_mask.any():
+                if full_memory is not None:
+                    h_full = self._run_cross_attention(query, full_memory, full_kpm)
+                    fused[normal_mask] = h_full[normal_mask]
+                else:
+                    fused[normal_mask] = query[normal_mask]
         else:
-            # Fallback: no memory, use query directly.
-            fused = query
+            # Original path: all queries use full memory.
+            if full_memory is not None:
+                fused = self._run_cross_attention(query, full_memory, full_kpm)
+            else:
+                fused = query
 
         entity_logits = self.entity_head(fused)  # (B, Q, max_entities)
         binary_logits = self.binary_head(fused)  # (B, Q, 2)

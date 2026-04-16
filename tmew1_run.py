@@ -613,12 +613,24 @@ def run_curriculum(
         d_entity = 0
         if getattr(model, "entity_table", None) is not None:
             d_entity = model.entity_table.cfg.d_entity
+        # ET-only read ablation: resolve query type names → indices.
+        _et_only_names = os.environ.get("TMEW1_ET_ONLY_READ_QTYPES", "")
+        _et_only_set: set = set()
+        if _et_only_names:
+            _qtype_map = get_extended_query_type_to_idx()
+            for name in _et_only_names.split(","):
+                name = name.strip()
+                if name in _qtype_map:
+                    _et_only_set.add(_qtype_map[name])
+            if _et_only_set:
+                print(f"ET-only read ablation active for: {[n.strip() for n in _et_only_names.split(',')]}")
         query_head = IterativeQueryHead(
             d_input=d_input,
             d_memory=model.cfg.d_model,
             max_entities=num_categorical_answers,
             num_query_types=len(get_extended_query_types()),
             d_entity=d_entity,
+            et_only_qtypes=_et_only_set if _et_only_set else None,
         )
     else:
         query_head = QueryHead(

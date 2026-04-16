@@ -247,6 +247,10 @@ def run_branch(branch: BranchConfig, out_dir: str, baseline_record: Optional[Dic
         os.environ["TMEW1_REPLACE_QUERY_FAMILIES"] = ",".join(branch.replace_query_families)
     else:
         os.environ.pop("TMEW1_REPLACE_QUERY_FAMILIES", None)
+    if branch.et_only_read_qtypes:
+        os.environ["TMEW1_ET_ONLY_READ_QTYPES"] = ",".join(branch.et_only_read_qtypes)
+    else:
+        os.environ.pop("TMEW1_ET_ONLY_READ_QTYPES", None)
 
     world_cfg = apply_world_overrides(branch)
     tiers = apply_tier_overrides(branch)

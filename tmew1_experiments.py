@@ -251,6 +251,11 @@ class BranchConfig:
     # --- promotion rubric ---
     rubric: Optional[PromotionRubric] = None
 
+    # --- ET-only read ablation ---
+    # Query type names that should use entity-table-only memory in
+    # IterativeQueryHead (no event tape). Empty = disabled (normal fused read).
+    et_only_read_qtypes: Tuple[str, ...] = ()
+
     # --- flags for sanity ---
     requires_step_patch: bool = False                 # A3/A4 — needs _step_world extension
 
