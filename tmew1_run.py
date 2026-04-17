@@ -11,7 +11,7 @@ families are failing in isolation.
 """
 
 from __future__ import annotations
-from typing import Optional 
+from typing import Any, Optional 
 import argparse
 import json
 import os
@@ -586,6 +586,7 @@ def run_curriculum(
     tiers: Sequence[CurriculumTier] = DEFAULT_TIERS,
     num_queries: int = 4,
     resume_from: Optional[str] = None,
+    model_config_overrides: Optional[Dict[str, Any]] = None,
 ) -> None:
     torch.manual_seed(tcfg.seed)
     np.random.seed(tcfg.seed)
@@ -594,7 +595,7 @@ def run_curriculum(
     score_logger = ScoreLogger("tmew_scores")
     specs = build_default_metric_specs()
 
-    model, criterion, probe = build_model(world_cfg)
+    model, criterion, probe = build_model(world_cfg, **(model_config_overrides or {}))
     # The shared categorical head must cover both entity-id answers and latent-rule answers.
     num_categorical_answers = max(world_cfg.max_entities, world_cfg.num_latent_rules)
 

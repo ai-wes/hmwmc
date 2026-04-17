@@ -463,7 +463,7 @@ class LatentRuleProbe(nn.Module):
         return self.net(sequence.mean(dim=1))
 
 
-def build_model(world_cfg: WorldConfig) -> Tuple[HomeostaticMultimodalWorldModel, MultimodalPredictionLoss, LatentRuleProbe]:
+def build_model(world_cfg: WorldConfig, **model_config_overrides) -> Tuple[HomeostaticMultimodalWorldModel, MultimodalPredictionLoss, LatentRuleProbe]:
     modality = ModalityConfig(
         text_vocab_size=world_cfg.text_vocab_size,
         text_pad_id=0,
@@ -488,6 +488,7 @@ def build_model(world_cfg: WorldConfig) -> Tuple[HomeostaticMultimodalWorldModel
             strategic_unlock_fraction=0.35,
         ),
         enable_online_homeostasis=True,
+        **model_config_overrides,
     )
     model = HomeostaticMultimodalWorldModel(cfg)
     criterion = MultimodalPredictionLoss(cfg, LossWeights(text=0.3, numeric=1.0, audio=1.0, vision=1.0))
