@@ -853,7 +853,8 @@ def run_curriculum(
         prev_tier_modalities = tier.enabled_modalities
 
         # Save checkpoint after completing each tier
-        ckpt_path = f"checkpoint_tier{tier.tier}.pt"
+        _ckpt_dir = os.environ.get("TMEW1_BRANCH_OUT_DIR", "")
+        ckpt_path = os.path.join(_ckpt_dir, f"checkpoint_tier{tier.tier}.pt") if _ckpt_dir else f"checkpoint_tier{tier.tier}.pt"
         torch.save({
             "tier": tier.tier,
             "model": model.state_dict(),
