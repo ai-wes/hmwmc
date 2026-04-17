@@ -78,6 +78,7 @@ BRANCH_IDS = (
     "A1", "A2", "A3", "A4",
     "B1", "B2", "B3", "B4",
     "C1", "C2", "C3", "C4",
+    "D1", "D2", "D3",
     "AB1",
 )
 
@@ -239,6 +240,12 @@ class BranchConfig:
     hpm_slot_dim: Optional[int] = None
     hpm_retroactive_window: Optional[int] = None      # C3: window size for retroactive binding
     hpm_slot_timescales: Optional[Tuple[float, ...]] = None  # C4: per-slot persistence multipliers
+
+    # --- D-family: entity memory overrides ---
+    enable_entity_table: bool = False                 # EntityTable (GRU-based entity state)
+    enable_event_tape: bool = False                   # EventTape (surprise-boundary snapshots)
+    enable_entity_history: bool = False               # EntityHistoryBank (uniform snapshots)
+    entity_history_n_snapshots: int = 16              # K for EntityHistoryBank
 
     # --- training overrides ---
     epochs_per_tier: int = 4
@@ -610,6 +617,8 @@ def make_branch_preset(branch_id: str) -> BranchConfig:
             branch_id="D1",
             family="D",
             description="ET-only read ablation for holder/relational probe queries",
+            enable_entity_table=True,
+            enable_event_tape=True,
             et_only_read_qtypes=(
                 "who_holds_token",
                 "holder_if_handoff2_absent",
@@ -631,6 +640,10 @@ def make_branch_preset(branch_id: str) -> BranchConfig:
             branch_id="D2",
             family="D",
             description="EntityHistoryBank K=16 snapshots, no ET-only routing",
+            enable_entity_table=True,
+            enable_event_tape=True,
+            enable_entity_history=True,
+            entity_history_n_snapshots=16,
             extra_query_families=(
                 "closest_entity_to_holder_at_alarm",
                 "holder_if_handoff2_absent",
@@ -647,6 +660,10 @@ def make_branch_preset(branch_id: str) -> BranchConfig:
             branch_id="D3",
             family="D",
             description="EntityHistoryBank K=16 + ET-only routing (combined D1+D2)",
+            enable_entity_table=True,
+            enable_event_tape=True,
+            enable_entity_history=True,
+            entity_history_n_snapshots=16,
             et_only_read_qtypes=(
                 "who_holds_token",
                 "holder_if_handoff2_absent",

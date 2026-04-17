@@ -48,6 +48,7 @@ import os
 import sys
 import traceback
 from dataclasses import asdict, replace
+import dataclasses
 from typing import Dict, Optional, Tuple
 
 from tmew1_experiments import (
@@ -258,21 +259,47 @@ def run_branch(branch: BranchConfig, out_dir: str, baseline_record: Optional[Dic
     hpm_cfg = apply_hpm_overrides(branch)
 
     # The model is constructed inside run_curriculum via build_model(world_cfg),
-    # which pulls HPMConfig from the default WorldModelConfig. We monkey-patch
-    # WorldModelConfig's default factory so the branch's HPMConfig is picked up
-    # without forking build_model. This is the minimum-invasive way to
-    # inject HPM overrides into the existing pipeline.
-    if any([branch.hpm_n_slots, branch.hpm_read_mode, branch.hpm_competitive,
-            branch.hpm_slot_dim, branch.hpm_retroactive_window, branch.hpm_slot_timescales]):
-        import homeostatic_multimodal_world_model_chunked as hmwm
-        original_default = hmwm.WorldModelConfig.__dataclass_fields__["hpm_config"].default_factory
+    # which pulls configs from the default WorldModelConfig. We monkey-patch
+    # WorldModelConfig's default factories so branch-specific configs are picked
+    # up without forking build_model. All patches are restored in the finally block.
+    import homeostatic_multimodal_world_model_chunked as hmwm
+    from hpm import EntityTableConfig, EventTapeConfig, EntityHistoryConfig
+
+    originals: Dict[str, object] = {}
+
+    needs_hpm_patch = any([branch.hpm_n_slots, branch.hpm_read_mode, branch.hpm_competitive,
+                           branch.hpm_slot_dim, branch.hpm_retroactive_window, branch.hpm_slot_timescales])
+    needs_entity_patch = branch.enable_entity_table or branch.enable_event_tape or branch.enable_entity_history
+
+    if needs_hpm_patch:
+        originals["hpm_config"] = hmwm.WorldModelConfig.__dataclass_fields__["hpm_config"].default_factory
         hmwm.WorldModelConfig.__dataclass_fields__["hpm_config"].default_factory = (lambda cfg=hpm_cfg: cfg)
-        try:
-            run_curriculum(world_cfg, tcfg, tiers=tiers, resume_from=resume)
-        finally:
-            hmwm.WorldModelConfig.__dataclass_fields__["hpm_config"].default_factory = original_default
-    else:
+
+    if branch.enable_entity_table:
+        et_cfg = EntityTableConfig(enabled=True, n_entities=4, d_entity=64)
+        originals["entity_table_config"] = hmwm.WorldModelConfig.__dataclass_fields__["entity_table_config"].default
+        hmwm.WorldModelConfig.__dataclass_fields__["entity_table_config"].default = et_cfg
+
+    if branch.enable_event_tape:
+        evt_cfg = EventTapeConfig(enabled=True, max_events=32, surprise_threshold=2.0)
+        originals["event_tape_config"] = hmwm.WorldModelConfig.__dataclass_fields__["event_tape_config"].default
+        hmwm.WorldModelConfig.__dataclass_fields__["event_tape_config"].default = evt_cfg
+
+    if branch.enable_entity_history:
+        eh_cfg = EntityHistoryConfig(enabled=True, n_snapshots=branch.entity_history_n_snapshots)
+        originals["entity_history_config"] = hmwm.WorldModelConfig.__dataclass_fields__["entity_history_config"].default
+        hmwm.WorldModelConfig.__dataclass_fields__["entity_history_config"].default = eh_cfg
+
+    try:
         run_curriculum(world_cfg, tcfg, tiers=tiers, resume_from=resume)
+    finally:
+        for field_name, orig in originals.items():
+            fld = hmwm.WorldModelConfig.__dataclass_fields__[field_name]
+            if callable(orig):
+                fld.default_factory = orig
+                fld.default = dataclasses.MISSING
+            else:
+                fld.default = orig
 
     # The existing run_curriculum writes to ScoreLogger but does not return a
     # val dict. For rubric enforcement we need the final val record on disk.
