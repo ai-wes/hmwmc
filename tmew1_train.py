@@ -449,6 +449,13 @@ class TrainConfig:
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     seed: int = 0
     num_workers: int = 0                         # unused with PreCachedDataset
+    # --- Stability controls for Tier 2/3 multimodal load ---
+    # Per-tier LR multiplier. E.g. {2: 0.5, 3: 0.3} halves LR at tier 2.
+    tier_lr_scale: Optional[Dict[int, float]] = None
+    # Weight on holder-tracking CE loss. 0.0 = disabled. Default 0.3.
+    holder_loss_weight: float = 0.3
+    # When False, HPM slot-diversity regularizer is zeroed out.
+    diversity_loss_enabled: bool = True
 
 
 class LatentRuleProbe(nn.Module):

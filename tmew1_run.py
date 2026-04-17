@@ -326,12 +326,12 @@ def train_one_step(
         with torch.no_grad():
             holder_acc = (holder_logits.argmax(-1) == holder_targets).float().mean().item()
 
-    total = losses.total + tcfg.aux_latent_weight * aux + q_loss + 0.3 * holder_loss
+    total = losses.total + tcfg.aux_latent_weight * aux + q_loss + tcfg.holder_loss_weight * holder_loss
 
     # HPM v2: extract diversity regularizer (Tensor) and add to total.
     _hpm_diag = getattr(model, '_last_hpm_diagnostics', None)
     _div_loss = _hpm_diag.pop("_diversity_loss", None) if _hpm_diag else None
-    if _div_loss is not None:
+    if _div_loss is not None and tcfg.diversity_loss_enabled:
         total = total + _div_loss
 
     # ── NaN guard: skip backward + optimizer if loss exploded ──────────
@@ -627,6 +627,10 @@ def run_curriculum(
                     _et_only_set.add(_qtype_map[name])
             if _et_only_set:
                 print(f"ET-only read ablation active for: {[n.strip() for n in _et_only_names.split(',')]}")
+        # Memory ablation mode: "fused" | "et_only" | "tape_only" | "no_aux"
+        _memory_ablation = os.environ.get("TMEW1_MEMORY_ABLATION", "fused")
+        if _memory_ablation != "fused":
+            print(f"Memory ablation mode: {_memory_ablation}")
         query_head = IterativeQueryHead(
             d_input=d_input,
             d_memory=model.cfg.d_model,
@@ -634,6 +638,7 @@ def run_curriculum(
             num_query_types=len(get_extended_query_types()),
             d_entity=d_entity,
             et_only_qtypes=_et_only_set if _et_only_set else None,
+            memory_ablation=_memory_ablation,
         )
     else:
         query_head = QueryHead(
@@ -690,6 +695,14 @@ def run_curriculum(
             tier = replace(tier, template_pool=tuple(boosted_templates))
 
         print(f"\n=== Tier {tier.tier} | modalities={tier.enabled_modalities} | T={tier.max_episode_length} | templates={tier.template_pool} ===")
+
+        # ── Per-tier LR scaling (stability control for Tier 2/3) ────────
+        if tcfg.tier_lr_scale and tier.tier in tcfg.tier_lr_scale:
+            _lr_scale = tcfg.tier_lr_scale[tier.tier]
+            _new_lr = tcfg.lr * _lr_scale
+            for pg in optimizer.param_groups:
+                pg["lr"] = _new_lr
+            print(f"  -> tier {tier.tier} LR scaled to {_new_lr:.2e} (×{_lr_scale})")
 
         # ── Fix #2: Reset Adam state at tier boundary ───────────────────
         new_mods = set(tier.enabled_modalities) - set(prev_tier_modalities)

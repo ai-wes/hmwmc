@@ -251,6 +251,11 @@ def run_branch(branch: BranchConfig, out_dir: str, baseline_record: Optional[Dic
         os.environ["TMEW1_ET_ONLY_READ_QTYPES"] = ",".join(branch.et_only_read_qtypes)
     else:
         os.environ.pop("TMEW1_ET_ONLY_READ_QTYPES", None)
+    # Memory ablation mode for IterativeQueryHead.
+    if branch.memory_ablation_mode != "fused":
+        os.environ["TMEW1_MEMORY_ABLATION"] = branch.memory_ablation_mode
+    else:
+        os.environ.pop("TMEW1_MEMORY_ABLATION", None)
 
     world_cfg = apply_world_overrides(branch)
     tiers = apply_tier_overrides(branch)
@@ -266,7 +271,8 @@ def run_branch(branch: BranchConfig, out_dir: str, baseline_record: Optional[Dic
     model_config_overrides: Dict[str, object] = {}
 
     needs_hpm_patch = any([branch.hpm_n_slots, branch.hpm_read_mode, branch.hpm_competitive,
-                           branch.hpm_slot_dim, branch.hpm_retroactive_window, branch.hpm_slot_timescales])
+                           branch.hpm_slot_dim, branch.hpm_retroactive_window, branch.hpm_slot_timescales,
+                           branch.hpm_continuous_plasticity])
 
     if needs_hpm_patch:
         model_config_overrides["hpm_config"] = hpm_cfg

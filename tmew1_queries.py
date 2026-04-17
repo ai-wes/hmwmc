@@ -407,10 +407,17 @@ class IterativeQueryHead(nn.Module):
     to look up when the handoff occurred → identify the holder after handoff.
     Designed to close the handoff-count accuracy cliff (0.87 @ 0 → 0.30 @ 6+).
 
-    ET-only ablation: when ``et_only_qtypes`` is a non-empty set of query-type
-    indices, queries of those types use a memory bank built from *only* the
-    entity table state (no event tape). This tests whether the entity table
-    alone can answer holder/relational queries, isolating the routing bottleneck.
+    Memory ablation modes (``memory_ablation``):
+      - "fused":    all queries use full memory bank (entity + tape + history).
+      - "et_only":  all queries use entity-table-only memory.
+      - "tape_only": all queries use event-tape-only memory.
+      - "no_aux":   no auxiliary memory — queries fall back to the projected
+                    sequence state (cross-attention skipped entirely).
+
+    ET-only per-qtype ablation: when ``et_only_qtypes`` is a non-empty set of
+    query-type indices, queries of those types use entity-table-only memory.
+    This is orthogonal to ``memory_ablation`` — if ``memory_ablation`` is set
+    to anything other than "fused", it overrides per-qtype routing.
     """
 
     def __init__(
@@ -423,6 +430,7 @@ class IterativeQueryHead(nn.Module):
         n_attn_heads: int = 4,
         n_retrieval_steps: int = 2,
         et_only_qtypes: Optional[set] = None,
+        memory_ablation: str = "fused",  # "fused" | "et_only" | "tape_only" | "no_aux"
     ):
         super().__init__()
         d = d_memory
@@ -431,6 +439,9 @@ class IterativeQueryHead(nn.Module):
         self.num_query_types = num_query_types
         self.n_retrieval_steps = n_retrieval_steps
         self.et_only_qtypes: set = et_only_qtypes or set()
+        assert memory_ablation in ("fused", "et_only", "tape_only", "no_aux"), \
+            f"Invalid memory_ablation mode: {memory_ablation}"
+        self.memory_ablation = memory_ablation
 
         self.qtype_embed = nn.Embedding(num_query_types, d)
 
@@ -527,7 +538,28 @@ class IterativeQueryHead(nn.Module):
             et_kpm = torch.zeros(b, entity_state.size(1),
                                  dtype=torch.bool, device=device)  # all valid
 
-        # Full memory: entity + event tape.
+        # Tape-only memory bank (event tape + entity history, no entity table).
+        tape_memory: Optional[Tensor] = None
+        tape_kpm: Optional[Tensor] = None
+        tape_parts: List[Tensor] = []
+        tape_mask_parts: List[Tensor] = []
+        if event_tape is not None:
+            tape_parts.append(event_tape)
+            tape_mask_parts.append(
+                event_tape_mask if event_tape_mask is not None
+                else torch.ones(b, event_tape.size(1), dtype=torch.bool, device=device)
+            )
+        if entity_history is not None:
+            tape_parts.append(entity_history)
+            tape_mask_parts.append(
+                entity_history_mask if entity_history_mask is not None
+                else torch.ones(b, entity_history.size(1), dtype=torch.bool, device=device)
+            )
+        if tape_parts:
+            tape_memory = torch.cat(tape_parts, dim=1)
+            tape_kpm = ~torch.cat(tape_mask_parts, dim=1)
+
+        # Full memory: entity + event tape + entity history.
         full_memory: Optional[Tensor] = None
         full_kpm: Optional[Tensor] = None
         memory_parts: List[Tensor] = []
@@ -554,12 +586,24 @@ class IterativeQueryHead(nn.Module):
             full_memory = torch.cat(memory_parts, dim=1)  # (B, M, d)
             full_kpm = ~torch.cat(mask_parts, dim=1)      # True = ignore
 
-        # ── Route queries: ET-only vs full ──────────────────────────────
-        # When et_only_qtypes is non-empty AND entity memory is available,
-        # split queries into two groups and run cross-attention separately.
-        has_et_only = bool(self.et_only_qtypes) and et_memory is not None
+        # ── Memory ablation: global override ────────────────────────────
+        # When memory_ablation is not "fused", it overrides all per-qtype
+        # routing and forces a single memory source for every query.
+        if self.memory_ablation == "no_aux":
+            fused = query  # skip cross-attention entirely
+        elif self.memory_ablation == "et_only":
+            if et_memory is not None:
+                fused = self._run_cross_attention(query, et_memory, et_kpm)
+            else:
+                fused = query
+        elif self.memory_ablation == "tape_only":
+            if tape_memory is not None:
+                fused = self._run_cross_attention(query, tape_memory, tape_kpm)
+            else:
+                fused = query
 
-        if has_et_only:
+        # ── Route queries: ET-only vs full (per-qtype, fused mode only) ─
+        elif bool(self.et_only_qtypes) and et_memory is not None:
             # Build per-query mask: True where query type is ET-only.
             et_mask = torch.zeros(b, q, dtype=torch.bool, device=device)
             for qt_idx in self.et_only_qtypes:
@@ -569,8 +613,6 @@ class IterativeQueryHead(nn.Module):
 
             # ET-only path.
             if et_mask.any():
-                # For simplicity, process all queries through ET-only memory
-                # but only write results for ET-masked positions.
                 h_et = self._run_cross_attention(query, et_memory, et_kpm)
                 fused[et_mask] = h_et[et_mask]
 
@@ -583,7 +625,7 @@ class IterativeQueryHead(nn.Module):
                 else:
                     fused[normal_mask] = query[normal_mask]
         else:
-            # Original path: all queries use full memory.
+            # Default fused path: all queries use full memory.
             if full_memory is not None:
                 fused = self._run_cross_attention(query, full_memory, full_kpm)
             else:

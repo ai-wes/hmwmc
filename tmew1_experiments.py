@@ -79,6 +79,7 @@ BRANCH_IDS = (
     "B1", "B2", "B3", "B4",
     "C1", "C2", "C3", "C4",
     "D1", "D2", "D3",
+    "E1", "E2", "E3", "E4", "E5",
     "AB1",
 )
 
@@ -262,6 +263,24 @@ class BranchConfig:
     # Query type names that should use entity-table-only memory in
     # IterativeQueryHead (no event tape). Empty = disabled (normal fused read).
     et_only_read_qtypes: Tuple[str, ...] = ()
+
+    # --- Memory-source ablation (E-family) ---
+    # Global override for IterativeQueryHead memory routing.
+    # "fused" = default (all memory sources), "et_only" = entity table only,
+    # "tape_only" = event tape + entity history only, "no_aux" = skip cross-attn.
+    memory_ablation_mode: str = "fused"
+
+    # --- HPM state-machine ablation ---
+    # When True, use continuous_plasticity instead of OPEN/CLOSING/LOCKED.
+    hpm_continuous_plasticity: Optional[bool] = None
+
+    # --- Stability controls ---
+    # Per-tier LR multiplier. E.g. {2: 0.5, 3: 0.3} halves LR at tier 2.
+    tier_lr_scale: Optional[Dict[int, float]] = None
+    # Holder loss weight. 0.0 = disabled. None = use TrainConfig default (0.3).
+    holder_loss_weight: Optional[float] = None
+    # When False, HPM diversity loss is zeroed out.
+    diversity_loss_enabled: Optional[bool] = None
 
     # --- flags for sanity ---
     requires_step_patch: bool = False                 # A3/A4 — needs _step_world extension
@@ -710,6 +729,115 @@ def make_branch_preset(branch_id: str) -> BranchConfig:
             ),
         )
 
+    # ── E family: sharp ablations on A3-style worlds ────────────────────
+    # These are the "prove which memory source helps" experiments.
+    # All use A3 world (multi-chain concurrency) + B2/B4 queries as stressor.
+    # Target metrics: who_holds_token, holder_if_handoff2_absent,
+    # closest_entity_to_holder_at_alarm.
+    _E_WORLD = dict(
+        chain2_frequency_boost=2.0,
+        chain2_temporal_overlap=True,
+        tier3_template_pool=(
+            "multi_chain", "multi_chain", "multi_chain",
+            "handoff", "handoff", "false_cue",
+            "trigger_delay", "occlusion_identity",
+        ),
+    )
+    _E_QUERIES = (
+        "closest_entity_to_holder_at_alarm",
+        "holder_if_handoff2_absent",
+    )
+    _E_RUBRIC = PromotionRubric(
+        target_metric="qacc/who_holds_token",
+        min_absolute=0.45,
+        max_regression_points=5.0,
+        stability_floors={
+            "latent_acc": 0.85,
+            "qacc/did_alarm_fire": 0.80,
+        },
+    )
+    _E_STABILITY = dict(
+        tier_lr_scale={2: 0.5, 3: 0.3},
+        holder_loss_weight=0.3,
+        diversity_loss_enabled=False,
+    )
+
+    if branch_id == "E1":
+        return BranchConfig(
+            branch_id="E1",
+            family="E",
+            description="Memory ablation: fused read (control) on A3 world + B2/B4 queries",
+            enable_entity_table=True,
+            enable_event_tape=True,
+            enable_entity_history=True,
+            memory_ablation_mode="fused",
+            extra_query_families=_E_QUERIES,
+            rubric=_E_RUBRIC,
+            **_E_WORLD,
+            **_E_STABILITY,
+        )
+
+    if branch_id == "E2":
+        return BranchConfig(
+            branch_id="E2",
+            family="E",
+            description="Memory ablation: entity-table-only on A3 world + B2/B4 queries",
+            enable_entity_table=True,
+            enable_event_tape=True,
+            enable_entity_history=True,
+            memory_ablation_mode="et_only",
+            extra_query_families=_E_QUERIES,
+            rubric=_E_RUBRIC,
+            **_E_WORLD,
+            **_E_STABILITY,
+        )
+
+    if branch_id == "E3":
+        return BranchConfig(
+            branch_id="E3",
+            family="E",
+            description="Memory ablation: tape-only on A3 world + B2/B4 queries",
+            enable_entity_table=True,
+            enable_event_tape=True,
+            enable_entity_history=True,
+            memory_ablation_mode="tape_only",
+            extra_query_families=_E_QUERIES,
+            rubric=_E_RUBRIC,
+            **_E_WORLD,
+            **_E_STABILITY,
+        )
+
+    if branch_id == "E4":
+        return BranchConfig(
+            branch_id="E4",
+            family="E",
+            description="Memory ablation: no auxiliary memory on A3 world + B2/B4 queries",
+            enable_entity_table=True,
+            enable_event_tape=True,
+            enable_entity_history=True,
+            memory_ablation_mode="no_aux",
+            extra_query_families=_E_QUERIES,
+            rubric=_E_RUBRIC,
+            **_E_WORLD,
+            **_E_STABILITY,
+        )
+
+    if branch_id == "E5":
+        return BranchConfig(
+            branch_id="E5",
+            family="E",
+            description="HPM state-machine ablation: continuous plasticity on A3 world",
+            enable_entity_table=True,
+            enable_event_tape=True,
+            enable_entity_history=True,
+            memory_ablation_mode="fused",
+            hpm_continuous_plasticity=True,
+            extra_query_families=_E_QUERIES,
+            rubric=_E_RUBRIC,
+            **_E_WORLD,
+            **_E_STABILITY,
+        )
+
     raise ValueError(f"Unknown branch_id: {branch_id}")
 
 
@@ -776,6 +904,8 @@ def apply_hpm_overrides(branch: BranchConfig) -> "HPMConfig":
         kwargs["retroactive_window"] = branch.hpm_retroactive_window
     if branch.hpm_slot_timescales is not None:
         kwargs["slot_timescales"] = branch.hpm_slot_timescales
+    if branch.hpm_continuous_plasticity is not None:
+        kwargs["continuous_plasticity"] = branch.hpm_continuous_plasticity
     if not kwargs:
         return base
     return replace(base, **kwargs)
@@ -792,6 +922,12 @@ def apply_train_overrides(branch: BranchConfig) -> "TrainConfig":
     }
     if branch.lr is not None:
         kwargs["lr"] = branch.lr
+    if branch.tier_lr_scale is not None:
+        kwargs["tier_lr_scale"] = branch.tier_lr_scale
+    if branch.holder_loss_weight is not None:
+        kwargs["holder_loss_weight"] = branch.holder_loss_weight
+    if branch.diversity_loss_enabled is not None:
+        kwargs["diversity_loss_enabled"] = branch.diversity_loss_enabled
     return TrainConfig(**{k: v for k, v in kwargs.items() if v is not None})
 
 
