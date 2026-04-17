@@ -178,7 +178,7 @@ def build_query_input(
 
 
 def get_retrieval_context(output: ForwardOutput):
-    """Extract entity_state, event_tape, event_tape_mask from ForwardOutput for IterativeQueryHead."""
+    """Extract entity_state, event_tape, entity_history from ForwardOutput for IterativeQueryHead."""
     entity_state = None
     if output.entity_states is not None:
         # Use the FINAL entity state (B, n_e, d_e) for retrieval head memory.
@@ -187,6 +187,8 @@ def get_retrieval_context(output: ForwardOutput):
         "entity_state": entity_state,
         "event_tape": output.event_tape_entries,
         "event_tape_mask": output.event_tape_mask,
+        "entity_history": output.entity_history_entries,
+        "entity_history_mask": output.entity_history_mask,
     }
 
 # -----------------------------------------------------------------------------

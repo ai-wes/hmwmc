@@ -491,6 +491,8 @@ class IterativeQueryHead(nn.Module):
         entity_state: Optional[Tensor] = None,       # (B, n_e, d_entity)
         event_tape: Optional[Tensor] = None,          # (B, max_events, d_memory)
         event_tape_mask: Optional[Tensor] = None,     # (B, max_events) bool
+        entity_history: Optional[Tensor] = None,      # (B, K, d_memory)
+        entity_history_mask: Optional[Tensor] = None,  # (B, K) bool
     ) -> Tuple[Tensor, Tensor]:
         """
         sequence:    (B, T, d_input)  — augmented sequence
@@ -540,6 +542,13 @@ class IterativeQueryHead(nn.Module):
                 mask_parts.append(event_tape_mask)
             else:
                 mask_parts.append(torch.ones(b, event_tape.size(1),
+                                             dtype=torch.bool, device=device))
+        if entity_history is not None:
+            memory_parts.append(entity_history)
+            if entity_history_mask is not None:
+                mask_parts.append(entity_history_mask)
+            else:
+                mask_parts.append(torch.ones(b, entity_history.size(1),
                                              dtype=torch.bool, device=device))
         if memory_parts:
             full_memory = torch.cat(memory_parts, dim=1)  # (B, M, d)

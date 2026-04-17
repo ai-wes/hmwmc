@@ -24,6 +24,7 @@ from hpm import (
     HomeostaticPredictiveMemory, HPMConfig,
     EntityTable, EntityTableConfig,
     EventTape, EventTapeConfig,
+    EntityHistoryBank, EntityHistoryConfig,
 )
 from enum import Enum
 from pathlib import Path
@@ -443,6 +444,9 @@ class WorldModelConfig:
 
     # Event tape: append-only boundary snapshot buffer (item #6).
     event_tape_config: Optional[EventTapeConfig] = None
+
+    # Entity history bank: uniformly-spaced entity-state snapshots for scene reconstruction.
+    entity_history_config: Optional[EntityHistoryConfig] = None
 
 
 # -----------------------------------------------------------------------------
@@ -1362,6 +1366,11 @@ class ForwardOutput:
     event_tape_mask: Optional[Tensor] = None         # (B, max_events) bool
     event_tape_times: Optional[Tensor] = None        # (B, max_events) long
     event_tape_diagnostics: Optional[Dict[str, float]] = None
+    # Entity history bank outputs.
+    entity_history_entries: Optional[Tensor] = None  # (B, K, D)
+    entity_history_mask: Optional[Tensor] = None     # (B, K) bool
+    entity_history_times: Optional[Tensor] = None    # (B, K) long
+    entity_history_diagnostics: Optional[Dict[str, float]] = None
 
 
 # -----------------------------------------------------------------------------
@@ -1432,6 +1441,14 @@ class HomeostaticMultimodalWorldModel(nn.Module):
                     and cfg.entity_table_config.enabled):
                 d_entity_total = cfg.entity_table_config.n_entities * cfg.entity_table_config.d_entity
             self.event_tape = EventTape(cfg.d_model, cfg.event_tape_config, d_entity_total)
+
+        # Entity history bank: uniformly-spaced entity-state snapshots.
+        self.entity_history: Optional[EntityHistoryBank] = None
+        if cfg.entity_history_config is not None and cfg.entity_history_config.enabled:
+            eh_d_entity_total = 0
+            if cfg.entity_table_config is not None and cfg.entity_table_config.enabled:
+                eh_d_entity_total = cfg.entity_table_config.n_entities * cfg.entity_table_config.d_entity
+            self.entity_history = EntityHistoryBank(eh_d_entity_total, cfg.entity_history_config, cfg.d_model)
 
     def init_state(self, batch_size: int, device: torch.device | None = None) -> WorldModelState:
         device = device or next(self.parameters()).device
@@ -1657,6 +1674,15 @@ class HomeostaticMultimodalWorldModel(nn.Module):
                 self.event_tape(sequence, z_per_step, entity_states)
         self._last_event_tape_diagnostics = event_tape_diagnostics
 
+        # Entity history bank: uniformly-spaced entity-state snapshots.
+        entity_history_entries: Optional[Tensor] = None
+        entity_history_mask: Optional[Tensor] = None
+        entity_history_times: Optional[Tensor] = None
+        entity_history_diagnostics: Optional[Dict[str, float]] = None
+        if self.entity_history is not None and entity_states is not None:
+            entity_history_entries, entity_history_mask, entity_history_times, entity_history_diagnostics = \
+                self.entity_history(entity_states)
+
         layer_diagnostics = []
         for layer_stats in per_layer_diagnostics:
             if not layer_stats:
@@ -1707,6 +1733,10 @@ class HomeostaticMultimodalWorldModel(nn.Module):
             event_tape_mask=event_tape_mask,
             event_tape_times=event_tape_times,
             event_tape_diagnostics=event_tape_diagnostics,
+            entity_history_entries=entity_history_entries,
+            entity_history_mask=entity_history_mask,
+            entity_history_times=entity_history_times,
+            entity_history_diagnostics=entity_history_diagnostics,
         )
 
     def controller_step(self, loss_value: Tensor | float) -> Dict[str, Any]:

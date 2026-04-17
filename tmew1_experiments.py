@@ -604,6 +604,65 @@ def make_branch_preset(branch_id: str) -> BranchConfig:
             ),
         )
 
+    # ── D family: diagnostic / ablation branches ────────────────────────
+    if branch_id == "D1":
+        return BranchConfig(
+            branch_id="D1",
+            family="D",
+            description="ET-only read ablation for holder/relational probe queries",
+            et_only_read_qtypes=(
+                "who_holds_token",
+                "holder_if_handoff2_absent",
+                "closest_entity_to_holder_at_alarm",
+            ),
+            extra_query_families=(
+                "closest_entity_to_holder_at_alarm",
+                "holder_if_handoff2_absent",
+            ),
+            rubric=PromotionRubric(
+                target_metric="qacc/who_holds_token",
+                min_gain_points=2.0,
+                max_regression_points=3.0,
+            ),
+        )
+
+    if branch_id == "D2":
+        return BranchConfig(
+            branch_id="D2",
+            family="D",
+            description="EntityHistoryBank K=16 snapshots, no ET-only routing",
+            extra_query_families=(
+                "closest_entity_to_holder_at_alarm",
+                "holder_if_handoff2_absent",
+            ),
+            rubric=PromotionRubric(
+                target_metric="qacc/closest_entity_to_holder_at_alarm",
+                min_gain_points=2.0,
+                max_regression_points=3.0,
+            ),
+        )
+
+    if branch_id == "D3":
+        return BranchConfig(
+            branch_id="D3",
+            family="D",
+            description="EntityHistoryBank K=16 + ET-only routing (combined D1+D2)",
+            et_only_read_qtypes=(
+                "who_holds_token",
+                "holder_if_handoff2_absent",
+                "closest_entity_to_holder_at_alarm",
+            ),
+            extra_query_families=(
+                "closest_entity_to_holder_at_alarm",
+                "holder_if_handoff2_absent",
+            ),
+            rubric=PromotionRubric(
+                target_metric="qacc/closest_entity_to_holder_at_alarm",
+                min_gain_points=2.0,
+                max_regression_points=3.0,
+            ),
+        )
+
     if branch_id == "AB1":
         return BranchConfig(
             branch_id="AB1",

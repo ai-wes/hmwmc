@@ -204,6 +204,16 @@ class EventTapeConfig:
     include_entity_state: bool = True
 
 
+# =========================================================================
+@dataclass
+class EntityHistoryConfig:
+    """Time-indexed entity-state snapshots for scene reconstruction."""
+    enabled: bool = False
+    n_snapshots: int = 16          # K uniformly-spaced entity-state snapshots
+    include_time_embed: bool = True
+    max_episode_length: int = 512
+
+
 STATE_OPEN = 0
 STATE_CLOSING = 1
 STATE_LOCKED = 2
@@ -454,6 +464,58 @@ class EventTape(nn.Module):
             "event_tape_fill_rate": float(tape_mask.float().mean().item()),
         }
         return tape_entries, tape_mask, tape_times, diag
+
+
+# -----------------------------------------------------------------------------
+# Entity History Bank — uniformly-spaced entity-state snapshots
+# -----------------------------------------------------------------------------
+class EntityHistoryBank(nn.Module):
+    """
+    Time-indexed entity-state snapshots for scene reconstruction.
+
+    EntityTable alone only exposes the current state. This bank samples K
+    per-timestep entity states across the episode, projects each to d_model,
+    and adds a time embedding so the retrieval head can attend over
+    (t_k, entity_state_at_t_k) pairs and answer "at alarm" / "at handoff"
+    queries even when no surprise boundary was recorded.
+    """
+
+    def __init__(self, d_entity_total: int, cfg: EntityHistoryConfig, d_model: int):
+        super().__init__()
+        self.cfg = cfg
+        self.d_entity_total = d_entity_total
+        self.d_model = d_model
+        self.entry_proj = nn.Linear(d_entity_total, d_model)
+        if cfg.include_time_embed:
+            self.time_embed = nn.Embedding(cfg.max_episode_length, d_model)
+
+    @property
+    def output_dim(self) -> int:
+        return self.d_model
+
+    def forward(self, entity_stack: Tensor) -> Tuple[Tensor, Tensor, Tensor, Dict[str, float]]:
+        """
+        Args:
+            entity_stack: (B, T, n_e, d_e) — per-timestep entity states.
+
+        Returns:
+            entries: (B, K, d_model) — projected snapshot entries.
+            mask:    (B, K) bool — True for valid entries.
+            times:   (B, K) long — timestep index of each snapshot.
+            diag:    dict.
+        """
+        B, T, n_e, d_e = entity_stack.shape
+        K = min(self.cfg.n_snapshots, T)
+        # Uniformly spaced timesteps including t=0 and t=T-1.
+        idx = torch.linspace(0, T - 1, steps=K, device=entity_stack.device).long()
+        snaps = entity_stack[:, idx].reshape(B, K, n_e * d_e)  # (B, K, d_entity_total)
+        entries = self.entry_proj(snaps)
+        if self.cfg.include_time_embed:
+            entries = entries + self.time_embed(idx.clamp(max=self.cfg.max_episode_length - 1))
+        mask = torch.ones(B, K, dtype=torch.bool, device=entity_stack.device)
+        times = idx.unsqueeze(0).expand(B, -1).contiguous()
+        diag: Dict[str, float] = {"entity_history_snapshots": float(K)}
+        return entries, mask, times, diag
 
 
 # -----------------------------------------------------------------------------
@@ -1190,6 +1252,8 @@ __all__ = [
     "EntityTableConfig",
     "EventTape",
     "EventTapeConfig",
+    "EntityHistoryBank",
+    "EntityHistoryConfig",
     "SlotLinear",
     "STATE_OPEN",
     "STATE_CLOSING",
