@@ -202,6 +202,11 @@ class EventTapeConfig:
     surprise_threshold: float = 2.0
     # Whether to include entity table state snapshots in tape entries.
     include_entity_state: bool = True
+    # When True, if fewer than min_events pass the threshold, fall back to
+    # selecting the top-K most surprising timesteps. Ensures the tape is
+    # never empty when there *is* temporal data to record.
+    top_k_fallback: bool = True
+    min_events: int = 4
 
 
 # =========================================================================
@@ -433,6 +438,13 @@ class EventTape(nn.Module):
         for b in range(B):
             event_times_b = (total_surprise[b] > cfg.surprise_threshold).nonzero(as_tuple=False).squeeze(-1)
             n_ev = event_times_b.numel()
+            # Fallback: if threshold is too strict, take the top-K most
+            # surprising timesteps so the tape is never starved.
+            if cfg.top_k_fallback and n_ev < cfg.min_events and T > 0:
+                k = min(cfg.max_events, T)
+                _, top_idx = total_surprise[b].topk(k)
+                event_times_b = top_idx.sort().values
+                n_ev = event_times_b.numel()
             if n_ev == 0:
                 continue
             if n_ev > cfg.max_events:
