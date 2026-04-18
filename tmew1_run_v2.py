@@ -39,7 +39,7 @@ from tmew1_queries_v2 import (
     augment_sequence_with_holder_audio,
     query_train_step_addon,
 )
-from tmew1_diagnostics import (
+from tmew1_diagnostics_v2 import (
     generate_episode_with_diagnostics,
     get_extended_query_type_to_idx,
     get_extended_query_types,

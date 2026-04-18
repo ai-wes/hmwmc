@@ -608,3 +608,28 @@ Documented the concrete `_v2` run entrypoints after checking the CLI parsers for
 
 - Run `python tmew1_run_v2.py --smoke` first in the training environment.
 - If smoke passes, launch either a direct curriculum run with `tmew1_run_v2.py` or a tracked branch run with `tmew1_branch_runner_v2.py`.
+
+## [2026-04-17 21:28]
+
+### Summary
+
+Fixed the `_v2` post-Tier-1 diagnostic crash by teaching the `_v2` diagnostics copy to build the same structured query input and retrieval context as the `_v2` runner.
+
+### Changes
+
+- Updated [tmew1_diagnostics_v2.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_diagnostics_v2.py) to import `_v2` training and query modules instead of baseline modules.
+- Added `_build_query_input_v2()` in [tmew1_diagnostics_v2.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_diagnostics_v2.py) so diagnostics now append both `hpm_sequence` and `structured_state_sequence`.
+- Added `_get_retrieval_context_v2()` in [tmew1_diagnostics_v2.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_diagnostics_v2.py) so structured query heads receive typed events, checkpoint memory, and holder logits during diagnostics.
+- Patched both `query_head(...)` call sites in [tmew1_diagnostics_v2.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_diagnostics_v2.py), including the zero-shot color-change probe path.
+- Updated [tmew1_run_v2.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_run_v2.py) to import diagnostics helpers from `tmew1_diagnostics_v2` instead of the baseline diagnostics module.
+- Verified the patched `_v2` files with `python -m py_compile tmew1_diagnostics_v2.py tmew1_run_v2.py`.
+
+### Decisions
+
+- Kept the baseline diagnostics file unchanged and fixed only the `_v2` path, consistent with the prior requirement not to modify the original code.
+- Reused the `_v2` runner’s structured query contract rather than inventing a separate diagnostic-only interface.
+
+### Next Steps
+
+- Re-run the `_v2` branch from the saved Tier 1 checkpoint to confirm diagnostics no longer crash on promotion.
+- If the next issue is metric quality rather than a crash, inspect Tier 2 structured query behavior with the now-correct diagnostics path.
