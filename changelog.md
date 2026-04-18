@@ -711,3 +711,99 @@ Implemented the `_v2` curriculum promotion rubric so tier advancement is no long
 
 - Re-run the `_v2` branch and confirm Tier 1 no longer promotes while `qacc/who_holds_token` is stuck near `0.51`.
 - If Tier 1 still plateaus below the new gate after the full allotted epochs, increase `epochs_per_tier` or strengthen holder supervision rather than loosening the rubric.
+
+## [2026-04-18 00:24]
+
+### Summary
+
+Confirmed the correct `_v2` branch-run invocation shape after the curriculum-gate change and clarified that `tmew1_branch_runner_v2.py` uses `--out-dir` exactly as provided.
+
+### Changes
+
+- Re-checked [tmew1_branch_runner_v2.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_branch_runner_v2.py) output-directory handling in `main()` and `run_branch()`.
+- Confirmed the runner does not append the branch name to `--out-dir`; it writes directly into the specified directory.
+
+### Decisions
+
+- The user's existing path form `.../experiments_v2/baseline` is valid for `--branch baseline`.
+- With the stricter `_v2` promotion gate, using the same command shape is correct, but a larger `--epochs` value may be useful if Tier 1 no longer clears promotion within 4 epochs.
+
+### Next Steps
+
+- Re-run the baseline `_v2` branch with the same command shape.
+- If Tier 1 stalls at the new gate, retry with a higher `--epochs` value before changing the rubric again.
+
+## [2026-04-18 01:55]
+
+### Summary
+
+Tried to inspect the newest results under the Colab Drive output path, but that path is not mounted in this shell. Verified that the only locally accessible run artifacts are older April 14 baseline/A3 results and not the current `_v2` run.
+
+### Changes
+
+- Checked `/content/drive/MyDrive/hpm_checkpoints/experiments_v2/baseline` and confirmed it does not exist in the current environment.
+- Searched the local workspace for accessible `val.json`, `branch_config.json`, and crash/verdict artifacts.
+- Inspected local artifacts under:
+  - `/mnt/c/users/wes/Desktop/hmwmc/experiments/baseline`
+  - `/mnt/c/users/wes/Desktop/hmwmc/training_runs_logs/training_logs_A3`
+- Verified those local files are dated `2026-04-14` and do not reflect the recent `_v2` curriculum run.
+
+### Decisions
+
+- Did not treat the local April 14 artifacts as the requested “newest results” because they are stale and baseline-era.
+- The current `_v2` run output can only be reviewed here if the relevant files are copied into an accessible local path or pasted directly into the chat.
+
+### Next Steps
+
+- Have the user paste the new `val.json`, diagnostics block, or `crash.log`, or copy the Colab output directory into the local workspace.
+- Once the current `_v2` result files are accessible, compare them against the new promotion rubric to confirm whether Tier 1 is being held correctly.
+
+## [2026-04-18 02:02]
+
+### Summary
+
+Used the Google Drive plugin to inspect the actual My Drive output folder for the latest `_v2` run and confirmed the new baseline artifacts exist there. The pasted training logs show the run still promoted Tier 1 and Tier 2 even though the intended `_v2` promotion thresholds were not met, so the stricter gate was not active in the Colab run.
+
+### Changes
+
+- Located the Drive folder `experiments_v2` and nested `baseline` folder via the Google Drive connector.
+- Confirmed fresh Drive artifacts exist for the run:
+  - `branch_config.json`
+  - `val.json`
+  - `checkpoint_tier1.pt`
+  - `checkpoint_tier2.pt`
+  - `checkpoint_tier3.pt`
+  - `verdict_baseline_82dd3e60.jsonl`
+  - the earlier `crash.log`
+- Verified from the pasted logs that Tier 1 promoted with `qacc/who_holds_token = 0.512042` and Tier 2 promoted with `qacc/who_holds_token = 0.268578` / `holder_acc = 0.505070`, which should have been blocked by the local `_v2` rubric.
+
+### Decisions
+
+- Treat this run as evidence that the Colab environment was using stale `_v2` code or otherwise did not pick up the new promotion-gate logic.
+- Use Drive folder inspection plus the pasted logs as the basis for diagnosis, since the connector could list the raw JSON artifacts but would not decode their contents directly.
+
+### Next Steps
+
+- Verify the Colab copies of `tmew1_train_v2.py` and `tmew1_run_v2.py` actually contain the new promotion-gate code before the next run.
+- Re-run only after confirming the Colab environment is executing the patched `_v2` files rather than an older copy.
+
+## [2026-04-18 02:05]
+
+### Summary
+
+Reviewed the `_v2` branch taxonomy and clarified the recommended next branch after `baseline`.
+
+### Changes
+
+- Read the `_v2` branch definitions in `tmew1_experiments_v2.py` and the runner behavior in `tmew1_branch_runner_v2.py`.
+- Confirmed the intended progression starts with Family A world-scaling branches, with `A1` as the first branch after a valid baseline.
+
+### Decisions
+
+- Do not move past `baseline` until the Colab environment is confirmed to be using the patched `_v2` promotion gate.
+- Once baseline is genuinely valid, the next branch to run in the planned sequence is `A1`.
+
+### Next Steps
+
+- Re-run `baseline` only after verifying the Colab copy contains the new promotion-gate code.
+- After a valid baseline, run `A1`, then continue through `A2`, `A3`, and `A4` if following the Family A progression.

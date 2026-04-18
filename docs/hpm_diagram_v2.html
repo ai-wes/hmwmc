@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HPM v2 Architecture — Homeostatic Predictive Memory</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 16px;
+  }
+  .container {
+    max-width: 1400px;
+    width: 100%;
+  }
+  h1 {
+    text-align: center;
+    font-size: 28px;
+    font-weight: 600;
+    color: #e6edf3;
+    margin-bottom: 4px;
+    letter-spacing: -0.5px;
+  }
+  .version {
+    text-align: center;
+    font-size: 13px;
+    color: #58a6ff;
+    margin-bottom: 4px;
+    font-weight: 600;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 13px;
+    color: #8b949e;
+    margin-bottom: 28px;
+    max-width: 900px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.5;
+  }
+  svg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+  .legend {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 20px;
+    font-size: 11px;
+    color: #8b949e;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .legend-swatch {
+    width: 13px;
+    height: 13px;
+    border-radius: 3px;
+  }
+  .changes {
+    margin-top: 32px;
+    max-width: 1000px;
+    width: 100%;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    padding: 24px 28px;
+  }
+  .changes h2 {
+    font-size: 16px;
+    color: #e6edf3;
+    margin-bottom: 16px;
+    font-weight: 600;
+  }
+  .changes ul {
+    list-style: none;
+    padding: 0;
+  }
+  .changes li {
+    font-size: 13px;
+    color: #c9d1d9;
+    padding: 5px 0;
+    border-bottom: 1px solid #21262d;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .changes li:last-child { border-bottom: none; }
+  .tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 4px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .tag-new { background: #238636; color: #fff; }
+  .tag-changed { background: #9e6a03; color: #fff; }
+  .tag-removed { background: #da3633; color: #fff; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Homeostatic Predictive Memory (HPM)</h1>
+  <p class="version">v2 — Architectural Overhaul</p>
+  <p class="subtitle">
+    EntityTable · Top-k routing with stickiness &amp; load-balancing · Factorized surprise channels ·
+    Continuous plasticity · Per-state running stats · Event Tape · Slot diversity regularizer ·
+    Two-stage iterative retrieval
+  </p>
+
+  <svg viewBox="0 0 1380 1050" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#58a6ff"/>
+      </marker>
+      <marker id="arr-orange" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#d29922"/>
+      </marker>
+      <marker id="arr-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#3fb950"/>
+      </marker>
+      <marker id="arr-red" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#f85149"/>
+      </marker>
+      <marker id="arr-purple" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#bc8cff"/>
+      </marker>
+      <marker id="arr-gray" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#8b949e"/>
+      </marker>
+      <marker id="arr-teal" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#39d2c0"/>
+      </marker>
+      <marker id="arr-pink" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#f778ba"/>
+      </marker>
+
+      <filter id="glow">
+        <feGaussianBlur stdDeviation="3" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <filter id="glow-teal">
+        <feGaussianBlur stdDeviation="2.5" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+
+      <linearGradient id="slot0" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#1a3a5c"/><stop offset="100%" stop-color="#0f2137"/>
+      </linearGradient>
+      <linearGradient id="slot1" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#2a3a1c"/><stop offset="100%" stop-color="#1a2a0f"/>
+      </linearGradient>
+      <linearGradient id="slot2" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#3a2a1c"/><stop offset="100%" stop-color="#2a1a0f"/>
+      </linearGradient>
+      <linearGradient id="slot3" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#2a1a3a"/><stop offset="100%" stop-color="#1a0f2a"/>
+      </linearGradient>
+      <linearGradient id="entity-grad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#1a3a3a"/><stop offset="100%" stop-color="#0f2525"/>
+      </linearGradient>
+    </defs>
+
+    <!-- ================================================================== -->
+    <!-- BACKGROUND REGIONS                                                  -->
+    <!-- ================================================================== -->
+
+    <!-- Input region -->
+    <rect x="20" y="30" width="150" height="990" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <text x="95" y="22" text-anchor="middle" fill="#8b949e" font-size="11" font-weight="600">INPUT</text>
+
+    <!-- Entity Table region (NEW) -->
+    <rect x="190" y="30" width="280" height="310" rx="12" fill="#161b22" stroke="#39d2c0" stroke-width="1.5" stroke-dasharray="0"/>
+    <text x="330" y="22" text-anchor="middle" fill="#39d2c0" font-size="11" font-weight="600">ENTITY TABLE (GRU) — NEW</text>
+
+    <!-- Factorized Surprise region -->
+    <rect x="190" y="360" width="280" height="280" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <text x="330" y="352" text-anchor="middle" fill="#8b949e" font-size="11" font-weight="600">FACTORIZED SURPRISE</text>
+
+    <!-- Top-k Routing region (NEW) -->
+    <rect x="490" y="360" width="260" height="280" rx="12" fill="#161b22" stroke="#f778ba" stroke-width="1.5"/>
+    <text x="620" y="352" text-anchor="middle" fill="#f778ba" font-size="11" font-weight="600">TOP-K ROUTING — NEW</text>
+
+    <!-- Slot memory region -->
+    <rect x="190" y="660" width="560" height="180" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <text x="470" y="652" text-anchor="middle" fill="#8b949e" font-size="11" font-weight="600">SLOT MEMORY (4 SLOTS) — CONTINUOUS PLASTICITY</text>
+
+    <!-- Event Tape region (NEW) -->
+    <rect x="490" y="30" width="260" height="310" rx="12" fill="#161b22" stroke="#f0883e" stroke-width="1.5"/>
+    <text x="620" y="22" text-anchor="middle" fill="#f0883e" font-size="11" font-weight="600">EVENT TAPE — NEW</text>
+
+    <!-- Read & Output region -->
+    <rect x="770" y="30" width="280" height="810" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <text x="910" y="22" text-anchor="middle" fill="#8b949e" font-size="11" font-weight="600">TWO-STAGE RETRIEVAL &amp; OUTPUT</text>
+
+    <!-- Stats region -->
+    <rect x="1070" y="30" width="290" height="510" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <text x="1215" y="22" text-anchor="middle" fill="#8b949e" font-size="11" font-weight="600">RUNNING STATS &amp; REGULARIZERS</text>
+
+    <!-- ================================================================== -->
+    <!-- INPUT COLUMN                                                        -->
+    <!-- ================================================================== -->
+
+    <rect x="35" y="55" width="120" height="50" rx="8" fill="#1f6feb" fill-opacity="0.2" stroke="#58a6ff" stroke-width="1.5"/>
+    <text x="95" y="77" text-anchor="middle" fill="#58a6ff" font-size="13" font-weight="600">h_seq</text>
+    <text x="95" y="94" text-anchor="middle" fill="#8b949e" font-size="10">(B, T, D)</text>
+
+    <rect x="35" y="140" width="120" height="40" rx="8" fill="#1f6feb" fill-opacity="0.15" stroke="#58a6ff" stroke-width="1"/>
+    <text x="95" y="158" text-anchor="middle" fill="#79c0ff" font-size="12" font-weight="500">h_t</text>
+    <text x="95" y="173" text-anchor="middle" fill="#8b949e" font-size="9">(B, D) at step t</text>
+
+    <rect x="35" y="215" width="120" height="40" rx="8" fill="#1f6feb" fill-opacity="0.1" stroke="#58a6ff" stroke-width="1" stroke-dasharray="4,3"/>
+    <text x="95" y="233" text-anchor="middle" fill="#79c0ff" font-size="12" font-weight="500">h_{t−1}</text>
+    <text x="95" y="248" text-anchor="middle" fill="#8b949e" font-size="9">previous step</text>
+
+    <rect x="35" y="700" width="120" height="50" rx="8" fill="#bc8cff" fill-opacity="0.12" stroke="#bc8cff" stroke-width="1" stroke-dasharray="4,3"/>
+    <text x="95" y="722" text-anchor="middle" fill="#bc8cff" font-size="12" font-weight="500">w_{t−1}</text>
+    <text x="95" y="740" text-anchor="middle" fill="#8b949e" font-size="9">(B, n_slots, slot_dim)</text>
+
+    <rect x="35" y="780" width="120" height="40" rx="8" fill="#bc8cff" fill-opacity="0.08" stroke="#bc8cff" stroke-width="1" stroke-dasharray="2,4"/>
+    <text x="95" y="798" text-anchor="middle" fill="#bc8cff" font-size="11" font-weight="500">w₀</text>
+    <text x="95" y="813" text-anchor="middle" fill="#8b949e" font-size="9">learnable init</text>
+
+    <!-- h_seq → h_t -->
+    <line x1="95" y1="105" x2="95" y2="138" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#arr)"/>
+    <!-- h_seq → h_{t-1} -->
+    <line x1="95" y1="105" x2="95" y2="213" stroke="#58a6ff" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arr)"/>
+
+    <!-- ================================================================== -->
+    <!-- ENTITY TABLE (NEW)                                                  -->
+    <!-- ================================================================== -->
+
+    <!-- Entity keys routing -->
+    <rect x="210" y="55" width="240" height="52" rx="8" fill="#39d2c0" fill-opacity="0.15" stroke="#39d2c0" stroke-width="1.5" filter="url(#glow-teal)"/>
+    <text x="330" y="74" text-anchor="middle" fill="#39d2c0" font-size="12" font-weight="600">Entity Routing</text>
+    <text x="330" y="93" text-anchor="middle" fill="#8b949e" font-size="10">softmax(h_t · entity_keys / √D)</text>
+
+    <!-- GRU cell -->
+    <rect x="210" y="125" width="240" height="52" rx="8" fill="#39d2c0" fill-opacity="0.12" stroke="#39d2c0" stroke-width="1.2"/>
+    <text x="330" y="144" text-anchor="middle" fill="#39d2c0" font-size="12" font-weight="600">GRU Cell (per entity)</text>
+    <text x="330" y="163" text-anchor="middle" fill="#8b949e" font-size="10">e_state = GRU(route_w · h_proj, e_state)</text>
+
+    <!-- Entity state bank -->
+    <rect x="220" y="195" width="53" height="65" rx="6" fill="url(#entity-grad)" stroke="#39d2c0" stroke-width="1"/>
+    <text x="246" y="215" text-anchor="middle" fill="#39d2c0" font-size="9" font-weight="600">E₀</text>
+    <text x="246" y="230" text-anchor="middle" fill="#8b949e" font-size="8">d_entity</text>
+    <text x="246" y="250" text-anchor="middle" fill="#8b949e" font-size="7">holder?</text>
+
+    <rect x="280" y="195" width="53" height="65" rx="6" fill="url(#entity-grad)" stroke="#39d2c0" stroke-width="1"/>
+    <text x="306" y="215" text-anchor="middle" fill="#39d2c0" font-size="9" font-weight="600">E₁</text>
+    <text x="306" y="230" text-anchor="middle" fill="#8b949e" font-size="8">d_entity</text>
+    <text x="306" y="250" text-anchor="middle" fill="#8b949e" font-size="7">tagged?</text>
+
+    <rect x="340" y="195" width="53" height="65" rx="6" fill="url(#entity-grad)" stroke="#39d2c0" stroke-width="1"/>
+    <text x="366" y="215" text-anchor="middle" fill="#39d2c0" font-size="9" font-weight="600">E₂</text>
+    <text x="366" y="230" text-anchor="middle" fill="#8b949e" font-size="8">d_entity</text>
+    <text x="366" y="250" text-anchor="middle" fill="#8b949e" font-size="7">visible?</text>
+
+    <rect x="400" y="195" width="53" height="65" rx="6" fill="url(#entity-grad)" stroke="#39d2c0" stroke-width="1"/>
+    <text x="426" y="215" text-anchor="middle" fill="#39d2c0" font-size="9" font-weight="600">E₃</text>
+    <text x="426" y="230" text-anchor="middle" fill="#8b949e" font-size="8">d_entity</text>
+    <text x="426" y="250" text-anchor="middle" fill="#8b949e" font-size="7">position</text>
+
+    <!-- Entity output -->
+    <rect x="210" y="280" width="240" height="42" rx="8" fill="#39d2c0" fill-opacity="0.08" stroke="#39d2c0" stroke-width="1"/>
+    <text x="330" y="298" text-anchor="middle" fill="#39d2c0" font-size="11" font-weight="500">entity_seq → (B, T, n_e·d_e)</text>
+    <text x="330" y="314" text-anchor="middle" fill="#8b949e" font-size="9">slowly-varying per-entity facts</text>
+
+    <!-- h_seq → entity routing -->
+    <line x1="155" y1="80" x2="208" y2="75" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#arr)"/>
+    <!-- routing → GRU -->
+    <line x1="330" y1="107" x2="330" y2="123" stroke="#39d2c0" stroke-width="1.2" marker-end="url(#arr-teal)"/>
+    <!-- GRU → entity state -->
+    <line x1="330" y1="177" x2="330" y2="193" stroke="#39d2c0" stroke-width="1.2" marker-end="url(#arr-teal)"/>
+    <!-- entity state → output -->
+    <line x1="330" y1="260" x2="330" y2="278" stroke="#39d2c0" stroke-width="1" marker-end="url(#arr-teal)"/>
+
+    <!-- ================================================================== -->
+    <!-- EVENT TAPE (NEW)                                                    -->
+    <!-- ================================================================== -->
+
+    <rect x="510" y="55" width="220" height="52" rx="8" fill="#f0883e" fill-opacity="0.15" stroke="#f0883e" stroke-width="1.5"/>
+    <text x="620" y="74" text-anchor="middle" fill="#f0883e" font-size="12" font-weight="600">Surprise Threshold</text>
+    <text x="620" y="93" text-anchor="middle" fill="#8b949e" font-size="10">max|z| across slots > τ</text>
+
+    <!-- Tape buffer visualization -->
+    <rect x="510" y="125" width="220" height="85" rx="8" fill="#f0883e" fill-opacity="0.06" stroke="#f0883e" stroke-width="1"/>
+    <text x="620" y="144" text-anchor="middle" fill="#f0883e" font-size="11" font-weight="600">Append-Only Buffer</text>
+    <text x="620" y="162" text-anchor="middle" fill="#8b949e" font-size="9">entries: (t, h_t, entity_state_t)</text>
+    <text x="620" y="178" text-anchor="middle" fill="#8b949e" font-size="9">max_events = 32</text>
+    <text x="620" y="194" text-anchor="middle" fill="#8b949e" font-size="9">top-k fallback if threshold too strict</text>
+
+    <!-- Tape entries -->
+    <rect x="517" y="225" width="32" height="24" rx="4" fill="#f0883e" fill-opacity="0.2" stroke="#f0883e" stroke-width="0.8"/>
+    <text x="533" y="241" text-anchor="middle" fill="#f0883e" font-size="8">t₃</text>
+    <rect x="555" y="225" width="32" height="24" rx="4" fill="#f0883e" fill-opacity="0.2" stroke="#f0883e" stroke-width="0.8"/>
+    <text x="571" y="241" text-anchor="middle" fill="#f0883e" font-size="8">t₇</text>
+    <rect x="593" y="225" width="32" height="24" rx="4" fill="#f0883e" fill-opacity="0.2" stroke="#f0883e" stroke-width="0.8"/>
+    <text x="609" y="241" text-anchor="middle" fill="#f0883e" font-size="8">t₁₄</text>
+    <rect x="631" y="225" width="32" height="24" rx="4" fill="#f0883e" fill-opacity="0.15" stroke="#f0883e" stroke-width="0.8"/>
+    <text x="647" y="241" text-anchor="middle" fill="#f0883e" font-size="8">t₂₁</text>
+    <rect x="669" y="225" width="32" height="24" rx="4" fill="#f0883e" fill-opacity="0.1" stroke="#f0883e" stroke-width="0.8" stroke-dasharray="3,2"/>
+    <text x="685" y="241" text-anchor="middle" fill="#8b949e" font-size="8">···</text>
+    <text x="620" y="268" text-anchor="middle" fill="#8b949e" font-size="9">each: entry_proj(h ∥ entity) + time_embed</text>
+
+    <!-- Projected output -->
+    <rect x="510" y="280" width="220" height="42" rx="8" fill="#f0883e" fill-opacity="0.08" stroke="#f0883e" stroke-width="1"/>
+    <text x="620" y="298" text-anchor="middle" fill="#f0883e" font-size="11" font-weight="500">tape_entries → (B, K, D)</text>
+    <text x="620" y="314" text-anchor="middle" fill="#8b949e" font-size="9">boundary snapshots for retrieval</text>
+
+    <!-- z-scores → tape threshold -->
+    <path d="M470 510 C 480 510, 480 80, 508 80" stroke="#d29922" stroke-width="1.2" stroke-dasharray="4,3" fill="none" marker-end="url(#arr-orange)"/>
+    <!-- entity state → tape -->
+    <path d="M453 240 C 480 240, 485 165, 508 165" stroke="#39d2c0" stroke-width="1" stroke-dasharray="4,3" fill="none" marker-end="url(#arr-teal)"/>
+    <!-- threshold → buffer -->
+    <line x1="620" y1="107" x2="620" y2="123" stroke="#f0883e" stroke-width="1.2" marker-end="url(#arr-orange)"/>
+
+    <!-- ================================================================== -->
+    <!-- FACTORIZED SURPRISE                                                 -->
+    <!-- ================================================================== -->
+
+    <!-- Predictor -->
+    <rect x="210" y="380" width="240" height="48" rx="8" fill="#d29922" fill-opacity="0.15" stroke="#d29922" stroke-width="1.5"/>
+    <text x="330" y="398" text-anchor="middle" fill="#d29922" font-size="12" font-weight="600">SlotLinear: Predictor</text>
+    <text x="330" y="416" text-anchor="middle" fill="#8b949e" font-size="10">h_{t−1} → pred_t  (per slot)</text>
+
+    <!-- Factorized surprise heads -->
+    <rect x="210" y="446" width="240" height="70" rx="8" fill="#d29922" fill-opacity="0.1" stroke="#d29922" stroke-width="1"/>
+    <text x="330" y="464" text-anchor="middle" fill="#e3b341" font-size="11" font-weight="600">Factorized Surprise Heads</text>
+    <text x="330" y="481" text-anchor="middle" fill="#8b949e" font-size="9">3 independent heads × n_slots:</text>
+    <text x="330" y="495" text-anchor="middle" fill="#8b949e" font-size="9">z_ownership · z_rule · z_event</text>
+    <text x="330" y="509" text-anchor="middle" fill="#8b949e" font-size="9">each: SlotLinear → MSE → z-score</text>
+
+    <!-- Per-channel z-scores -->
+    <rect x="218" y="530" width="68" height="36" rx="6" fill="#d29922" fill-opacity="0.2" stroke="#d29922" stroke-width="1.2" filter="url(#glow)"/>
+    <text x="252" y="547" text-anchor="middle" fill="#d29922" font-size="10" font-weight="600">z_own</text>
+    <text x="252" y="561" text-anchor="middle" fill="#8b949e" font-size="7">entity</text>
+
+    <rect x="296" y="530" width="68" height="36" rx="6" fill="#d29922" fill-opacity="0.2" stroke="#d29922" stroke-width="1.2" filter="url(#glow)"/>
+    <text x="330" y="547" text-anchor="middle" fill="#d29922" font-size="10" font-weight="600">z_rule</text>
+    <text x="330" y="561" text-anchor="middle" fill="#8b949e" font-size="7">belief</text>
+
+    <rect x="374" y="530" width="68" height="36" rx="6" fill="#d29922" fill-opacity="0.2" stroke="#d29922" stroke-width="1.2" filter="url(#glow)"/>
+    <text x="408" y="547" text-anchor="middle" fill="#d29922" font-size="10" font-weight="600">z_evt</text>
+    <text x="408" y="561" text-anchor="middle" fill="#8b949e" font-size="7">residual</text>
+
+    <!-- Detached label -->
+    <rect x="260" y="580" width="140" height="20" rx="4" fill="#f85149" fill-opacity="0.1" stroke="#f85149" stroke-width="0.8"/>
+    <text x="330" y="594" text-anchor="middle" fill="#f85149" font-size="9">all detached from grad</text>
+
+    <!-- Adaptive σ floor -->
+    <rect x="210" y="610" width="240" height="28" rx="6" fill="#d29922" fill-opacity="0.06" stroke="#d29922" stroke-width="0.8"/>
+    <text x="330" y="628" text-anchor="middle" fill="#e3b341" font-size="9">σ floor = max(σ_hard, σ_scale · |μ|) — prevents convergence-collapse</text>
+
+    <!-- h_{t-1} → predictor -->
+    <line x1="155" y1="235" x2="208" y2="395" stroke="#d29922" stroke-width="1.5" marker-end="url(#arr-orange)"/>
+    <!-- h_t → surprise heads (comparison) -->
+    <line x1="155" y1="160" x2="208" y2="470" stroke="#58a6ff" stroke-width="1" marker-end="url(#arr)"/>
+    <!-- predictor → heads -->
+    <line x1="330" y1="428" x2="330" y2="444" stroke="#d29922" stroke-width="1.5" marker-end="url(#arr-orange)"/>
+    <!-- heads → z-scores -->
+    <line x1="330" y1="516" x2="330" y2="528" stroke="#d29922" stroke-width="1" marker-end="url(#arr-orange)"/>
+
+    <!-- ================================================================== -->
+    <!-- TOP-K ROUTING (NEW)                                                 -->
+    <!-- ================================================================== -->
+
+    <!-- Content query × slot key -->
+    <rect x="510" y="380" width="220" height="52" rx="8" fill="#f778ba" fill-opacity="0.15" stroke="#f778ba" stroke-width="1.5"/>
+    <text x="620" y="398" text-anchor="middle" fill="#f778ba" font-size="11" font-weight="600">Routing Logit Computation</text>
+    <text x="620" y="416" text-anchor="middle" fill="#8b949e" font-size="9">a_s = q·k/√d + β·|z| + η·sticky</text>
+    <text x="620" y="428" text-anchor="middle" fill="#8b949e" font-size="9">       − γ·load − δ·age</text>
+
+    <!-- Routing components -->
+    <rect x="510" y="450" width="105" height="36" rx="6" fill="#f778ba" fill-opacity="0.1" stroke="#f778ba" stroke-width="0.8"/>
+    <text x="562" y="466" text-anchor="middle" fill="#f778ba" font-size="9" font-weight="500">content_query</text>
+    <text x="562" y="480" text-anchor="middle" fill="#8b949e" font-size="8">q(h_t) · slot_key</text>
+
+    <rect x="625" y="450" width="105" height="36" rx="6" fill="#f778ba" fill-opacity="0.1" stroke="#f778ba" stroke-width="0.8"/>
+    <text x="677" y="466" text-anchor="middle" fill="#f778ba" font-size="9" font-weight="500">surprise bonus</text>
+    <text x="677" y="480" text-anchor="middle" fill="#8b949e" font-size="8">β · Σ|z_c| · w_c</text>
+
+    <!-- Softmax + top-k -->
+    <rect x="510" y="500" width="220" height="46" rx="8" fill="#f778ba" fill-opacity="0.2" stroke="#f778ba" stroke-width="1.5" filter="url(#glow)"/>
+    <text x="620" y="518" text-anchor="middle" fill="#f778ba" font-size="12" font-weight="600">softmax → top-k mask (k=2)</text>
+    <text x="620" y="535" text-anchor="middle" fill="#8b949e" font-size="9">g_t = route_weights × topk_mask</text>
+
+    <!-- Routing buffers -->
+    <rect x="518" y="560" width="60" height="30" rx="5" fill="#8b949e" fill-opacity="0.08" stroke="#8b949e" stroke-width="0.8"/>
+    <text x="548" y="578" text-anchor="middle" fill="#8b949e" font-size="8">sticky</text>
+
+    <rect x="585" y="560" width="50" height="30" rx="5" fill="#8b949e" fill-opacity="0.08" stroke="#8b949e" stroke-width="0.8"/>
+    <text x="610" y="578" text-anchor="middle" fill="#8b949e" font-size="8">load</text>
+
+    <rect x="642" y="560" width="50" height="30" rx="5" fill="#8b949e" fill-opacity="0.08" stroke="#8b949e" stroke-width="0.8"/>
+    <text x="667" y="578" text-anchor="middle" fill="#8b949e" font-size="8">age</text>
+
+    <text x="620" y="607" text-anchor="middle" fill="#8b949e" font-size="9">soft hazard replaces hard force-unlock</text>
+
+    <!-- z-scores → routing -->
+    <path d="M442 548 L508 405" stroke="#d29922" stroke-width="1.5" fill="none" marker-end="url(#arr-orange)"/>
+    <!-- h_t → routing -->
+    <path d="M155 155 C 470 155, 485 395, 508 395" stroke="#58a6ff" stroke-width="1" fill="none" marker-end="url(#arr)"/>
+
+    <!-- ================================================================== -->
+    <!-- SLOT MEMORY                                                         -->
+    <!-- ================================================================== -->
+
+    <!-- Slot 0 -->
+    <rect x="210" y="680" width="120" height="100" rx="8" fill="url(#slot0)" stroke="#58a6ff" stroke-width="1.2"/>
+    <text x="270" y="700" text-anchor="middle" fill="#58a6ff" font-size="11" font-weight="600">Slot 0</text>
+    <text x="270" y="718" text-anchor="middle" fill="#8b949e" font-size="9">write_enc₀(h_t)</text>
+    <rect x="228" y="726" width="84" height="20" rx="4" fill="#58a6ff" fill-opacity="0.1" stroke="#58a6ff" stroke-width="0.8"/>
+    <text x="270" y="740" text-anchor="middle" fill="#79c0ff" font-size="9">w₀[t]</text>
+    <text x="270" y="760" text-anchor="middle" fill="#8b949e" font-size="8">μ/σ per-state</text>
+    <text x="270" y="775" text-anchor="middle" fill="#39d2c0" font-size="8" font-weight="500">plasticity: 0.72</text>
+
+    <!-- Slot 1 -->
+    <rect x="340" y="680" width="120" height="100" rx="8" fill="url(#slot1)" stroke="#3fb950" stroke-width="1.2"/>
+    <text x="400" y="700" text-anchor="middle" fill="#3fb950" font-size="11" font-weight="600">Slot 1</text>
+    <text x="400" y="718" text-anchor="middle" fill="#8b949e" font-size="9">write_enc₁(h_t)</text>
+    <rect x="358" y="726" width="84" height="20" rx="4" fill="#3fb950" fill-opacity="0.1" stroke="#3fb950" stroke-width="0.8"/>
+    <text x="400" y="740" text-anchor="middle" fill="#56d364" font-size="9">w₁[t]</text>
+    <text x="400" y="760" text-anchor="middle" fill="#8b949e" font-size="8">μ/σ per-state</text>
+    <text x="400" y="775" text-anchor="middle" fill="#39d2c0" font-size="8" font-weight="500">plasticity: 0.45</text>
+
+    <!-- Slot 2 -->
+    <rect x="470" y="680" width="120" height="100" rx="8" fill="url(#slot2)" stroke="#d29922" stroke-width="1.2"/>
+    <text x="530" y="700" text-anchor="middle" fill="#d29922" font-size="11" font-weight="600">Slot 2</text>
+    <text x="530" y="718" text-anchor="middle" fill="#8b949e" font-size="9">write_enc₂(h_t)</text>
+    <rect x="488" y="726" width="84" height="20" rx="4" fill="#d29922" fill-opacity="0.1" stroke="#d29922" stroke-width="0.8"/>
+    <text x="530" y="740" text-anchor="middle" fill="#e3b341" font-size="9">w₂[t]</text>
+    <text x="530" y="760" text-anchor="middle" fill="#8b949e" font-size="8">μ/σ per-state</text>
+    <text x="530" y="775" text-anchor="middle" fill="#39d2c0" font-size="8" font-weight="500">plasticity: 0.18</text>
+
+    <!-- Slot 3 -->
+    <rect x="600" y="680" width="120" height="100" rx="8" fill="url(#slot3)" stroke="#bc8cff" stroke-width="1.2"/>
+    <text x="660" y="700" text-anchor="middle" fill="#bc8cff" font-size="11" font-weight="600">Slot 3</text>
+    <text x="660" y="718" text-anchor="middle" fill="#8b949e" font-size="9">write_enc₃(h_t)</text>
+    <rect x="618" y="726" width="84" height="20" rx="4" fill="#bc8cff" fill-opacity="0.1" stroke="#bc8cff" stroke-width="0.8"/>
+    <text x="660" y="740" text-anchor="middle" fill="#d2a8ff" font-size="9">w₃[t]</text>
+    <text x="660" y="760" text-anchor="middle" fill="#8b949e" font-size="8">μ/σ per-state</text>
+    <text x="660" y="775" text-anchor="middle" fill="#39d2c0" font-size="8" font-weight="500">plasticity: 0.91</text>
+
+    <!-- Update equation -->
+    <rect x="210" y="800" width="510" height="28" rx="6" fill="#1f6feb" fill-opacity="0.06" stroke="#58a6ff" stroke-width="1" stroke-dasharray="4,3"/>
+    <text x="465" y="818" text-anchor="middle" fill="#79c0ff" font-size="11" font-weight="600">w_t = (1 − g_t) · w_{t−1}  +  g_t · write_enc(h_t)</text>
+
+    <!-- Continuous plasticity note -->
+    <rect x="210" y="835" width="510" height="20" rx="4" fill="#39d2c0" fill-opacity="0.06" stroke="#39d2c0" stroke-width="0.8" stroke-dasharray="3,3"/>
+    <text x="465" y="849" text-anchor="middle" fill="#39d2c0" font-size="9">g_t = sigmoid(gate_mlp) × sigmoid(scale · age · mismatch · |z| − bias) — no state machine</text>
+
+    <!-- g_t → slot write -->
+    <path d="M620 546 L620 630 L660 678" stroke="#f778ba" stroke-width="1.5" fill="none" marker-end="url(#arr-pink)"/>
+    <!-- h_t → write encoders -->
+    <path d="M95 180 L95 670 L208 710" stroke="#58a6ff" stroke-width="1.2" fill="none" marker-end="url(#arr)"/>
+    <!-- w_{t-1} → slot area -->
+    <line x1="155" y1="725" x2="208" y2="725" stroke="#bc8cff" stroke-width="1.2" marker-end="url(#arr-purple)"/>
+
+    <!-- ================================================================== -->
+    <!-- TWO-STAGE RETRIEVAL & OUTPUT                                        -->
+    <!-- ================================================================== -->
+
+    <!-- Stage 1: Family Router -->
+    <rect x="790" y="55" width="240" height="80" rx="8" fill="#bc8cff" fill-opacity="0.15" stroke="#bc8cff" stroke-width="1.5"/>
+    <text x="910" y="75" text-anchor="middle" fill="#bc8cff" font-size="12" font-weight="600">Stage 1: Family Router</text>
+    <text x="910" y="93" text-anchor="middle" fill="#8b949e" font-size="9">query_embed → soft-select bank:</text>
+    <text x="910" y="108" text-anchor="middle" fill="#d2a8ff" font-size="9" font-weight="500">EntityTable | EventTape | HPM slots</text>
+    <text x="910" y="123" text-anchor="middle" fill="#8b949e" font-size="9">router MLP: q → family weights</text>
+
+    <!-- Stage 2: Cross-attention -->
+    <rect x="790" y="155" width="240" height="65" rx="8" fill="#bc8cff" fill-opacity="0.12" stroke="#bc8cff" stroke-width="1.2"/>
+    <text x="910" y="175" text-anchor="middle" fill="#bc8cff" font-size="12" font-weight="600">Stage 2: Cross-Attention</text>
+    <text x="910" y="193" text-anchor="middle" fill="#8b949e" font-size="9">query_embed attends over selected bank</text>
+    <text x="910" y="208" text-anchor="middle" fill="#8b949e" font-size="9">family-specific attention heads</text>
+
+    <!-- Memory banks feeding into retrieval -->
+    <rect x="800" y="240" width="68" height="34" rx="5" fill="#39d2c0" fill-opacity="0.12" stroke="#39d2c0" stroke-width="1"/>
+    <text x="834" y="255" text-anchor="middle" fill="#39d2c0" font-size="9" font-weight="500">Entity</text>
+    <text x="834" y="268" text-anchor="middle" fill="#8b949e" font-size="7">who/where</text>
+
+    <rect x="876" y="240" width="68" height="34" rx="5" fill="#f0883e" fill-opacity="0.12" stroke="#f0883e" stroke-width="1"/>
+    <text x="910" y="255" text-anchor="middle" fill="#f0883e" font-size="9" font-weight="500">Tape</text>
+    <text x="910" y="268" text-anchor="middle" fill="#8b949e" font-size="7">when/what</text>
+
+    <rect x="952" y="240" width="68" height="34" rx="5" fill="#bc8cff" fill-opacity="0.12" stroke="#bc8cff" stroke-width="1"/>
+    <text x="986" y="255" text-anchor="middle" fill="#bc8cff" font-size="9" font-weight="500">HPM</text>
+    <text x="986" y="268" text-anchor="middle" fill="#8b949e" font-size="7">events</text>
+
+    <!-- hpm_seq output -->
+    <rect x="790" y="295" width="240" height="50" rx="8" fill="#1f6feb" fill-opacity="0.25" stroke="#58a6ff" stroke-width="2" filter="url(#glow)"/>
+    <text x="910" y="316" text-anchor="middle" fill="#58a6ff" font-size="13" font-weight="700">query_output</text>
+    <text x="910" y="334" text-anchor="middle" fill="#8b949e" font-size="10">(B, n_queries, answer_dim)</text>
+
+    <!-- Diagnostics output -->
+    <rect x="790" y="365" width="240" height="165" rx="8" fill="#8b949e" fill-opacity="0.08" stroke="#8b949e" stroke-width="1"/>
+    <text x="910" y="385" text-anchor="middle" fill="#8b949e" font-size="11" font-weight="600">Full Diagnostics</text>
+    <text x="910" y="403" text-anchor="middle" fill="#8b949e" font-size="9">HPM: gate_mean, z_{own,rule,evt}</text>
+    <text x="910" y="417" text-anchor="middle" fill="#8b949e" font-size="9">plasticity_mean, slot_age_mean</text>
+    <text x="910" y="431" text-anchor="middle" fill="#8b949e" font-size="9">slot_key_cosine, load_std</text>
+    <text x="910" y="445" text-anchor="middle" fill="#8b949e" font-size="9">Entity: route_entropy, state_norm</text>
+    <text x="910" y="459" text-anchor="middle" fill="#8b949e" font-size="9">Tape: n_events, fill_rate</text>
+    <text x="910" y="473" text-anchor="middle" fill="#8b949e" font-size="9">μ/σ per-state, diversity_loss</text>
+    <text x="910" y="487" text-anchor="middle" fill="#8b949e" font-size="9">write_regular_frac / write_forced_frac</text>
+    <text x="910" y="501" text-anchor="middle" fill="#8b949e" font-size="9">holder_logits, tagged_logits, visible</text>
+    <text x="910" y="515" text-anchor="middle" fill="#8b949e" font-size="9">event_type_logits, typed_event_log</text>
+
+    <!-- Concat to QueryHead -->
+    <rect x="790" y="550" width="240" height="65" rx="8" fill="#58a6ff" fill-opacity="0.1" stroke="#58a6ff" stroke-width="1"/>
+    <text x="910" y="570" text-anchor="middle" fill="#79c0ff" font-size="11" font-weight="500">→ IterativeQueryHead</text>
+    <text x="910" y="587" text-anchor="middle" fill="#8b949e" font-size="9">[seq ; holder ; hpm_seq ; entity_seq]</text>
+    <text x="910" y="601" text-anchor="middle" fill="#8b949e" font-size="9">D + max_ent + hpm_dim + entity_dim</text>
+
+    <!-- Concat flow from all banks -->
+    <!-- entity_seq → retrieval -->
+    <path d="M450 300 C 760 300, 760 100, 788 100" stroke="#39d2c0" stroke-width="1.5" fill="none" marker-end="url(#arr-teal)"/>
+    <!-- event tape → retrieval -->
+    <path d="M730 300 L788 140" stroke="#f0883e" stroke-width="1.5" fill="none" marker-end="url(#arr-orange)"/>
+    <!-- slots → retrieval -->
+    <path d="M720 730 C 760 730, 770 575, 788 575" stroke="#bc8cff" stroke-width="1.5" fill="none" marker-end="url(#arr-purple)"/>
+
+    <!-- Stage 1 → Stage 2 -->
+    <line x1="910" y1="135" x2="910" y2="153" stroke="#bc8cff" stroke-width="1.5" marker-end="url(#arr-purple)"/>
+    <!-- Stage 2 → output -->
+    <line x1="910" y1="220" x2="910" y2="238" stroke="#bc8cff" stroke-width="1" marker-end="url(#arr-purple)"/>
+    <line x1="910" y1="274" x2="910" y2="293" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#arr)"/>
+
+    <!-- ================================================================== -->
+    <!-- RUNNING STATS & REGULARIZERS                                        -->
+    <!-- ================================================================== -->
+
+    <!-- Per-state μ/σ (item #7) -->
+    <rect x="1090" y="55" width="250" height="75" rx="8" fill="#d29922" fill-opacity="0.08" stroke="#d29922" stroke-width="0.8"/>
+    <text x="1215" y="73" text-anchor="middle" fill="#e3b341" font-size="11" font-weight="600">Per-State Running Stats (NEW)</text>
+    <text x="1215" y="91" text-anchor="middle" fill="#8b949e" font-size="9">μ_OPEN / σ_OPEN per slot</text>
+    <text x="1215" y="105" text-anchor="middle" fill="#8b949e" font-size="9">μ_CLOSING / σ_CLOSING per slot</text>
+    <text x="1215" y="119" text-anchor="middle" fill="#8b949e" font-size="9">μ_LOCKED / σ_LOCKED per slot</text>
+
+    <!-- Continuous plasticity -->
+    <rect x="1090" y="145" width="250" height="65" rx="8" fill="#39d2c0" fill-opacity="0.08" stroke="#39d2c0" stroke-width="0.8"/>
+    <text x="1215" y="163" text-anchor="middle" fill="#39d2c0" font-size="11" font-weight="600">Continuous Plasticity (NEW)</text>
+    <text x="1215" y="181" text-anchor="middle" fill="#8b949e" font-size="9">slot_age: steps since last strong write</text>
+    <text x="1215" y="195" text-anchor="middle" fill="#8b949e" font-size="9">σ(scale · age · mismatch · |z| − bias)</text>
+    <text x="1215" y="203" text-anchor="middle" fill="#8b949e" font-size="8">replaces OPEN/CLOSING/LOCKED state machine</text>
+
+    <!-- Load balance -->
+    <rect x="1090" y="225" width="250" height="50" rx="8" fill="#f778ba" fill-opacity="0.08" stroke="#f778ba" stroke-width="0.8"/>
+    <text x="1215" y="243" text-anchor="middle" fill="#f778ba" font-size="11" font-weight="500">Load Balance (Top-k)</text>
+    <text x="1215" y="259" text-anchor="middle" fill="#8b949e" font-size="9">sticky (η) · load (γ) · age (δ) buffers</text>
+    <text x="1215" y="270" text-anchor="middle" fill="#8b949e" font-size="8">EMA of per-slot write share</text>
+
+    <!-- Diversity regularizer (item #6) -->
+    <rect x="1090" y="290" width="250" height="50" rx="8" fill="#bc8cff" fill-opacity="0.08" stroke="#bc8cff" stroke-width="0.8"/>
+    <text x="1215" y="308" text-anchor="middle" fill="#bc8cff" font-size="11" font-weight="500">Diversity Regularizer (NEW)</text>
+    <text x="1215" y="324" text-anchor="middle" fill="#8b949e" font-size="9">λ · mean_pairwise_cosine(slot_keys)</text>
+    <text x="1215" y="335" text-anchor="middle" fill="#8b949e" font-size="8">prevents key collapse under top-k</text>
+
+    <!-- Sigma floor -->
+    <rect x="1090" y="355" width="250" height="42" rx="8" fill="#d29922" fill-opacity="0.08" stroke="#d29922" stroke-width="0.8"/>
+    <text x="1215" y="373" text-anchor="middle" fill="#e3b341" font-size="11" font-weight="500">Hard σ Floor = 0.5</text>
+    <text x="1215" y="389" text-anchor="middle" fill="#8b949e" font-size="9">clamp(σ, min=0.5) — stops AB1 ep3 collapse</text>
+
+    <!-- Learnable gains -->
+    <rect x="1090" y="412" width="250" height="42" rx="8" fill="#3fb950" fill-opacity="0.08" stroke="#3fb950" stroke-width="0.8"/>
+    <text x="1215" y="430" text-anchor="middle" fill="#56d364" font-size="11" font-weight="500">Learnable Gains</text>
+    <text x="1215" y="446" text-anchor="middle" fill="#8b949e" font-size="9">softplus(gain_logits) — optimizer tunes gains</text>
+
+    <!-- Retroactive binding -->
+    <rect x="1090" y="469" width="250" height="52" rx="8" fill="#58a6ff" fill-opacity="0.08" stroke="#58a6ff" stroke-width="0.8"/>
+    <text x="1215" y="487" text-anchor="middle" fill="#79c0ff" font-size="11" font-weight="500">Retroactive Binding</text>
+    <text x="1215" y="503" text-anchor="middle" fill="#8b949e" font-size="9">write = Σ softmax(mix_w) · h_{t-w:t}</text>
+    <text x="1215" y="515" text-anchor="middle" fill="#8b949e" font-size="8">learned mixture over causal window</text>
+
+    <!-- Feedback arrows from err → stats -->
+    <path d="M442 570 C 900 570, 950 90, 1088 90" stroke="#d29922" stroke-width="1" stroke-dasharray="3,3" fill="none" marker-end="url(#arr-orange)"/>
+
+    <!-- ================================================================== -->
+    <!-- TEMPORAL FLOW ANNOTATION (bottom)                                   -->
+    <!-- ================================================================== -->
+
+    <rect x="190" y="880" width="560" height="60" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1"/>
+    <text x="470" y="900" text-anchor="middle" fill="#e6edf3" font-size="12" font-weight="600">Temporal Recurrence: t = 0 → T</text>
+    <text x="470" y="918" text-anchor="middle" fill="#8b949e" font-size="10">For each step: predict → factorized surprise → route (top-k) → write → update entity table → tape check</text>
+    <text x="470" y="933" text-anchor="middle" fill="#8b949e" font-size="10">Gradient flows through leaky w_t recurrence. Stats &amp; z-scores detached. Entity table fully differentiable.</text>
+
+    <!-- Time arrow -->
+    <line x1="210" y1="875" x2="730" y2="875" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#arr)"/>
+    <text x="220" y="872" fill="#58a6ff" font-size="9">t=0</text>
+    <text x="714" y="872" fill="#58a6ff" font-size="9">t=T</text>
+
+    <!-- ================================================================== -->
+    <!-- ARCHITECTURE COMPARISON (bottom section)                            -->
+    <!-- ================================================================== -->
+
+    <rect x="790" y="660" width="240" height="180" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1"/>
+    <text x="910" y="680" text-anchor="middle" fill="#e6edf3" font-size="11" font-weight="600">v1 → v2 Key Changes</text>
+
+    <text x="810" y="700" fill="#f85149" font-size="9">✕ State machine (O/C/L)</text>
+    <text x="810" y="716" fill="#3fb950" font-size="9">✓ Continuous plasticity</text>
+
+    <text x="810" y="736" fill="#f85149" font-size="9">✕ Single scalar surprise</text>
+    <text x="810" y="752" fill="#3fb950" font-size="9">✓ 3-channel factorized z</text>
+
+    <text x="810" y="772" fill="#f85149" font-size="9">✕ Sigmoid gate + force-unlock</text>
+    <text x="810" y="788" fill="#3fb950" font-size="9">✓ Top-k routing + soft age</text>
+
+    <text x="810" y="808" fill="#f85149" font-size="9">✕ No entity memory</text>
+    <text x="810" y="824" fill="#3fb950" font-size="9">✓ GRU EntityTable + EventTape</text>
+
+  </svg>
+
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#58a6ff"></div>
+      <span>Hidden state / data flow</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#d29922"></div>
+      <span>Prediction error / surprise</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#39d2c0"></div>
+      <span>Entity Table (NEW)</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#f0883e"></div>
+      <span>Event Tape (NEW)</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#f778ba"></div>
+      <span>Top-k routing (NEW)</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#bc8cff"></div>
+      <span>Slot memory / retrieval</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#3fb950"></div>
+      <span>Gate / plasticity control</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#f85149"></div>
+      <span>Detached / removed</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#8b949e"></div>
+      <span>Running stats / diagnostics</span>
+    </div>
+  </div>
+
+  <div class="changes">
+    <h2>v2 Architecture Changes Summary</h2>
+    <ul>
+      <li><span class="tag tag-new">NEW</span> EntityTable — GRU-based persistent entity-state memory (B, n_entities, d_entity), soft-attention routing, separates slowly-varying facts from surprise-driven events</li>
+      <li><span class="tag tag-new">NEW</span> Event Tape — append-only boundary snapshot buffer (max 32 entries), triggered by high surprise, stores (t, h_t, entity_state_t) for structured temporal retrieval</li>
+      <li><span class="tag tag-new">NEW</span> Top-k routing — replaces sigmoid gate with routing logits: content_key + β·|z| + η·sticky − γ·load − δ·age, softmax → top-k mask (k=2)</li>
+      <li><span class="tag tag-new">NEW</span> Factorized surprise — 3 independent prediction heads (ownership/rule/event), each producing its own z-score, giving the gate semantic type information</li>
+      <li><span class="tag tag-new">NEW</span> Continuous plasticity — sigmoid(scale · age · content_mismatch · |z| − bias) replaces the OPEN/CLOSING/LOCKED state machine</li>
+      <li><span class="tag tag-new">NEW</span> Per-state running stats — split μ/σ EMAs by slot state (OPEN/CLOSING/LOCKED), different error distributions per plasticity regime</li>
+      <li><span class="tag tag-new">NEW</span> Slot diversity regularizer — λ · mean_pairwise_cosine(slot_keys) prevents key collapse under top-k routing</li>
+      <li><span class="tag tag-new">NEW</span> Two-stage iterative retrieval — query embeds → family router (entity/tape/HPM) → family-specific cross-attention</li>
+      <li><span class="tag tag-new">NEW</span> Entity History Bank — K uniformly-spaced entity-state snapshots with time embeddings for scene reconstruction</li>
+      <li><span class="tag tag-changed">CHANGED</span> Hard σ floor = 0.5 — prevents the 0.94→0.31 convergence-collapse that killed AB1 ep3</li>
+      <li><span class="tag tag-changed">CHANGED</span> Learnable gains — softplus(gain_logits) initialized to original O=1.0/C=0.5/L=0.1 values, optimizer can tune</li>
+      <li><span class="tag tag-changed">CHANGED</span> Content-conditional writes — slot_key + content_query with softmax(q·k/√d) write weighting, load-balance penalty</li>
+      <li><span class="tag tag-changed">CHANGED</span> Gate MLP input — now takes [h_t ; z_own ; z_rule ; z_event ; state_embed] instead of scalar z</li>
+      <li><span class="tag tag-changed">CHANGED</span> Retroactive binding — write = learned mixture over causal window h_{t-W:t} instead of h_t alone</li>
+      <li><span class="tag tag-removed">REMOVED</span> Hard force-unlock — replaced by soft age penalty in routing logits (no cliff behavior)</li>
+      <li><span class="tag tag-removed">REMOVED</span> State machine (optional) — continuous plasticity subsumes O/C/L with a smooth scalar, still available as fallback</li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>
