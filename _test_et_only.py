@@ -1,6 +1,6 @@
-"""Smoke test for ET-only read ablation in IterativeQueryHead."""
+"""Smoke test for memory-source routing in IterativeQueryHead."""
 import torch
-from tmew1_queries import IterativeQueryHead
+from tmew1_queries import IterativeQueryHead, build_query_routing_map
 
 def test_backward_compat():
     head = IterativeQueryHead(d_input=64, d_memory=32, max_entities=4,
@@ -86,6 +86,40 @@ def test_gradients_flow():
     print("Test 6 PASS: gradients flow")
 
 
+def test_authoritative_routing_policy():
+    qmap = {
+        "who_holds_token": 0,
+        "closest_entity_to_holder_at_alarm": 1,
+        "entity_sharing_color_with_trigger": 2,
+    }
+    routing = build_query_routing_map("authoritative", qmap)
+    assert routing[0] == "entity"
+    assert routing[1] == "tape"
+    assert routing[2] == "fused"
+
+    head = IterativeQueryHead(
+        d_input=64,
+        d_memory=32,
+        max_entities=4,
+        num_query_types=10,
+        d_entity=16,
+        query_routing=routing,
+    )
+    seq = torch.randn(2, 8, 64, requires_grad=True)
+    qt = torch.randint(0, 8, (2, 3))
+    qy = torch.tensor([[0, 1, 2], [2, 0, 1]])
+    et = torch.randn(2, 4, 16, requires_grad=True)
+    tape = torch.randn(2, 8, 32, requires_grad=True)
+    mask = torch.ones(2, 8, dtype=torch.bool)
+    e, b = head(seq, qt, qy, entity_state=et, event_tape=tape, event_tape_mask=mask)
+    loss = e.sum() + b.sum()
+    loss.backward()
+    assert seq.grad is not None and seq.grad.abs().sum() > 0
+    assert et.grad is not None and et.grad.abs().sum() > 0
+    assert tape.grad is not None and tape.grad.abs().sum() > 0
+    print("Test 7 PASS: authoritative routing policy")
+
+
 if __name__ == "__main__":
     test_backward_compat()
     test_et_only_mixed()
@@ -93,4 +127,5 @@ if __name__ == "__main__":
     test_none_et_only()
     test_no_entity_state()
     test_gradients_flow()
-    print("\nAll 6 tests PASSED")
+    test_authoritative_routing_policy()
+    print("\nAll 7 tests PASSED")

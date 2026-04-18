@@ -426,3 +426,34 @@ When increasing `num_layers`, the controller config must scale:
 - `intervention_interval` ≈ `num_layers + 2` (give the recurrence time to settle between interventions)
 - `strategic_unlock_fraction` ≈ `1 / num_layers` (never unlock more than ~1 layer simultaneously)
 - This is a **hard constraint** — the model will NaN without it, and there was previously no recovery mechanism.
+
+## [2026-04-17 18:25]
+
+### Summary
+
+Implemented an explicit per-query retrieval routing policy so the iterative query head can treat the entity table as authoritative for current holder identity and force historical / counterfactual queries onto tape/history instead of defaulting everything to fused retrieval. Also added a new E-family ablation branch for this architecture change and inspected the latest Google Drive run folder structure to confirm newer run artifacts exist off-box.
+
+### Changes
+
+- Added `build_query_routing_map()` and route validation in [tmew1_queries.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_queries.py), with supported per-query routes: `entity`, `tape`, `fused`, `none`.
+- Extended `IterativeQueryHead` to accept explicit per-query routing and apply source-specific cross-attention buckets before falling back to legacy fused behavior.
+- Patched [tmew1_run.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_run.py) to read `TMEW1_QUERY_ROUTING_POLICY`, resolve the route map, and print the routed query families when active.
+- Added `query_routing_policy` to [tmew1_experiments.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_experiments.py) and introduced branch `E6` for authoritative routing on the A3/B2/B4 stress world.
+- Patched [tmew1_branch_runner.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_branch_runner.py) to export the routing policy into the runner environment.
+- Updated [run_ablation_suite.py](/mnt/c/users/wes/Desktop/hmwmc/run_ablation_suite.py) to include `E6` in the E-family suite.
+- Expanded [_test_et_only.py](/mnt/c/users/wes/Desktop/hmwmc/_test_et_only.py) to cover the new authoritative routing map and mixed source-gradient path.
+- Listed the provided Google Drive folder and confirmed newer result directories exist there (`ablation_E`, `ablation_E2E4`, `D2`, `baseline_v2.3_et_only`, etc.), though the raw JSON artifacts did not fetch cleanly through the current Drive text-fetch path.
+
+### Decisions
+
+- Kept legacy fused retrieval as the default behavior to avoid silently changing existing baselines; the new routing contract is opt-in through a named policy and branch preset.
+- Forced only the clearest current-state identity query (`who_holds_token`) to `entity` by contract, and routed the main historical / counterfactual bottleneck queries (`closest_entity_to_holder_at_alarm`, `holder_if_handoff2_absent`, plus other timeline-style queries) to `tape`.
+- Preserved `et_only_qtypes` as backward-compatible shorthand by lowering it into the new routing layer as `entity` routes.
+- Did not add another memory structure or modify HPM/state-machine logic in this turn because the codebase already had sufficient storage mechanisms; the missing piece was decisive retrieval routing.
+- Validation in this shell was limited to `python -m py_compile` because the environment is missing runtime dependencies (`numpy`, `torch`), so training/smoke execution remains pending.
+
+### Next Steps
+
+- Run branch `E6` in the real training environment and compare it directly against the latest Drive-backed `E1` / `E2` results on `qacc/who_holds_token`, `qacc/closest_entity_to_holder_at_alarm`, and `qacc/holder_if_handoff2_absent`.
+- If `E6` helps holder identity but not historical reconstruction enough, split the policy further so specific relational queries can choose `tape` vs `fused` rather than sharing one broad historical route.
+- Pull the latest `val.json` / verdict files from Drive through a download-capable path or synced local copy so the regression baseline is sourced from the newest runs rather than stale local logs.

@@ -55,6 +55,57 @@ QUERY_TYPES: Tuple[str, ...] = (
 )
 
 QUERY_TYPE_TO_IDX: Dict[str, int] = {q: i for i, q in enumerate(QUERY_TYPES)}
+QUERY_ROUTE_VALUES: Tuple[str, ...] = ("entity", "tape", "fused", "none")
+
+
+def build_query_routing_map(
+    policy: str,
+    query_type_to_idx: Dict[str, int],
+) -> Dict[int, str]:
+    """
+    Resolve a named routing policy into per-query memory routes.
+
+    ``legacy`` preserves the historical fused-read behavior.
+    ``authoritative`` makes current-state identity queries read from the
+    entity table, while historical / counterfactual queries read from the
+    event tape + entity history bank.
+    """
+    normalized = (policy or "legacy").strip().lower()
+    if normalized in ("", "legacy", "fused"):
+        return {}
+    if normalized != "authoritative":
+        raise ValueError(f"Unknown query routing policy: {policy}")
+
+    name_to_route: Dict[str, str] = {
+        # Current world-state questions must use the authoritative entity table.
+        "who_holds_token": "entity",
+
+        # Historical / counterfactual queries should reconstruct from tape/history.
+        "who_was_first_tagged": "tape",
+        "did_alarm_fire": "tape",
+        "which_entity_occluded": "tape",
+        "did_trigger_before_alarm": "tape",
+        "which_entity_first_occluded": "tape",
+        "did_chain2_fire": "tape",
+        "did_occlusion_before_handoff": "tape",
+        "did_chain2_before_chain1": "tape",
+        "which_event_was_first": "tape",
+        "closest_entity_to_holder_at_alarm": "tape",
+        "which_entity_visible_at_correction": "tape",
+        "entity_never_occluded": "tape",
+        "chain_never_fired": "tape",
+        "entity_never_tagged": "tape",
+        "holder_if_handoff2_absent": "tape",
+        "would_alarm_fire_without_correction": "tape",
+
+        # Hybrid questions can still use fused memory.
+        "entity_sharing_color_with_trigger": "fused",
+    }
+    return {
+        query_type_to_idx[name]: route
+        for name, route in name_to_route.items()
+        if name in query_type_to_idx
+    }
 
 
 @dataclass
@@ -430,6 +481,7 @@ class IterativeQueryHead(nn.Module):
         n_attn_heads: int = 4,
         n_retrieval_steps: int = 2,
         et_only_qtypes: Optional[set] = None,
+        query_routing: Optional[Dict[int, str]] = None,
         memory_ablation: str = "fused",  # "fused" | "et_only" | "tape_only" | "no_aux"
     ):
         super().__init__()
@@ -439,9 +491,16 @@ class IterativeQueryHead(nn.Module):
         self.num_query_types = num_query_types
         self.n_retrieval_steps = n_retrieval_steps
         self.et_only_qtypes: set = et_only_qtypes or set()
+        self.query_routing: Dict[int, str] = dict(query_routing or {})
         assert memory_ablation in ("fused", "et_only", "tape_only", "no_aux"), \
             f"Invalid memory_ablation mode: {memory_ablation}"
         self.memory_ablation = memory_ablation
+        for qtype_idx, route in self.query_routing.items():
+            if route not in QUERY_ROUTE_VALUES:
+                raise ValueError(
+                    f"Invalid route '{route}' for query type {qtype_idx}; "
+                    f"expected one of {QUERY_ROUTE_VALUES}"
+                )
 
         self.qtype_embed = nn.Embedding(num_query_types, d)
 
@@ -602,28 +661,62 @@ class IterativeQueryHead(nn.Module):
             else:
                 fused = query
 
-        # ── Route queries: ET-only vs full (per-qtype, fused mode only) ─
-        elif bool(self.et_only_qtypes) and et_memory is not None:
-            # Build per-query mask: True where query type is ET-only.
-            et_mask = torch.zeros(b, q, dtype=torch.bool, device=device)
+        # ── Route queries by explicit memory source policy ──────────────
+        elif self.query_routing or self.et_only_qtypes:
+            effective_routing = dict(self.query_routing)
             for qt_idx in self.et_only_qtypes:
-                et_mask |= (query_types == qt_idx)
+                effective_routing.setdefault(qt_idx, "entity")
 
+            route_masks = {
+                route: torch.zeros(b, q, dtype=torch.bool, device=device)
+                for route in QUERY_ROUTE_VALUES
+            }
+            for qt_idx, route in effective_routing.items():
+                route_masks[route] |= (query_types == qt_idx)
+
+            assigned_mask = torch.zeros(b, q, dtype=torch.bool, device=device)
             fused = torch.zeros(b, q, d, device=device, dtype=query.dtype)
 
-            # ET-only path.
-            if et_mask.any():
-                h_et = self._run_cross_attention(query, et_memory, et_kpm)
-                fused[et_mask] = h_et[et_mask]
+            entity_mask = route_masks["entity"]
+            if entity_mask.any():
+                if et_memory is not None:
+                    h_et = self._run_cross_attention(query, et_memory, et_kpm)
+                    fused[entity_mask] = h_et[entity_mask]
+                else:
+                    fused[entity_mask] = query[entity_mask]
+                assigned_mask |= entity_mask
 
-            # Full-memory path for remaining queries.
-            normal_mask = ~et_mask
-            if normal_mask.any():
+            tape_mask = route_masks["tape"]
+            if tape_mask.any():
+                if tape_memory is not None:
+                    h_tape = self._run_cross_attention(query, tape_memory, tape_kpm)
+                    fused[tape_mask] = h_tape[tape_mask]
+                else:
+                    fused[tape_mask] = query[tape_mask]
+                assigned_mask |= tape_mask
+
+            fused_mask = route_masks["fused"]
+            if fused_mask.any():
                 if full_memory is not None:
                     h_full = self._run_cross_attention(query, full_memory, full_kpm)
-                    fused[normal_mask] = h_full[normal_mask]
+                    fused[fused_mask] = h_full[fused_mask]
                 else:
-                    fused[normal_mask] = query[normal_mask]
+                    fused[fused_mask] = query[fused_mask]
+                assigned_mask |= fused_mask
+
+            none_mask = route_masks["none"]
+            if none_mask.any():
+                fused[none_mask] = query[none_mask]
+                assigned_mask |= none_mask
+
+            # Any unassigned query types keep the legacy fused behavior.
+            fallback_mask = ~assigned_mask
+            if fallback_mask.any():
+                if full_memory is not None:
+                    h_full = self._run_cross_attention(query, full_memory, full_kpm)
+                    fused[fallback_mask] = h_full[fallback_mask]
+                else:
+                    fused[fallback_mask] = query[fallback_mask]
         else:
             # Default fused path: all queries use full memory.
             if full_memory is not None:
@@ -824,6 +917,8 @@ def query_train_step_addon(
 __all__ = [
     "QUERY_TYPES",
     "QUERY_TYPE_TO_IDX",
+    "QUERY_ROUTE_VALUES",
+    "build_query_routing_map",
     "Query",
     "EpisodeWithQueries",
     "HandoffState",

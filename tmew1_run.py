@@ -32,7 +32,13 @@ from tmew1_train import (
     build_model,
     shift_targets,
 )
-from tmew1_queries import QueryHead, IterativeQueryHead, augment_sequence_with_holder_audio, query_train_step_addon
+from tmew1_queries import (
+    QueryHead,
+    IterativeQueryHead,
+    augment_sequence_with_holder_audio,
+    build_query_routing_map,
+    query_train_step_addon,
+)
 from tmew1_diagnostics import (
     generate_episode_with_diagnostics,
     get_extended_query_type_to_idx,
@@ -631,6 +637,17 @@ def run_curriculum(
         _memory_ablation = os.environ.get("TMEW1_MEMORY_ABLATION", "fused")
         if _memory_ablation != "fused":
             print(f"Memory ablation mode: {_memory_ablation}")
+        _routing_policy = os.environ.get("TMEW1_QUERY_ROUTING_POLICY", "legacy")
+        _query_routing = build_query_routing_map(
+            _routing_policy,
+            get_extended_query_type_to_idx(),
+        )
+        if _routing_policy != "legacy":
+            routed_names = sorted(
+                name for name, idx in get_extended_query_type_to_idx().items()
+                if idx in _query_routing
+            )
+            print(f"Query routing policy: {_routing_policy} ({routed_names})")
         query_head = IterativeQueryHead(
             d_input=d_input,
             d_memory=model.cfg.d_model,
@@ -638,6 +655,7 @@ def run_curriculum(
             num_query_types=len(get_extended_query_types()),
             d_entity=d_entity,
             et_only_qtypes=_et_only_set if _et_only_set else None,
+            query_routing=_query_routing if _query_routing else None,
             memory_ablation=_memory_ablation,
         )
     else:

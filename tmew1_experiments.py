@@ -79,7 +79,7 @@ BRANCH_IDS = (
     "B1", "B2", "B3", "B4",
     "C1", "C2", "C3", "C4",
     "D1", "D2", "D3",
-    "E1", "E2", "E3", "E4", "E5",
+    "E1", "E2", "E3", "E4", "E5", "E6",
     "AB1",
 )
 
@@ -269,6 +269,11 @@ class BranchConfig:
     # "fused" = default (all memory sources), "et_only" = entity table only,
     # "tape_only" = event tape + entity history only, "no_aux" = skip cross-attn.
     memory_ablation_mode: str = "fused"
+    # Named per-query routing policy layered on top of fused mode.
+    # "legacy" = keep historical fused behavior, "authoritative" = force
+    # current-state identity queries to entity-table and historical /
+    # counterfactual queries to tape/history.
+    query_routing_policy: str = "legacy"
 
     # --- HPM state-machine ablation ---
     # When True, use continuous_plasticity instead of OPEN/CLOSING/LOCKED.
@@ -832,6 +837,22 @@ def make_branch_preset(branch_id: str) -> BranchConfig:
             enable_entity_history=True,
             memory_ablation_mode="fused",
             hpm_continuous_plasticity=True,
+            extra_query_families=_E_QUERIES,
+            rubric=_E_RUBRIC,
+            **_E_WORLD,
+            **_E_STABILITY,
+        )
+
+    if branch_id == "E6":
+        return BranchConfig(
+            branch_id="E6",
+            family="E",
+            description="Authoritative query routing: entity for holder identity, tape/history for historical questions",
+            enable_entity_table=True,
+            enable_event_tape=True,
+            enable_entity_history=True,
+            memory_ablation_mode="fused",
+            query_routing_policy="authoritative",
             extra_query_families=_E_QUERIES,
             rubric=_E_RUBRIC,
             **_E_WORLD,

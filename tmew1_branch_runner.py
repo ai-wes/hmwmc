@@ -256,6 +256,10 @@ def run_branch(branch: BranchConfig, out_dir: str, baseline_record: Optional[Dic
         os.environ["TMEW1_MEMORY_ABLATION"] = branch.memory_ablation_mode
     else:
         os.environ.pop("TMEW1_MEMORY_ABLATION", None)
+    if branch.query_routing_policy != "legacy":
+        os.environ["TMEW1_QUERY_ROUTING_POLICY"] = branch.query_routing_policy
+    else:
+        os.environ.pop("TMEW1_QUERY_ROUTING_POLICY", None)
 
     world_cfg = apply_world_overrides(branch)
     tiers = apply_tier_overrides(branch)
