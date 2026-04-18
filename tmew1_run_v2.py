@@ -64,6 +64,31 @@ import tmew1_viz_server as viz
 _VIZ_ENABLED = False
 
 
+def _tier_promotion_checks(tier: CurriculumTier) -> Tuple[Tuple[str, float], ...]:
+    checks = [("latent_acc", float(tier.promote_at_accuracy))]
+    if tier.promote_qacc_who_holds_token is not None:
+        checks.append(("qacc/who_holds_token", float(tier.promote_qacc_who_holds_token)))
+    if tier.promote_qacc_who_was_first_tagged is not None:
+        checks.append(("qacc/who_was_first_tagged", float(tier.promote_qacc_who_was_first_tagged)))
+    if tier.promote_holder_acc is not None:
+        checks.append(("holder_acc", float(tier.promote_holder_acc)))
+    if tier.promote_qacc_what_was_true_rule is not None:
+        checks.append(("qacc/what_was_true_rule", float(tier.promote_qacc_what_was_true_rule)))
+    return tuple(checks)
+
+
+def _evaluate_tier_promotion(val: Dict[str, float], tier: CurriculumTier) -> Tuple[bool, Tuple[str, ...]]:
+    failures = []
+    for metric, floor in _tier_promotion_checks(tier):
+        value = val.get(metric)
+        if value is None:
+            failures.append(f"{metric}=missing < {floor:.3f}")
+            continue
+        if value < floor:
+            failures.append(f"{metric}={value:.3f} < {floor:.3f}")
+    return len(failures) == 0, tuple(failures)
+
+
 # -----------------------------------------------------------------------------
 # Dataset that emits query-augmented episodes
 # -----------------------------------------------------------------------------
@@ -905,6 +930,7 @@ def run_curriculum(
         )
 
         promoted = False
+        promotion_streak = 0
         for epoch in range(tcfg.epochs_per_tier):
             _accum_unlocks = 0  # accumulate force-unlocks between log events
             for step, batch in enumerate(train_loader):
@@ -987,7 +1013,24 @@ def run_curriculum(
                 with open(os.path.join(_branch_out, "val.json"), "w") as _vf:
                     json.dump({k: float(v) for k, v in val.items()}, _vf, indent=2)
 
-            if val["latent_acc"] >= tier.promote_at_accuracy:
+            can_promote, failures = _evaluate_tier_promotion(val, tier)
+            if can_promote:
+                promotion_streak += 1
+                print(
+                    f"  -> promotion gate passed for tier {tier.tier} "
+                    f"({promotion_streak}/{max(1, tier.promote_patience)})"
+                )
+            else:
+                if promotion_streak > 0:
+                    print(f"  -> promotion streak reset for tier {tier.tier}")
+                promotion_streak = 0
+                print(
+                    f"  -> holding tier {tier.tier}; unmet gates: "
+                    + "; ".join(failures[:4])
+                    + (f"; +{len(failures) - 4} more" if len(failures) > 4 else "")
+                )
+
+            if promotion_streak >= max(1, tier.promote_patience):
                 print(f"  -> promoting from tier {tier.tier}")
                 promoted = True
                 break

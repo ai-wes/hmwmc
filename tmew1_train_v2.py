@@ -75,12 +75,40 @@ class CurriculumTier:
     template_pool: Tuple[str, ...]
     max_delay: int
     occlusion: bool
-    promote_at_accuracy: float          # validation latent-state acc to promote
+    promote_at_accuracy: float          # latent-state floor; not the sole promotion gate in tmew1_run_v2
+    promote_qacc_who_holds_token: Optional[float] = None
+    promote_qacc_who_was_first_tagged: Optional[float] = None
+    promote_holder_acc: Optional[float] = None
+    promote_qacc_what_was_true_rule: Optional[float] = None
+    promote_patience: int = 1
 
 
 DEFAULT_TIERS: Tuple[CurriculumTier, ...] = (
-    CurriculumTier(1, 24, ("vision", "numeric"), ("trigger_delay",), 3, False, 0.70),
-    CurriculumTier(2, 48, ("vision", "numeric", "audio"), ("trigger_delay", "occlusion_identity", "multi_chain"), 8, True, 0.65),
+    CurriculumTier(
+        1,
+        24,
+        ("vision", "numeric"),
+        ("trigger_delay",),
+        3,
+        False,
+        0.90,
+        promote_qacc_who_holds_token=0.75,
+        promote_qacc_who_was_first_tagged=0.70,
+        promote_patience=2,
+    ),
+    CurriculumTier(
+        2,
+        48,
+        ("vision", "numeric", "audio"),
+        ("trigger_delay", "occlusion_identity", "multi_chain"),
+        8,
+        True,
+        0.95,
+        promote_qacc_who_holds_token=0.65,
+        promote_holder_acc=0.70,
+        promote_qacc_what_was_true_rule=0.75,
+        promote_patience=2,
+    ),
     CurriculumTier(3, 64, ("vision", "numeric", "audio", "text"), ("trigger_delay", "occlusion_identity", "multi_chain"), 12, True, 1.01),
 )
 

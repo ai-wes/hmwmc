@@ -633,3 +633,81 @@ Fixed the `_v2` post-Tier-1 diagnostic crash by teaching the `_v2` diagnostics c
 
 - Re-run the `_v2` branch from the saved Tier 1 checkpoint to confirm diagnostics no longer crash on promotion.
 - If the next issue is metric quality rather than a crash, inspect Tier 2 structured query behavior with the now-correct diagnostics path.
+
+## [2026-04-17 21:34]
+
+### Summary
+
+Reviewed the `_v2` curriculum progression logic against the latest training logs and confirmed that tiers are advancing too early for the intended capabilities because promotion is keyed only to `latent_acc`.
+
+### Changes
+
+- Inspected the promotion field and defaults in [tmew1_train_v2.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_train_v2.py).
+- Inspected the actual promotion check in [tmew1_run_v2.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_run_v2.py).
+- Compared those checks against the supplied Tier 1 and Tier 2 validation metrics and diagnostics.
+
+### Decisions
+
+- The main problem is not simply "too few epochs"; it is that promotion is triggered by the wrong metric.
+- `_v2` currently promotes on `val["latent_acc"] >= tier.promote_at_accuracy` alone, even when `qacc/who_holds_token`, `holder_acc`, and handoff-bucket diagnostics remain poor.
+- Any curriculum fix should add multi-metric gating and likely a minimum consecutive-validation requirement, not just increase epoch count blindly.
+
+### Next Steps
+
+- Replace latent-only promotion with a rubric that includes `qacc/who_holds_token`, `holder_acc`, and Tier-2 belief-revision metrics.
+- Add a minimum validation-stability rule, such as requiring the promotion rubric to hold for 2 consecutive validation checks before advancing.
+
+## [2026-04-17 23:58]
+
+### Summary
+
+Reviewed the latest `_v2` run logs and confirmed that the model is still promoting too early, but the root cause is the promotion rule rather than the raw epoch count alone.
+
+### Changes
+
+- Compared Tier 1 validation behavior across `ep0` and `ep1` from the supplied logs.
+- Re-checked the `_v2` curriculum thresholds in [tmew1_train_v2.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_train_v2.py).
+- Re-checked the `_v2` promotion gate in [tmew1_run_v2.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_run_v2.py).
+
+### Decisions
+
+- Tier 1 is not ready to promote when `latent_acc=1.0` but `qacc/who_holds_token` remains stuck at `0.512` across validations and handoff-bucket accuracy is still near-zero for several buckets.
+- More training time could help, but simply increasing epoch count is too blunt because the target query metric is flat while latent metrics continue improving.
+- The correct fix is to gate promotion on the capabilities that matter (`who_holds_token`, holder-state quality, and later belief-revision quality), plus a consecutive-validation stability rule.
+
+### Next Steps
+
+- Implement `_v2` curriculum promotion using a multi-metric rubric instead of `latent_acc` alone.
+- Consider per-tier minimum dwell time only as a secondary safeguard after the promotion rubric is corrected.
+
+## [2026-04-18 00:17]
+
+### Summary
+
+Implemented the `_v2` curriculum promotion rubric so tier advancement is no longer triggered by `latent_acc` alone.
+
+### Changes
+
+- Extended [tmew1_train_v2.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_train_v2.py) `CurriculumTier` with optional capability thresholds:
+  - `promote_qacc_who_holds_token`
+  - `promote_qacc_who_was_first_tagged`
+  - `promote_holder_acc`
+  - `promote_qacc_what_was_true_rule`
+  - `promote_patience`
+- Updated `_v2` default tier thresholds in [tmew1_train_v2.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_train_v2.py):
+  - Tier 1 now requires `latent_acc >= 0.90`, `qacc/who_holds_token >= 0.75`, `qacc/who_was_first_tagged >= 0.70`, with `promote_patience=2`.
+  - Tier 2 now requires `latent_acc >= 0.95`, `qacc/who_holds_token >= 0.65`, `holder_acc >= 0.70`, `qacc/what_was_true_rule >= 0.75`, with `promote_patience=2`.
+- Added `_evaluate_tier_promotion()` and a promotion streak counter in [tmew1_run_v2.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_run_v2.py).
+- Replaced the old `val["latent_acc"] >= tier.promote_at_accuracy` promotion check in [tmew1_run_v2.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_run_v2.py) with the new multi-metric gate and consecutive-validation requirement.
+- Verified the patched `_v2` files with `python -m py_compile tmew1_train_v2.py tmew1_run_v2.py`.
+
+### Decisions
+
+- Kept the change confined to `_v2` files; baseline curriculum behavior remains untouched.
+- Used patience-based promotion (`2` consecutive validations) instead of a hard minimum epoch count, so the model can still advance as soon as it is actually stable.
+- Left the existing fallback behavior in place: if a tier never clears the rubric by the end of `epochs_per_tier`, the run still continues, but it no longer "graduates" early on the wrong proxy.
+
+### Next Steps
+
+- Re-run the `_v2` branch and confirm Tier 1 no longer promotes while `qacc/who_holds_token` is stuck near `0.51`.
+- If Tier 1 still plateaus below the new gate after the full allotted epochs, increase `epochs_per_tier` or strengthen holder supervision rather than loosening the rubric.
