@@ -50,7 +50,7 @@ import traceback
 from dataclasses import asdict, replace
 from typing import Dict, Optional, Tuple
 
-from tmew1_experiments import (
+from tmew1_experiments_v2 import (
     BRANCH_IDS,
     BranchConfig,
     PromotionRubric,
@@ -231,12 +231,12 @@ def run_branch(branch: BranchConfig, out_dir: str, baseline_record: Optional[Dic
     """
     Execute a branch. Returns (verdict, val_record).
 
-    Delegates training to tmew1_run.run_curriculum, which already knows how
+    Delegates training to tmew1_run_v2.run_curriculum, which already knows how
     to iterate tiers, build the model, evaluate, and emit the val record
     per epoch. We import it lazily so the module stays testable.
     """
     # Lazy import so the runner can be inspected without torch.
-    from tmew1_run import run_curriculum
+    from tmew1_run_v2 import run_curriculum
     os.makedirs(out_dir, exist_ok=True)
     os.environ["TMEW1_BRANCH_OUT_DIR"] = out_dir
     if branch.extra_query_families:
@@ -265,7 +265,7 @@ def run_branch(branch: BranchConfig, out_dir: str, baseline_record: Optional[Dic
     # via run_curriculum. This replaces the old (broken) monkey-patch approach
     # — dataclass __init__ is generated at class definition time, so patching
     # __dataclass_fields__ has no effect on instance creation.
-    from hpm import EntityTableConfig, EventTapeConfig, EntityHistoryConfig
+    from hpm_v2 import EntityTableConfig, EventTapeConfig, EntityHistoryConfig
 
     model_config_overrides: Dict[str, object] = {}
 

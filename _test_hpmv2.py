@@ -1,6 +1,17 @@
-"""Smoke test for HPM v2 features."""
+"""Focused smoke test for hpm_v2 and the explicit state stack."""
 import torch
-from hpm import HPMConfig, HomeostaticPredictiveMemory, EntityTable, EntityTableConfig
+from hpm_v2 import (
+    HPMConfig,
+    HomeostaticPredictiveMemory,
+    EntityTable,
+    EntityTableConfig,
+    StructuredStateConfig,
+    StructuredStateTable,
+    TypedEventLogConfig,
+    TypedEventLog,
+    StateCheckpointConfig,
+    StateCheckpointBank,
+)
 
 x = torch.randn(2, 10, 64)
 
@@ -96,4 +107,20 @@ hpm6.reset_running_stats()
 print(f"Test 10 (reset): sticky={hpm6._sticky.sum():.1f}, load={hpm6._load.sum():.1f}")
 assert hpm6._sticky.sum() == 0 and hpm6._load.sum() == 0
 
-print("\nALL 10 TESTS PASSED")
+# Test 11: Structured state stack
+ss = StructuredStateTable(d_model=64, cfg=StructuredStateConfig(enabled=True, n_entities=4, d_state=32))
+structured = ss(x)
+print(f"Test 11 (structured state): seq={structured.sequence.shape}, mem={structured.memory_tokens.shape}")
+assert structured.sequence.shape == (2, 10, 64)
+assert structured.memory_tokens.shape == (2, 10, 4, 64)
+
+# Test 12: Typed event log + checkpoints
+typed = TypedEventLog(d_model=64, n_entities=4, cfg=TypedEventLogConfig(enabled=True, max_events=6))
+typed_out = typed(x, structured, z_per_step=torch.randn(2, 10, 2))
+checkpoints = StateCheckpointBank(d_model=64, n_entities=4, cfg=StateCheckpointConfig(enabled=True, n_checkpoints=4))
+checkpoint_out = checkpoints(structured, typed_out.event_scores)
+print(f"Test 12 (typed events/checkpoints): events={typed_out.entries.shape}, checkpoints={checkpoint_out.entries.shape}")
+assert typed_out.entries.shape == (2, 6, 64)
+assert checkpoint_out.entries.shape == (2, 4, 64)
+
+print("\nALL 12 TESTS PASSED")

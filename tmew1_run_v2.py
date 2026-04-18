@@ -23,7 +23,7 @@ import torch
 from torch import Tensor, nn
 from torch.utils.data import Dataset, DataLoader
 
-from tmew1_train import (
+from tmew1_train_v2 import (
     WorldConfig,
     TrainConfig,
     CurriculumTier,
@@ -32,9 +32,10 @@ from tmew1_train import (
     build_model,
     shift_targets,
 )
-from tmew1_queries import (
+from tmew1_queries_v2 import (
     QueryHead,
     IterativeQueryHead,
+    StructuredQueryHeadV2,
     augment_sequence_with_holder_audio,
     query_train_step_addon,
 )
@@ -47,7 +48,7 @@ from tmew1_diagnostics import (
     run_diagnostic_report,
 )
 
-from homeostatic_multimodal_world_model_chunked import (
+from homeostatic_multimodal_world_model_chunked_v2 import (
     HomeostaticMultimodalWorldModel,
     MultimodalPredictionLoss,
     ForwardOutput,
@@ -179,6 +180,8 @@ def build_query_input(
     )
     if output.hpm_sequence is not None:
         aug = torch.cat([aug, output.hpm_sequence.to(aug.dtype)], dim=-1)
+    if output.structured_state_sequence is not None:
+        aug = torch.cat([aug, output.structured_state_sequence.to(aug.dtype)], dim=-1)
     return aug
 
 
@@ -188,13 +191,24 @@ def get_retrieval_context(output: ForwardOutput):
     if output.entity_states is not None:
         # Use the FINAL entity state (B, n_e, d_e) for retrieval head memory.
         entity_state = output.entity_states[:, -1]  # (B, n_e, d_e)
-    return {
+    ctx = {
         "entity_state": entity_state,
         "event_tape": output.event_tape_entries,
         "event_tape_mask": output.event_tape_mask,
         "entity_history": output.entity_history_entries,
         "entity_history_mask": output.entity_history_mask,
     }
+    ctx.update({
+        "structured_state_holder_logits": output.structured_state_holder_logits,
+        "typed_event_entries": output.typed_event_entries,
+        "typed_event_mask": output.typed_event_mask,
+        "typed_event_times": output.typed_event_times,
+        "state_checkpoint_entries": output.state_checkpoint_entries,
+        "state_checkpoint_mask": output.state_checkpoint_mask,
+        "state_checkpoint_times": output.state_checkpoint_times,
+        "state_checkpoint_holder_logits": output.state_checkpoint_holder_logits,
+    })
+    return ctx
 
 # -----------------------------------------------------------------------------
 # Per-query-type accuracy logging
@@ -215,7 +229,7 @@ def per_qtype_accuracy(
         max_entities=holder_feature_dim,
         use_audio="audio" in enabled,
     )
-    if isinstance(query_head, IterativeQueryHead):
+    if isinstance(query_head, IterativeQueryHead) or getattr(query_head, "uses_structured_context", False):
         ctx = get_retrieval_context(output)
         entity_logits, binary_logits = query_head(
             augmented_seq, qtimes, batch["query_types"], **ctx,
@@ -239,6 +253,49 @@ def per_qtype_accuracy(
         acc = (preds == targets[mask]).float().mean().item()
         metrics[f"qacc/{qtype_name}"] = acc
     return metrics
+
+
+def build_typed_event_targets(
+    batch: Dict[str, Tensor],
+    seq_len: int,
+) -> Tuple[Tensor, Tensor, Tensor]:
+    """
+    Build per-step typed-event supervision aligned to output.sequence length.
+
+    Event ids follow TypedEventLog.EVENT_TYPES in hpm_v2.py:
+      0 none
+      1 handoff
+      2 trigger
+      3 alarm
+      4 chain2_fire
+      5 correction
+      6 state_change
+    """
+    device = batch["latent_rule"].device
+    holder_prev = batch["holder_per_step"][:, :seq_len]
+    holder_next = batch["holder_per_step"][:, 1:seq_len + 1]
+    targets = torch.zeros_like(holder_prev)
+
+    handoff_mask = holder_prev != holder_next
+    targets[handoff_mask] = 1
+
+    def _assign(step_key: str, label: int) -> None:
+        if step_key not in batch:
+            return
+        steps = batch[step_key].clamp(min=-1, max=seq_len - 1)
+        valid = steps >= 0
+        if not valid.any():
+            return
+        rows = valid.nonzero(as_tuple=False).squeeze(-1)
+        cols = steps[valid]
+        targets[rows, cols] = label
+
+    _assign("trigger_step", 2)
+    _assign("alarm_step", 3)
+    _assign("chain2_fire_step", 4)
+    _assign("cue_corrected_at", 5)
+    _assign("color_change_step", 6)
+    return targets.to(device), holder_prev.to(device), holder_next.to(device)
 
 
 # -----------------------------------------------------------------------------
@@ -304,25 +361,32 @@ def train_one_step(
     rule_logits = probe(output.sequence)
     aux = nn.functional.cross_entropy(rule_logits, batch["latent_rule"])
 
+    query_ctx = get_retrieval_context(output) if (
+        isinstance(query_head, IterativeQueryHead) or getattr(query_head, "uses_structured_context", False)
+    ) else {}
     q_loss, q_metrics = query_train_step_addon(
-                build_query_input(
-                    output,
-                    batch.get("audio"),
-                    max_entities=holder_feature_dim,
-                    use_audio="audio" in enabled,
-                ),
-                query_head,
-                batch,
-                query_type_to_idx=get_extended_query_type_to_idx(),
-                weight=0.5,
-                **(get_retrieval_context(output) if isinstance(query_head, IterativeQueryHead) else {}),
-            )
+        build_query_input(
+            output,
+            batch.get("audio"),
+            max_entities=holder_feature_dim,
+            use_audio="audio" in enabled,
+        ),
+        query_head,
+        batch,
+        query_type_to_idx=get_extended_query_type_to_idx(),
+        weight=0.5,
+        **query_ctx,
+    )
 
     holder_active = "audio" in enabled and "holder_per_step" in batch
     holder_loss = torch.zeros((), device=output.sequence.device)
     holder_acc = 0.0
     if holder_active:
-        holder_logits = holder_head(output.sequence)
+        holder_logits = (
+            output.structured_state_holder_logits
+            if output.structured_state_holder_logits is not None
+            else holder_head(output.sequence)
+        )
         holder_targets = batch["holder_per_step"][:, :-1]
         holder_loss = nn.functional.cross_entropy(
             holder_logits.reshape(-1, holder_logits.size(-1)),
@@ -331,7 +395,33 @@ def train_one_step(
         with torch.no_grad():
             holder_acc = (holder_logits.argmax(-1) == holder_targets).float().mean().item()
 
-    total = losses.total + tcfg.aux_latent_weight * aux + q_loss + tcfg.holder_loss_weight * holder_loss
+    event_loss = torch.zeros((), device=output.sequence.device)
+    event_acc = 0.0
+    if output.typed_event_type_logits is not None and "holder_per_step" in batch:
+        event_targets, prev_holder_targets, next_holder_targets = build_typed_event_targets(
+            batch,
+            output.typed_event_type_logits.size(1),
+        )
+        event_loss = nn.functional.cross_entropy(
+            output.typed_event_type_logits.reshape(-1, output.typed_event_type_logits.size(-1)),
+            event_targets.reshape(-1),
+        )
+        if output.typed_event_prev_holder_logits is not None:
+            event_loss = event_loss + 0.25 * nn.functional.cross_entropy(
+                output.typed_event_prev_holder_logits.reshape(-1, output.typed_event_prev_holder_logits.size(-1)),
+                prev_holder_targets.reshape(-1),
+            )
+        if output.typed_event_next_holder_logits is not None:
+            event_loss = event_loss + 0.25 * nn.functional.cross_entropy(
+                output.typed_event_next_holder_logits.reshape(-1, output.typed_event_next_holder_logits.size(-1)),
+                next_holder_targets.reshape(-1),
+            )
+        with torch.no_grad():
+            event_acc = (
+                output.typed_event_type_logits.argmax(-1) == event_targets
+            ).float().mean().item()
+
+    total = losses.total + tcfg.aux_latent_weight * aux + q_loss + tcfg.holder_loss_weight * holder_loss + 0.20 * event_loss
 
     # HPM v2: extract diversity regularizer (Tensor) and add to total.
     _hpm_diag = getattr(model, '_last_hpm_diagnostics', None)
@@ -386,6 +476,7 @@ def train_one_step(
             "aux_latent": float("nan"), "latent_acc": rule_acc,
             "q_loss": float("nan"),
             **({"holder_loss": float("nan"), "holder_acc": holder_acc} if holder_active else {}),
+            **({"event_loss": float("nan"), "event_acc": event_acc} if output.typed_event_type_logits is not None else {}),
             **q_metrics,
         }
 
@@ -436,6 +527,7 @@ def train_one_step(
             "aux_latent": float(aux.item()), "latent_acc": rule_acc,
             "q_loss": float(q_loss.item()),
             **({"holder_loss": float(holder_loss.item()), "holder_acc": holder_acc} if holder_active else {}),
+            **({"event_loss": float(event_loss.item()), "event_acc": event_acc} if output.typed_event_type_logits is not None else {}),
             "skipped_step": True, **q_metrics,
         }
     optimizer.step()
@@ -475,6 +567,9 @@ def train_one_step(
     if holder_active:
         out["holder_loss"] = float(holder_loss.item())
         out["holder_acc"] = holder_acc
+    if output.typed_event_type_logits is not None:
+        out["event_loss"] = float(event_loss.item())
+        out["event_acc"] = event_acc
     for mod_name, mod_loss in losses.parts.items():
         out[f"loss/{mod_name}"] = float(mod_loss.item())
     return out
@@ -527,15 +622,30 @@ def evaluate(
         rule_acc = (rule_logits.argmax(-1) == batch["latent_rule"]).float().mean().item()
         qtype_metrics = per_qtype_accuracy(output, query_head, batch, holder_feature_dim, enabled)
         holder_acc = 0.0
+        event_acc = 0.0
         if "audio" in enabled and "holder_per_step" in batch:
-            holder_logits = holder_head(output.sequence)
+            holder_logits = (
+                output.structured_state_holder_logits
+                if output.structured_state_holder_logits is not None
+                else holder_head(output.sequence)
+            )
             holder_targets = batch["holder_per_step"][:, :-1]
             holder_acc = (holder_logits.argmax(-1) == holder_targets).float().mean().item()
+        if output.typed_event_type_logits is not None and "holder_per_step" in batch:
+            event_targets, _, _ = build_typed_event_targets(
+                batch,
+                output.typed_event_type_logits.size(1),
+            )
+            event_acc = (
+                output.typed_event_type_logits.argmax(-1) == event_targets
+            ).float().mean().item()
 
         sums["next_step"] = sums.get("next_step", 0.0) + float(losses.total.item()) * bs
         sums["latent_acc"] = sums.get("latent_acc", 0.0) + rule_acc * bs
         if "audio" in enabled and "holder_per_step" in batch:
             sums["holder_acc"] = sums.get("holder_acc", 0.0) + holder_acc * bs
+        if output.typed_event_type_logits is not None:
+            sums["event_acc"] = sums.get("event_acc", 0.0) + event_acc * bs
         # Per-modality loss parts
         for mod_name, mod_loss in losses.parts.items():
             k = f"loss/{mod_name}"
@@ -562,6 +672,8 @@ def evaluate(
     out = {"next_step": sums["next_step"] / max(1, n), "latent_acc": sums["latent_acc"] / max(1, n)}
     if "holder_acc" in sums:
         out["holder_acc"] = sums["holder_acc"] / max(1, n)
+    if "event_acc" in sums:
+        out["event_acc"] = sums["event_acc"] / max(1, n)
     # Per-modality val losses
     for mk in ("loss/text", "loss/vision", "loss/audio", "loss/numeric"):
         if mk in sums:
@@ -609,15 +721,29 @@ def run_curriculum(
         hpm_dim += model.hpm_slow.output_dim
     if getattr(model, "entity_table", None) is not None:
         hpm_dim += model.entity_table.output_dim
+    structured_dim = model.cfg.d_model if getattr(model, "structured_state", None) is not None else 0
 
-    d_input = model.cfg.d_model + world_cfg.max_entities + hpm_dim
+    d_input = model.cfg.d_model + world_cfg.max_entities + hpm_dim + structured_dim
 
     # Use IterativeQueryHead when entity table or event tape are present.
+    _use_structured = (
+        getattr(model, "structured_state", None) is not None
+        or getattr(model, "typed_event_log", None) is not None
+        or getattr(model, "state_checkpoint_bank", None) is not None
+    )
     _use_iterative = (
         getattr(model, "entity_table", None) is not None
         or getattr(model, "event_tape", None) is not None
     )
-    if _use_iterative:
+    if _use_structured:
+        query_head = StructuredQueryHeadV2(
+            d_input=d_input,
+            d_memory=model.cfg.d_model,
+            max_entities=num_categorical_answers,
+            num_query_types=len(get_extended_query_types()),
+            query_type_names=get_extended_query_types(),
+        )
+    elif _use_iterative:
         d_entity = 0
         if getattr(model, "entity_table", None) is not None:
             d_entity = model.entity_table.cfg.d_entity

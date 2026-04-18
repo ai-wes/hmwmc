@@ -27,7 +27,7 @@ import torch
 from torch import Tensor, nn
 import torch.nn.functional as F
 
-from tmew1_train import (
+from tmew1_train_v2 import (
     WorldConfig,
     WorldState,
     Entity,
@@ -629,6 +629,211 @@ class IterativeQueryHead(nn.Module):
         return entity_logits, binary_logits
 
 
+class StructuredQueryHeadV2(nn.Module):
+    """
+    Query-family-aware executor for the v2 architecture.
+
+    Current-state identity queries read explicit structured holder logits.
+    Historical and counterfactual queries attend over typed events plus
+    checkpointed state instead of a fused latent bank.
+    """
+
+    def __init__(
+        self,
+        d_input: int,
+        d_memory: int,
+        max_entities: int,
+        num_query_types: int,
+        query_type_names: Optional[Sequence[str]] = None,
+        n_retrieval_steps: int = 2,
+    ):
+        super().__init__()
+        self.d_memory = d_memory
+        self.max_entities = max_entities
+        self.num_query_types = num_query_types
+        self.n_retrieval_steps = n_retrieval_steps
+        self.uses_structured_context = True
+        self.qtype_names = tuple(query_type_names or ())
+        self.qtype_to_idx = {name: i for i, name in enumerate(self.qtype_names)}
+
+        self.qtype_embed = nn.Embedding(num_query_types, d_memory)
+        self.input_proj = nn.Linear(d_input, d_memory)
+        self.query_fuse = nn.Sequential(
+            nn.Linear(2 * d_memory, d_memory),
+            nn.GELU(),
+        )
+        self.history_norm1 = nn.ModuleList([nn.LayerNorm(d_memory) for _ in range(n_retrieval_steps)])
+        self.history_norm2 = nn.ModuleList([nn.LayerNorm(d_memory) for _ in range(n_retrieval_steps)])
+        self.history_ffn = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(d_memory, d_memory * 2),
+                nn.GELU(),
+                nn.Linear(d_memory * 2, d_memory),
+            )
+            for _ in range(n_retrieval_steps)
+        ])
+        self.entity_head = nn.Linear(d_memory, max_entities)
+        self.binary_head = nn.Linear(d_memory, 2)
+
+    def _mask_from_names(self, qtypes: Tensor, names: Sequence[str]) -> Tensor:
+        mask = torch.zeros_like(qtypes, dtype=torch.bool)
+        for name in names:
+            idx = self.qtype_to_idx.get(name)
+            if idx is not None:
+                mask |= qtypes == idx
+        return mask
+
+    def _gather_at_query_times(self, tensor: Tensor, query_times: Tensor) -> Tensor:
+        B, Q = query_times.shape
+        trailing = tensor.shape[2:]
+        index = query_times.view(B, Q, *([1] * len(trailing))).expand(B, Q, *trailing)
+        return torch.gather(tensor, 1, index)
+
+    def _run_history_attention(
+        self,
+        query: Tensor,
+        query_times: Tensor,
+        memory: Tensor,
+        memory_mask: Tensor,
+        memory_times: Optional[Tensor],
+    ) -> Tensor:
+        h = query
+        scale = 1.0 / math.sqrt(self.d_memory)
+        for i in range(self.n_retrieval_steps):
+            scores = torch.einsum("bqd,bmd->bqm", h, memory) * scale
+            if memory_times is not None:
+                dist = (query_times.unsqueeze(-1) - memory_times.unsqueeze(1)).abs().float()
+                denom = max(1.0, float(memory_times.max().item()) + 1.0)
+                scores = scores - dist / denom
+            scores = scores.masked_fill(~memory_mask.unsqueeze(1), float("-inf"))
+            attn = torch.softmax(scores, dim=-1)
+            attn = torch.nan_to_num(attn, nan=0.0, posinf=0.0, neginf=0.0)
+            ctx = torch.einsum("bqm,bmd->bqd", attn, memory)
+            h = self.history_norm1[i](h + ctx)
+            h = self.history_norm2[i](h + self.history_ffn[i](h))
+        return h
+
+    def forward(
+        self,
+        sequence: Tensor,
+        query_times: Tensor,
+        query_types: Tensor,
+        structured_state_holder_logits: Optional[Tensor] = None,
+        typed_event_entries: Optional[Tensor] = None,
+        typed_event_mask: Optional[Tensor] = None,
+        typed_event_times: Optional[Tensor] = None,
+        state_checkpoint_entries: Optional[Tensor] = None,
+        state_checkpoint_mask: Optional[Tensor] = None,
+        state_checkpoint_times: Optional[Tensor] = None,
+        state_checkpoint_holder_logits: Optional[Tensor] = None,
+        **_: Tensor,
+    ) -> Tuple[Tensor, Tensor]:
+        B, T, D_in = sequence.shape
+        d = self.d_memory
+
+        states = torch.gather(
+            sequence,
+            1,
+            query_times.unsqueeze(-1).expand(-1, -1, D_in),
+        )
+        query = self.query_fuse(
+            torch.cat([self.input_proj(states), self.qtype_embed(query_types)], dim=-1)
+        )
+
+        entity_logits = self.entity_head(query)
+        binary_logits = self.binary_head(query)
+
+        current_holder_mask = self._mask_from_names(query_types, ("who_holds_token",))
+        historical_entity_mask = self._mask_from_names(
+            query_types,
+            (
+                "who_was_first_tagged",
+                "which_entity_occluded",
+                "which_entity_first_occluded",
+                "what_was_true_rule",
+                "which_event_was_first",
+                "closest_entity_to_holder_at_alarm",
+                "holder_if_handoff2_absent",
+                "entity_sharing_color_with_trigger",
+                "which_entity_visible_at_correction",
+                "entity_never_occluded",
+                "entity_never_tagged",
+                "which_entity_changed_color",
+            ),
+        )
+        historical_binary_mask = self._mask_from_names(
+            query_types,
+            (
+                "did_alarm_fire",
+                "did_trigger_before_alarm",
+                "did_chain2_fire",
+                "did_occlusion_before_handoff",
+                "did_chain2_before_chain1",
+                "would_alarm_fire_without_correction",
+                "chain_never_fired",
+            ),
+        )
+
+        if structured_state_holder_logits is not None and current_holder_mask.any():
+            holder_at_q = self._gather_at_query_times(structured_state_holder_logits, query_times)
+            blended = 0.25 * entity_logits + 1.50 * holder_at_q
+            entity_logits = torch.where(current_holder_mask.unsqueeze(-1), blended, entity_logits)
+
+        memory_parts: List[Tensor] = []
+        mask_parts: List[Tensor] = []
+        time_parts: List[Tensor] = []
+        if typed_event_entries is not None:
+            memory_parts.append(typed_event_entries)
+            mask_parts.append(
+                typed_event_mask
+                if typed_event_mask is not None
+                else torch.ones(
+                    typed_event_entries.size(0),
+                    typed_event_entries.size(1),
+                    dtype=torch.bool,
+                    device=typed_event_entries.device,
+                )
+            )
+            if typed_event_times is not None:
+                time_parts.append(typed_event_times)
+        if state_checkpoint_entries is not None:
+            memory_parts.append(state_checkpoint_entries)
+            mask_parts.append(
+                state_checkpoint_mask
+                if state_checkpoint_mask is not None
+                else torch.ones(
+                    state_checkpoint_entries.size(0),
+                    state_checkpoint_entries.size(1),
+                    dtype=torch.bool,
+                    device=state_checkpoint_entries.device,
+                )
+            )
+            if state_checkpoint_times is not None:
+                time_parts.append(state_checkpoint_times)
+
+        if memory_parts and (historical_entity_mask.any() or historical_binary_mask.any()):
+            history_memory = torch.cat(memory_parts, dim=1)
+            history_mask = torch.cat(mask_parts, dim=1)
+            history_times = torch.cat(time_parts, dim=1) if time_parts else None
+            attended = self._run_history_attention(query, query_times, history_memory, history_mask, history_times)
+            hist_entity_logits = self.entity_head(attended)
+            hist_binary_logits = self.binary_head(attended)
+            entity_logits = torch.where(historical_entity_mask.unsqueeze(-1), hist_entity_logits, entity_logits)
+            binary_logits = torch.where(historical_binary_mask.unsqueeze(-1), hist_binary_logits, binary_logits)
+
+            if state_checkpoint_holder_logits is not None:
+                checkpoint_current = state_checkpoint_holder_logits[:, -1]
+                checkpoint_current = checkpoint_current.unsqueeze(1).expand(-1, query_times.size(1), -1)
+                cf_mask = self._mask_from_names(query_types, ("holder_if_handoff2_absent",))
+                entity_logits = torch.where(
+                    cf_mask.unsqueeze(-1),
+                    0.5 * entity_logits + 0.5 * checkpoint_current,
+                    entity_logits,
+                )
+
+        return entity_logits, binary_logits
+
+
 # -----------------------------------------------------------------------------
 # Sequence augmentation
 # -----------------------------------------------------------------------------
@@ -823,6 +1028,7 @@ __all__ = [
     "augment_sequence_with_holder_audio",
     "generate_episode_with_queries",
     "QueryHead",
+    "StructuredQueryHeadV2",
     "query_loss",
     "collate_with_queries",
     "episode_to_tensors",

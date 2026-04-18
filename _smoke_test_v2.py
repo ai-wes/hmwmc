@@ -1,6 +1,4 @@
-"""Smoke tests for HPM v2 changes — checks instantiation, forward pass shapes,
-config gating, backward-compat defaults, diversity loss, event tape, entity table,
-iterative query head, continuous plasticity, and retroactive binding."""
+"""Smoke tests for the v2 memory stack and query path."""
 
 import sys, torch, traceback
 from dataclasses import asdict
@@ -20,12 +18,15 @@ def check(name, fn):
         FAIL += 1
 
 
-# ── 1. hpm.py imports ─────────────────────────────────────────────
-print("\n=== 1. hpm.py imports ===")
-from hpm import (
+# ── 1. hpm_v2.py imports ──────────────────────────────────────────
+print("\n=== 1. hpm_v2.py imports ===")
+from hpm_v2 import (
     HPMConfig, HomeostaticPredictiveMemory,
     EntityTableConfig, EntityTable,
     EventTapeConfig, EventTape,
+    StructuredStateConfig, StructuredStateTable,
+    TypedEventLogConfig, TypedEventLog,
+    StateCheckpointConfig, StateCheckpointBank,
 )
 check("all hpm exports importable", lambda: None)
 
@@ -119,9 +120,9 @@ def test_gradient_flow():
     assert x.grad.abs().sum() > 0, "zero gradient on input"
 check("gradient flows through HPM -> input", test_gradient_flow)
 
-# ── 8. IterativeQueryHead ─────────────────────────────────────────
-print("\n=== 8. IterativeQueryHead ===")
-from tmew1_queries import IterativeQueryHead
+# ── 8. IterativeQueryHead + StructuredQueryHeadV2 ────────────────
+print("\n=== 8. Query heads ===")
+from tmew1_queries_v2 import IterativeQueryHead, StructuredQueryHeadV2
 def test_iterative_query_head():
     iqh = IterativeQueryHead(
         d_input=96,
@@ -147,6 +148,63 @@ def test_iterative_query_head():
     assert binary_logits.shape == (B, 3, 2), f"binary_logits shape {binary_logits.shape}"
 check("IterativeQueryHead forward", test_iterative_query_head)
 
+def test_structured_query_stack():
+    B, T = 2, 10
+    seq = torch.randn(B, T, 64)
+    structured = StructuredStateTable(
+        d_model=64,
+        cfg=StructuredStateConfig(enabled=True, n_entities=4, d_state=32),
+    )(seq)
+    assert structured.sequence.shape == (B, T, 64)
+    assert structured.memory_tokens.shape == (B, T, 4, 64)
+
+    typed = TypedEventLog(
+        d_model=64,
+        n_entities=4,
+        cfg=TypedEventLogConfig(enabled=True, max_events=6),
+    )(seq, structured, z_per_step=torch.randn(B, T, 2))
+    assert typed.entries.shape == (B, 6, 64)
+    assert typed.event_type_logits.shape[:2] == (B, T)
+
+    checkpoints = StateCheckpointBank(
+        d_model=64,
+        n_entities=4,
+        cfg=StateCheckpointConfig(enabled=True, n_checkpoints=4),
+    )(structured, typed.event_scores)
+    assert checkpoints.entries.shape == (B, 4, 64)
+
+    seq_aug = torch.cat([seq, torch.randn(B, T, 4), structured.sequence], dim=-1)
+    qh = StructuredQueryHeadV2(
+        d_input=seq_aug.size(-1),
+        d_memory=64,
+        max_entities=10,
+        num_query_types=4,
+        query_type_names=(
+            "who_holds_token",
+            "did_alarm_fire",
+            "closest_entity_to_holder_at_alarm",
+            "holder_if_handoff2_absent",
+        ),
+    )
+    qtimes = torch.randint(0, T, (B, 3))
+    qtypes = torch.tensor([[0, 1, 2], [3, 0, 1]], dtype=torch.long)
+    entity_logits, binary_logits = qh(
+        seq_aug,
+        qtimes,
+        qtypes,
+        structured_state_holder_logits=structured.holder_logits,
+        typed_event_entries=typed.entries,
+        typed_event_mask=typed.mask,
+        typed_event_times=typed.times,
+        state_checkpoint_entries=checkpoints.entries,
+        state_checkpoint_mask=checkpoints.mask,
+        state_checkpoint_times=checkpoints.times,
+        state_checkpoint_holder_logits=checkpoints.holder_logits,
+    )
+    assert entity_logits.shape == (B, 3, 10)
+    assert binary_logits.shape == (B, 3, 2)
+check("StructuredState -> TypedEvent -> Checkpoint -> StructuredQueryHeadV2", test_structured_query_stack)
+
 # ── 9. Score logging ─────────────────────────────────────────────
 print("\n=== 9. Score logging groups ===")
 from score_logging import _METRIC_GROUPS, build_default_metric_specs
@@ -161,14 +219,26 @@ check("score_logging metric groups", test_score_logging)
 
 # ── 10. WorldModel config + instantiation ─────────────────────────
 print("\n=== 10. WorldModel config ===")
-from homeostatic_multimodal_world_model_chunked import WorldModelConfig, ForwardOutput
+from homeostatic_multimodal_world_model_chunked_v2 import WorldModelConfig, ForwardOutput
 def test_world_model_config():
     wcfg = WorldModelConfig.__dataclass_fields__
     assert "entity_table_config" in wcfg, "missing entity_table_config in WorldModelConfig"
     assert "event_tape_config" in wcfg, "missing event_tape_config in WorldModelConfig"
+    assert "structured_state_config" in wcfg, "missing structured_state_config in WorldModelConfig"
+    assert "typed_event_log_config" in wcfg, "missing typed_event_log_config in WorldModelConfig"
+    assert "state_checkpoint_config" in wcfg, "missing state_checkpoint_config in WorldModelConfig"
     # ForwardOutput fields
     fout_fields = ForwardOutput.__dataclass_fields__
     for f in ["entity_states", "event_tape_entries", "event_tape_mask", "event_tape_diagnostics"]:
+        assert f in fout_fields, f"missing {f} in ForwardOutput"
+    for f in [
+        "structured_state_sequence",
+        "structured_state_holder_logits",
+        "typed_event_entries",
+        "typed_event_type_logits",
+        "state_checkpoint_entries",
+        "state_checkpoint_holder_logits",
+    ]:
         assert f in fout_fields, f"missing {f} in ForwardOutput"
 check("WorldModelConfig + ForwardOutput fields", test_world_model_config)
 

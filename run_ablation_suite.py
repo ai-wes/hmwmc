@@ -7,7 +7,6 @@ Runs the E-family experiments in sequence on the same seed:
   E3: tape-only (event tape + entity history, no entity table)
   E4: no auxiliary memory (cross-attention skipped)
   E5: HPM continuous plasticity vs state machine
-  E6: authoritative per-query routing (entity vs tape/history)
 
 All use A3-style worlds (multi-chain concurrency, temporal overlap)
 with B2/B4 query families as stressors. Per-tier LR scaling and
@@ -36,7 +35,7 @@ from typing import Dict, List, Optional, Tuple
 from tmew1_experiments import BranchConfig, make_branch_preset, BRANCH_IDS
 from tmew1_branch_runner import run_branch, _load_baseline
 
-ALL_ABLATION_BRANCHES = ("E1", "E2", "E3", "E4", "E5", "E6")
+ALL_ABLATION_BRANCHES = ("E1", "E2", "E3", "E4", "E5")
 
 TARGET_METRICS = (
     "qacc/who_holds_token",
@@ -50,7 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--out-dir", required=True, help="Root output directory")
     p.add_argument(
         "--branches", type=str, default=None,
-        help="Comma-separated branch ids to run. Default: all E1-E6.",
+        help="Comma-separated branch ids to run. Default: all E1-E5.",
     )
     p.add_argument("--seed", type=int, default=0, help="Random seed (shared across all branches)")
     p.add_argument(

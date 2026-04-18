@@ -457,3 +457,154 @@ Implemented an explicit per-query retrieval routing policy so the iterative quer
 - Run branch `E6` in the real training environment and compare it directly against the latest Drive-backed `E1` / `E2` results on `qacc/who_holds_token`, `qacc/closest_entity_to_holder_at_alarm`, and `qacc/holder_if_handoff2_absent`.
 - If `E6` helps holder identity but not historical reconstruction enough, split the policy further so specific relational queries can choose `tape` vs `fused` rather than sharing one broad historical route.
 - Pull the latest `val.json` / verdict files from Drive through a download-capable path or synced local copy so the regression baseline is sourced from the newest runs rather than stale local logs.
+
+## [2026-04-17 18:34]
+
+### Summary
+
+Reviewed the user-provided `E6` ablation logs from the newer Drive-backed run. The authoritative routing change underperformed and should not be treated as a successful architectural improvement in its current form.
+
+### Changes
+
+- Analyzed the `E6` training/validation output shared by the user for Tier 1 through Tier 3.
+- Confirmed that strict query routing made `who_holds_token` materially worse once audio and harder tiers were enabled.
+- Recorded the conclusion that current-state identity queries cannot yet be hard-routed to the entity table without additional supervision or better routing logic.
+
+### Decisions
+
+- `E6` is a negative result: `qacc/who_holds_token` falls to `0.2528` at Tier 2, with handoff=1 accuracy collapsing to `0.143`, so the entity-table-as-authority rule is too aggressive.
+- The failure is consistent with the training signals: `holder_acc` is only around `0.50` in Tier 2/3, which means the entity table is not representing holder state well enough to own the retrieval path.
+- Historical/tape-routed questions are mixed rather than uniformly improved: `holder_if_handoff2_absent` improves over the worst Tier 1 point, but `closest_entity_to_holder_at_alarm` remains poor and Tier 1 belief revision is badly damaged (`with_cue acc=0.079`), so the routing policy is not aligned with query semantics yet.
+- The state-machine critique still stands: `hpm_open_frac=1.0`, `closing_frac=0.0`, `locked_frac=0.0` throughout the shown run, so the OPEN/CLOSING/LOCKED machinery is still functionally inactive.
+- Next architectural iteration should be narrower: do not force `who_holds_token` to entity-only. Prefer either fused+biased routing, or tape-first / entity-residual routing, and improve entity-table holder supervision before retrying hard authority.
+
+### Next Steps
+
+- Replace the current `authoritative` policy with a softer policy that keeps `who_holds_token` on fused retrieval or adds an entity bias instead of hard entity-only routing.
+- Consider routing `who_holds_token` to tape/history for multi-handoff cases while leaving simple current-state cases fused, rather than using one route for all holder queries.
+- If the entity table is meant to become authoritative later, add stronger direct supervision or auxiliary losses tied to holder state reconstruction before rerunning the authority ablation.
+
+## [2026-04-17 19:28]
+
+### Summary
+
+Reverted the last-round authoritative query-routing changes that introduced the `E6` branch and the `TMEW1_QUERY_ROUTING_POLICY` plumbing, restoring the previous ET-only/fused routing behavior.
+
+### Changes
+
+- Removed `build_query_routing_map()`, `QUERY_ROUTE_VALUES`, and explicit `query_routing` support from [tmew1_queries.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_queries.py).
+- Restored [tmew1_run.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_run.py) to the prior query-head construction path without `TMEW1_QUERY_ROUTING_POLICY`.
+- Removed the `query_routing_policy` field and the `E6` branch preset from [tmew1_experiments.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_experiments.py).
+- Removed the routing-policy env export from [tmew1_branch_runner.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_branch_runner.py).
+- Restored [run_ablation_suite.py](/mnt/c/users/wes/Desktop/hmwmc/run_ablation_suite.py) to the original `E1`-`E5` suite.
+- Removed the authoritative-routing test and restored the prior smoke-test count in [_test_et_only.py](/mnt/c/users/wes/Desktop/hmwmc/_test_et_only.py).
+- Verified the touched files still parse with `python -m py_compile`.
+
+### Decisions
+
+- Reverted only the last-round routing regression work and left unrelated user/worktree changes untouched.
+- Restored the prior ET-only per-query override behavior rather than replacing it with a new soft-routing experiment in the same turn.
+- Treated the pasted `E6` run as sufficient evidence to remove the hard authoritative route before trying any narrower retrieval changes.
+
+### Next Steps
+
+- Re-run the relevant E-family comparisons without `E6` to confirm the codepath is back to the previous baseline behavior.
+- If retrieval routing is revisited, try a softer holder-query bias instead of forcing entity-table authority.
+
+## [2026-04-17 19:43]
+
+### Summary
+
+Used the `scientific-brainstorming` skill to analyze why the architecture is not behaving like the intended world model and to outline the architectural changes most likely to make it work.
+
+### Changes
+
+- Read and synthesized the current memory and controller roles in [hpm.py](/mnt/c/users/wes/Desktop/hmwmc/hpm.py) and [homeostatic_multimodal_world_model_chunked.py](/mnt/c/users/wes/Desktop/hmwmc/homeostatic_multimodal_world_model_chunked.py).
+- Cross-checked the intended design and recent empirical conclusions in [docs/NOTES.md](/mnt/c/users/wes/Desktop/hmwmc/docs/NOTES.md), [architecture.html](/mnt/c/users/wes/Desktop/hmwmc/architecture.html), and the latest changelog entries.
+- Reviewed the current query retrieval contract in [tmew1_queries.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_queries.py) plus the relevant experiment wiring to ground the analysis in the actual read path.
+
+### Decisions
+
+- Treat the core problem as a typed world-state modeling failure, not a generic memory-capacity or HPM-tuning problem.
+- Center future redesign work on explicit state authority, typed event transitions, and query-family-specific retrieval rather than adding more overlapping latent memory mechanisms.
+- Treat the current entity table, event tape, and history bank as parallel latent stores that need stronger role separation before they can support the intended behavior.
+
+### Next Steps
+
+- Design an authoritative state layer for holder / tag / occlusion / relation state instead of relying on the current entity table as another read bank.
+- Redesign the event tape to store typed transitions or deltas, not only surprise-selected latent snapshots.
+- Prototype query-family-specific retrieval or small query programs only after the state representation is made structurally explicit.
+
+## [2026-04-17 20:19]
+
+### Summary
+
+Implemented the `_v2` execution path for the explicit-state redesign without touching baseline code. The new `_v2` stack now wires structured state, typed events, checkpointed history, and the structured query head end to end through the trainer, runner, branch launcher, and smoke tests.
+
+### Changes
+
+- Finished `_v2` runner wiring in [tmew1_run_v2.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_run_v2.py):
+  - `per_qtype_accuracy()` now passes structured retrieval context to query heads that declare `uses_structured_context`.
+  - `evaluate()` now prefers `structured_state_holder_logits` over the legacy holder head and logs `event_acc` when typed event supervision is present.
+  - `run_curriculum()` now accounts for `structured_state_sequence` in query input width and instantiates `StructuredQueryHeadV2` when the structured-state stack is enabled.
+- Switched `_v2` experiment infrastructure to `_v2` modules:
+  - [tmew1_experiments_v2.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_experiments_v2.py) lazy imports now target `tmew1_train_v2` and `hpm_v2`.
+  - [tmew1_branch_runner_v2.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_branch_runner_v2.py) now imports `tmew1_experiments_v2`, `tmew1_run_v2`, and `hpm_v2`.
+- Updated `_v2` smoke coverage:
+  - [_smoke_test_v2.py](/mnt/c/users/wes/Desktop/hmwmc/_smoke_test_v2.py) now imports `_v2` modules and adds a structured smoke path covering `StructuredStateTable -> TypedEventLog -> StateCheckpointBank -> StructuredQueryHeadV2`.
+  - [_test_hpmv2.py](/mnt/c/users/wes/Desktop/hmwmc/_test_hpmv2.py) now imports `hpm_v2` and adds explicit structured-state / typed-event / checkpoint checks.
+- Verified the `_v2` implementation set has no remaining baseline imports.
+- Ran `python -m py_compile` successfully on:
+  - `hpm_v2.py`
+  - `homeostatic_multimodal_world_model_chunked_v2.py`
+  - `tmew1_queries_v2.py`
+  - `tmew1_train_v2.py`
+  - `tmew1_run_v2.py`
+  - `tmew1_experiments_v2.py`
+  - `tmew1_branch_runner_v2.py`
+  - `_smoke_test_v2.py`
+  - `_test_hpmv2.py`
+
+### Decisions
+
+- Kept all implementation changes confined to `_v2` files as requested; baseline code remains unchanged.
+- Used `StructuredQueryHeadV2` as the default `_v2` query path whenever the explicit state / event / checkpoint stack is present, while preserving fallback compatibility for legacy iterative retrieval.
+- Treated static compilation as the hard validation boundary in this shell because the local runtime is missing `torch`; executing [_smoke_test_v2.py](/mnt/c/users/wes/Desktop/hmwmc/_smoke_test_v2.py) fails immediately with `ModuleNotFoundError: No module named 'torch'`.
+
+### Next Steps
+
+- Run the `_v2` smoke scripts and at least one short `_v2` curriculum job in the real training environment where `torch` is available.
+- Inspect whether the explicit state heads (`holder`, `tagged`, `visible`) need stronger auxiliary supervision before relying on historical query gains.
+- Add a dedicated `_v2` experiment preset family once the first runtime results confirm the new path trains at all.
+
+## [2026-04-17 20:22]
+
+### Summary
+
+Documented the concrete `_v2` run entrypoints after checking the CLI parsers for the new runner and branch launcher.
+
+### Changes
+
+- Verified [tmew1_run_v2.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_run_v2.py) exposes:
+  - `--smoke`
+  - `--epochs`
+  - `--batch-size`
+  - `--train-episodes`
+  - `--workers`
+  - `--resume`
+- Verified [tmew1_branch_runner_v2.py](/mnt/c/users/wes/Desktop/hmwmc/tmew1_branch_runner_v2.py) exposes:
+  - `--branch`
+  - `--out-dir`
+  - `--baseline-record`
+  - `--resume`
+  - branch-level overrides for tiers / HPM / world settings
+
+### Decisions
+
+- The simplest way to launch the new architecture is `tmew1_run_v2.py`; use `tmew1_branch_runner_v2.py` only when you want verdict files and branch-config snapshots under an explicit output directory.
+- Because the local shell here lacks `torch`, runtime validation still has to happen in the actual training environment.
+
+### Next Steps
+
+- Run `python tmew1_run_v2.py --smoke` first in the training environment.
+- If smoke passes, launch either a direct curriculum run with `tmew1_run_v2.py` or a tracked branch run with `tmew1_branch_runner_v2.py`.

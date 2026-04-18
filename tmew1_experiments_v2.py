@@ -65,8 +65,8 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple, Any
 
 # We import lazily so this module can be unit-tested without the full stack.
 def _lazy_imports():
-    from tmew1_train import WorldConfig, CurriculumTier, DEFAULT_TIERS, TrainConfig
-    from hpm import HPMConfig
+    from tmew1_train_v2 import WorldConfig, CurriculumTier, DEFAULT_TIERS, TrainConfig
+    from hpm_v2 import HPMConfig
     return WorldConfig, CurriculumTier, DEFAULT_TIERS, TrainConfig, HPMConfig
 
 
