@@ -267,6 +267,7 @@ def generate_episode_with_queries(
     trigger_at = -1
     chain2_fired_at = -1
     event_history: List[Dict[str, Any]] = []
+    holder_per_step = np.zeros((T,), dtype=np.int64)
 
     for t in range(T):
         events = _step_world_with_handoff(state, handoff, cfg, t, tier.max_delay)
@@ -275,6 +276,7 @@ def generate_episode_with_queries(
         audio[t] = _render_audio(state, cfg, events, current_holder_id=handoff.holder_id)
         numeric[t] = _render_numeric(state, cfg)
         text[t] = _render_text(state, cfg, events)
+        holder_per_step[t] = handoff.holder_id
         if events["occluded_ids"]:
             last_occluded_id = events["occluded_ids"][0]
             if first_occluded_id < 0:
@@ -293,6 +295,7 @@ def generate_episode_with_queries(
         receiver = next((e for e in state.entities if e.id != handoff.holder_id), state.entities[0])
         handoff.transfer_history.append((force_t, handoff.holder_id, receiver.id))
         handoff.holder_id = receiver.id
+        holder_per_step[force_t:] = receiver.id
         # Re-render audio from the forced timestep onward so the ambient holder
         # identity matches the synthetic transfer for the rest of the episode.
         for t in range(force_t, T):
@@ -302,32 +305,50 @@ def generate_episode_with_queries(
                 forced_events["new_holder_id"] = receiver.id
             audio[t] = _render_audio(state, cfg, forced_events, current_holder_id=receiver.id)
 
-    # Build queries. Time-asked is always toward the back half so the model has
-    # to actually carry information forward.
+    # Build queries. The trainer consumes observations 0..T-2, so keep qtimes
+    # in that visible range and answer stateful questions from the prefix rather
+    # than from future simulator state.
     rng = random.Random(seed + 7)
     queries: List[Query] = []
-    back_half_start = max(1, T // 2)
+    max_query_time = max(0, T - 2)
+    back_half_start = min(max_query_time, max(1, T // 2))
+
+    def _last_occluded_at(step: int) -> int:
+        last_id = -1
+        for tt in range(0, min(step, T - 1) + 1):
+            ids = event_history[tt].get("occluded_ids") or []
+            if ids:
+                last_id = int(ids[0])
+        return max(0, last_id)
+
+    def _first_occluded_at(step: int) -> int:
+        for tt in range(0, min(step, T - 1) + 1):
+            ids = event_history[tt].get("occluded_ids") or []
+            if ids:
+                return int(ids[0])
+        return 0
+
     for _ in range(num_queries):
         qtype = rng.choice(QUERY_TYPES)
-        time_asked = rng.randint(back_half_start, T - 1)
+        time_asked = rng.randint(back_half_start, max_query_time)
         if qtype == "who_holds_token":
-            target = handoff.holder_id
+            target = int(holder_per_step[time_asked])
             queries.append(Query(qtype, target, time_asked, is_binary=False))
         elif qtype == "who_was_first_tagged":
-            target = max(0, handoff.first_tagged_id)
+            target = int(handoff.first_tagged_id) if (handoff.first_tagged_id >= 0 and 0 <= trigger_at <= time_asked) else 0
             queries.append(Query(qtype, target, time_asked, is_binary=False))
         elif qtype == "did_alarm_fire":
             target = 1 if fired_at >= 0 and fired_at <= time_asked else 0
             queries.append(Query(qtype, target, time_asked, is_binary=True))
         elif qtype == "which_entity_occluded":
-            target = max(0, last_occluded_id)
+            target = _last_occluded_at(time_asked)
             queries.append(Query(qtype, target, time_asked, is_binary=False))
         elif qtype == "did_trigger_before_alarm":
             # Was the trigger observed before the alarm by query time?
             target = 1 if (trigger_at >= 0 and fired_at >= 0 and trigger_at < fired_at and fired_at <= time_asked) else 0
             queries.append(Query(qtype, target, time_asked, is_binary=True))
         elif qtype == "which_entity_first_occluded":
-            target = max(0, first_occluded_id)
+            target = _first_occluded_at(time_asked)
             queries.append(Query(qtype, target, time_asked, is_binary=False))
         elif qtype == "did_chain2_fire":
             target = 1 if chain2_fired_at >= 0 and chain2_fired_at <= time_asked else 0

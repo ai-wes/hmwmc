@@ -52,7 +52,11 @@ class WorldConfig:
     grid_w: int = 16
     vision_channels: int = 3
     audio_dim: int = 24
-    numeric_dim: int = 10
+    # 10 global features + 5 identity-grounded features per default entity.
+    # The per-entity block is: x, y, visible, color, tagged. This makes
+    # entity-id queries observable instead of asking the model to infer hidden
+    # simulator indices from color-only vision.
+    numeric_dim: int = 40
     text_vocab_size: int = 64
     text_seq_len: int = 1               # one symbolic token per step
     min_entities: int = 2
@@ -340,6 +344,26 @@ def _render_numeric(state: WorldState, cfg: WorldConfig) -> np.ndarray:
     vec[7] = float(state.chain2_alarm_in) / 10.0 if state.chain2_alarm_in > 0 else 0.0
     vec[8] = 1.0 if state.chain2_alarm_fired else 0.0
     vec[9] = float(sum(1 for e in state.entities if e.tagged)) / max(1, len(state.entities))  # fraction tagged
+    
+    # Identity-grounded per-entity state. Vision uses color planes, so without
+    # these channels the simulator's entity ids are hidden labels. Relational
+    # queries such as "closest entity to holder at alarm" require id-addressed
+    # positions to be in the observation stream. The block for entity i is:
+    #   [x_norm, y_norm, visible, color_norm, tagged]
+    entity_offset = 10
+    entity_stride = 5
+    max_x = max(1, cfg.grid_w - 1)
+    max_y = max(1, cfg.grid_h - 1)
+    max_color = max(1, cfg.vision_channels - 1)
+    for e in state.entities:
+        base = entity_offset + entity_stride * int(e.id)
+        if base + entity_stride > cfg.numeric_dim:
+            continue
+        vec[base + 0] = float(e.x) / float(max_x)
+        vec[base + 1] = float(e.y) / float(max_y)
+        vec[base + 2] = 1.0 if e.visible else 0.0
+        vec[base + 3] = float(e.color) / float(max_color)
+        vec[base + 4] = 1.0 if e.tagged else 0.0
     return vec
 
 

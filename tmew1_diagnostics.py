@@ -46,9 +46,24 @@ from tmew1_queries import (
     Query,
     EpisodeWithQueries,
     HandoffState,
+    IterativeQueryHead,
     augment_sequence_with_holder_audio,
     _step_world_with_handoff,
 )
+
+
+def _iterative_query_context(output) -> Dict[str, Optional[Tensor]]:
+    """Return memory kwargs expected by IterativeQueryHead."""
+    entity_state = None
+    if getattr(output, "entity_states", None) is not None:
+        entity_state = output.entity_states[:, -1]
+    return {
+        "entity_state": entity_state,
+        "event_tape": getattr(output, "event_tape_entries", None),
+        "event_tape_mask": getattr(output, "event_tape_mask", None),
+        "entity_history": getattr(output, "entity_history_entries", None),
+        "entity_history_mask": getattr(output, "entity_history_mask", None),
+    }
 
 
 # -----------------------------------------------------------------------------
@@ -357,8 +372,29 @@ def generate_episode_with_diagnostics(
 
     q_rng = random.Random(seed + 7)
     queries: List[Query] = []
-    back_half_start = max(1, T // 2)
+
+    # The trainer feeds observations 0..T-2 into the model and predicts 1..T-1.
+    # Query heads therefore only have a hidden state for 0..T-2. Keep generated
+    # qtimes in that visible range and make stateful targets answerable from the
+    # observation prefix, not from future simulator state.
+    max_query_time = max(0, T - 2)
+    back_half_start = min(max_query_time, max(1, T // 2))
     _EVAL_ONLY = {"which_entity_changed_color"}
+
+    def _last_occluded_at(step: int) -> int:
+        last_id = -1
+        for tt in range(0, min(step, T - 1) + 1):
+            ids = event_history[tt].get("occluded_ids") or []
+            if ids:
+                last_id = int(ids[0])
+        return max(0, last_id)
+
+    def _first_occluded_at(step: int) -> int:
+        for tt in range(0, min(step, T - 1) + 1):
+            ids = event_history[tt].get("occluded_ids") or []
+            if ids:
+                return int(ids[0])
+        return 0
 
     def _query_available(qtype: str) -> bool:
         if qtype == "what_was_true_rule":
@@ -366,11 +402,11 @@ def generate_episode_with_diagnostics(
         if qtype == "which_event_was_first":
             return first_event_code is not None
         if qtype == "closest_entity_to_holder_at_alarm":
-            return closest_entity_to_holder_at_alarm is not None
+            return closest_entity_to_holder_at_alarm is not None and 0 <= fired_at <= max_query_time
         if qtype == "entity_sharing_color_with_trigger":
-            return entity_sharing_color_with_trigger is not None
+            return entity_sharing_color_with_trigger is not None and 0 <= trigger_at <= max_query_time
         if qtype == "which_entity_visible_at_correction":
-            return has_false_cue and visible_at_correction is not None
+            return has_false_cue and visible_at_correction is not None and 0 <= correction_step <= max_query_time
         if qtype == "entity_never_occluded":
             return entity_never_occluded is not None
         if qtype == "entity_never_tagged":
@@ -378,7 +414,7 @@ def generate_episode_with_diagnostics(
         if qtype in {"holder_if_handoff2_absent"}:
             return cf_holder_no_handoff2 is not None
         if qtype in {"would_alarm_fire_without_correction"}:
-            return cf_alarm_without_correction is not None
+            return cf_alarm_without_correction is not None and 0 <= correction_step <= max_query_time
         return True
 
     candidate_pool = active_query_types
@@ -393,31 +429,32 @@ def generate_episode_with_diagnostics(
 
     for _ in range(num_queries):
         qtype = q_rng.choice(pool)
-        time_asked = (T - 1) if qtype in BRANCH_QUERY_TYPES else q_rng.randint(back_half_start, T - 1)
+        time_asked = max_query_time if qtype in BRANCH_QUERY_TYPES else q_rng.randint(back_half_start, max_query_time)
         if qtype == "who_holds_token":
-            queries.append(Query(qtype, handoff.holder_id, time_asked, is_binary=False))
+            queries.append(Query(qtype, int(holder_per_step[time_asked]), time_asked, is_binary=False))
         elif qtype == "who_was_first_tagged":
-            queries.append(Query(qtype, max(0, handoff.first_tagged_id), time_asked, is_binary=False))
+            target = int(handoff.first_tagged_id) if (handoff.first_tagged_id >= 0 and 0 <= trigger_at <= time_asked) else 0
+            queries.append(Query(qtype, target, time_asked, is_binary=False))
         elif qtype == "did_alarm_fire":
             target = 1 if 0 <= fired_at <= time_asked else 0
             queries.append(Query(qtype, target, time_asked, is_binary=True))
         elif qtype == "which_entity_occluded":
-            queries.append(Query(qtype, max(0, last_occluded_id), time_asked, is_binary=False))
+            queries.append(Query(qtype, _last_occluded_at(time_asked), time_asked, is_binary=False))
         elif qtype == "what_was_true_rule":
             queries.append(Query(qtype, true_rule, time_asked, is_binary=False))
         elif qtype == "did_trigger_before_alarm":
             target = 1 if (trigger_at >= 0 and fired_at >= 0 and trigger_at < fired_at and fired_at <= time_asked) else 0
             queries.append(Query(qtype, target, time_asked, is_binary=True))
         elif qtype == "which_entity_first_occluded":
-            queries.append(Query(qtype, max(0, first_occluded_id), time_asked, is_binary=False))
+            queries.append(Query(qtype, _first_occluded_at(time_asked), time_asked, is_binary=False))
         elif qtype == "did_chain2_fire":
             target = 1 if chain2_fired_at >= 0 and chain2_fired_at <= time_asked else 0
             queries.append(Query(qtype, target, time_asked, is_binary=True))
         elif qtype == "did_occlusion_before_handoff":
-            target = 1 if (first_occlusion_at >= 0 and first_handoff_at >= 0 and first_occlusion_at < first_handoff_at) else 0
+            target = 1 if (first_occlusion_at >= 0 and first_handoff_at >= 0 and first_occlusion_at < first_handoff_at and first_handoff_at <= time_asked) else 0
             queries.append(Query(qtype, target, time_asked, is_binary=True))
         elif qtype == "did_chain2_before_chain1":
-            target = 1 if (chain2_fired_at >= 0 and fired_at >= 0 and chain2_fired_at < fired_at) else 0
+            target = 1 if (chain2_fired_at >= 0 and fired_at >= 0 and chain2_fired_at < fired_at and fired_at <= time_asked) else 0
             queries.append(Query(qtype, target, time_asked, is_binary=True))
         elif qtype == "which_event_was_first":
             queries.append(Query(qtype, int(first_event_code), time_asked, is_binary=False))
@@ -595,7 +632,12 @@ def recall_by_difficulty(
         if output.hpm_sequence is not None:
             augmented_seq = torch.cat([augmented_seq, output.hpm_sequence.to(augmented_seq.dtype)], dim=-1)
             
-        entity_logits, binary_logits = query_head(augmented_seq, qtimes, batch["query_types"])
+        if isinstance(query_head, IterativeQueryHead):
+            entity_logits, binary_logits = query_head(
+                augmented_seq, qtimes, batch["query_types"], **_iterative_query_context(output),
+            )
+        else:
+            entity_logits, binary_logits = query_head(augmented_seq, qtimes, batch["query_types"])
 
         bs, q = batch["query_types"].shape
         for bi in range(bs):
@@ -645,7 +687,12 @@ def recall_by_difficulty(
             probe_qtype_idx = qtype_map["which_entity_occluded"]
             syn_qtype = torch.tensor([[probe_qtype_idx]], device=device, dtype=torch.long)
                 
-            syn_ent, _ = query_head(augmented_seq[bi:bi+1], syn_qtime, syn_qtype)
+            if isinstance(query_head, IterativeQueryHead):
+                syn_ctx = _iterative_query_context(output)
+                syn_ctx = {k: (v[bi:bi+1] if isinstance(v, torch.Tensor) else v) for k, v in syn_ctx.items()}
+                syn_ent, _ = query_head(augmented_seq[bi:bi+1], syn_qtime, syn_qtype, **syn_ctx)
+            else:
+                syn_ent, _ = query_head(augmented_seq[bi:bi+1], syn_qtime, syn_qtype)
             pred = int(syn_ent[0, 0].argmax().item())
             correct = int(pred == cc_entity)
             color_change_correct.append(correct)

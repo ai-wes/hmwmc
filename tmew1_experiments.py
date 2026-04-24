@@ -850,6 +850,9 @@ def apply_world_overrides(branch: BranchConfig) -> "WorldConfig":
         kwargs["min_entities"] = branch.min_entities
     if branch.max_entities is not None:
         kwargs["max_entities"] = branch.max_entities
+        # Keep the identity-grounded numeric stream large enough for all
+        # entity-id slots: 10 global features + 5 per entity.
+        kwargs["numeric_dim"] = max(40, 10 + 5 * int(branch.max_entities))
     if branch.chain2_frequency_boost != 1.0:
         kwargs["chain2_frequency_boost"] = branch.chain2_frequency_boost
     if branch.chain2_temporal_overlap:

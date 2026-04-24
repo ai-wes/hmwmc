@@ -277,7 +277,11 @@ def run_branch(branch: BranchConfig, out_dir: str, baseline_record: Optional[Dic
         model_config_overrides["hpm_config"] = hpm_cfg
 
     if branch.enable_entity_table:
-        model_config_overrides["entity_table_config"] = EntityTableConfig(enabled=True, n_entities=4, d_entity=64)
+        model_config_overrides["entity_table_config"] = EntityTableConfig(
+            enabled=True,
+            n_entities=world_cfg.max_entities,
+            d_entity=64,
+        )
 
     if branch.enable_event_tape:
         model_config_overrides["event_tape_config"] = EventTapeConfig(enabled=True, max_events=32, surprise_threshold=0.5)

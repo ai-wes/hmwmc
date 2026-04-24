@@ -807,3 +807,75 @@ Reviewed the `_v2` branch taxonomy and clarified the recommended next branch aft
 
 - Re-run `baseline` only after verifying the Colab copy contains the new promotion-gate code.
 - After a valid baseline, run `A1`, then continue through `A2`, `A3`, and `A4` if following the Family A progression.
+
+## [2026-04-18 09:08]
+
+### Summary
+
+Inspected the newest Google Drive  experiment folder and confirmed a completed  run with fresh checkpoints and evaluation artifacts. The Google Drive connector could list the files but could not decode raw  or JSONL verdict contents for direct metric extraction.
+
+### Changes
+
+- Located the newest Drive folder  created on 2026-04-18 and listed its contents.
+- Confirmed presence of , , , and tier 1-3 checkpoints.
+- Attempted multiple Google Drive fetch paths for raw JSON artifacts and confirmed connector limitations on those files.
+
+### Decisions
+
+- Do not claim exact regression numbers for  without reading the actual  or verdict payloads.
+- Treat the Drive artifacts as proof the run completed through tier 3, but not as sufficient evidence to quantify performance deltas.
+
+### Next Steps
+
+- Obtain the raw contents of  or the verdict JSONL from Drive via an alternate route or user paste/export.
+- Compare  metrics directly against the prior  run once the payload is accessible.
+
+## [2026-04-18 09:18]
+
+### Summary
+
+Reviewed the exact Drive folder linked by the user for the newest baseline_v2 run. Confirmed it is the same fresh run folder previously discovered, and used the run logs already present in the conversation as the metric source because the Google Drive connector still would not decode the raw JSON artifact contents.
+
+### Changes
+
+- Re-read changelog context before reviewing the newest run.
+- Re-listed the exact Drive folder 1wF5v9wNQt69BbeycaK8QCCFwbVw2z8Fw and confirmed fresh artifacts for tier 1 through tier 3 plus val.json and verdict JSONL.
+- Based the performance review on the run logs associated with that folder after confirming the folder identity.
+
+### Decisions
+
+- Treat the newest baseline_v2 folder as the authoritative latest run location.
+- Use the pasted training and diagnostics logs to assess regression severity until the raw JSON artifacts can be decoded directly.
+- Conclude that the v2 changes materially worsened holder-tracking and handoff robustness even though generic latent and reconstruction metrics stayed strong.
+
+### Next Steps
+
+- Fix the actual cause of tier promotion using stale or weak gates in the Colab execution path before running more branches.
+- Reweight training and promotion around holder identity, handoff difficulty, and belief-revision metrics rather than latent_acc.
+- If needed, add stronger direct supervision or curriculum weighting for multi-handoff holder tracking before rerunning baseline_v2.
+
+## [2026-04-18 09:28]
+
+### Summary
+
+Reviewed the local `_v2` implementation against the newest baseline_v2 failure pattern. Updated the diagnosis: if the executed run is using the current repo code, then the regression source is the `_v2` implementation itself rather than a stale promotion path.
+
+### Changes
+
+- Inspected `StructuredQueryHeadV2` in `tmew1_queries_v2.py`.
+- Inspected holder/event loss composition and promotion logic in `tmew1_run_v2.py`.
+- Inspected `StructuredStateTable`, `TypedEventLog`, and `StateCheckpointBank` in `hpm_v2.py`.
+- Confirmed the new promotion gate exists in `tmew1_run_v2.py`, while an older latent-only promotion path still remains in `tmew1_train_v2.py` as dead/confusing code.
+
+### Decisions
+
+- Attribute the main regression to weak entity-binding semantics in `StructuredStateTable`: static soft routing over learned keys plus a shared GRU means every entity receives mixed updates instead of grounded per-entity state transitions.
+- Attribute the historical-query weakness to `TypedEventLog` and `StateCheckpointBank` storing sequence-level classifiers and pooled state summaries rather than explicit per-entity deltas/checkpoints.
+- Treat `holder_loss_weight=0.3` as too weak relative to the easier reconstruction and query losses, allowing the model to optimize generic metrics while failing holder identity.
+
+### Next Steps
+
+- Replace soft mixed entity routing with harder entity assignment or observation-conditioned entity updates.
+- Rebuild typed event entries and checkpoints from per-entity state deltas instead of pooled sequence summaries.
+- Increase holder supervision weight and possibly weight multi-handoff holder cases directly.
+- Remove or isolate the dead latent-only promotion code in `tmew1_train_v2.py` to avoid future confusion.
