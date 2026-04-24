@@ -872,6 +872,14 @@ def apply_tier_overrides(
     branch: BranchConfig,
 ) -> Tuple["CurriculumTier", ...]:
     _, CurriculumTier, DEFAULT_TIERS, _, _ = _lazy_imports()
+
+    def _tier_supports_metric(tier: "CurriculumTier", metric: str) -> bool:
+        if metric == "holder_acc":
+            return "audio" in tier.enabled_modalities
+        if metric == "qacc/what_was_true_rule":
+            return tier.tier >= 2
+        return True
+
     tiers = []
     for t in DEFAULT_TIERS:
         if t.tier not in branch.tiers_to_run:
@@ -886,6 +894,14 @@ def apply_tier_overrides(
                 max_delay=branch.tier3_max_delay or t.max_delay,
                 template_pool=branch.tier3_template_pool or t.template_pool,
             )
+        if (
+            branch.rubric is not None
+            and branch.rubric.min_absolute is not None
+            and _tier_supports_metric(t, branch.rubric.target_metric)
+        ):
+            promotion_metric_floors = dict(getattr(t, "promotion_metric_floors", {}) or {})
+            promotion_metric_floors.setdefault(branch.rubric.target_metric, float(branch.rubric.min_absolute))
+            t = replace(t, promotion_metric_floors=promotion_metric_floors)
         tiers.append(t)
     return tuple(x for x in tiers if x.tier in branch.tiers_to_run)
 

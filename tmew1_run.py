@@ -63,6 +63,25 @@ import tmew1_viz_server as viz
 _VIZ_ENABLED = False
 
 
+def _tier_promotion_checks(tier: CurriculumTier) -> Tuple[Tuple[str, float], ...]:
+    checks = [("latent_acc", float(tier.promote_at_accuracy))]
+    for metric, floor in (getattr(tier, "promotion_metric_floors", {}) or {}).items():
+        checks.append((metric, float(floor)))
+    return tuple(checks)
+
+
+def _evaluate_tier_promotion(val: Dict[str, float], tier: CurriculumTier) -> Tuple[bool, Tuple[str, ...]]:
+    failures = []
+    for metric, floor in _tier_promotion_checks(tier):
+        value = val.get(metric)
+        if value is None:
+            failures.append(f"{metric}=missing < {floor:.3f}")
+            continue
+        if value < floor:
+            failures.append(f"{metric}={value:.3f} < {floor:.3f}")
+    return len(failures) == 0, tuple(failures)
+
+
 # -----------------------------------------------------------------------------
 # Dataset that emits query-augmented episodes
 # -----------------------------------------------------------------------------
@@ -668,6 +687,7 @@ def run_curriculum(
         lr=tcfg.lr,
         weight_decay=tcfg.weight_decay,
     )
+    _base_lrs = [float(pg["lr"]) for pg in optimizer.param_groups]
 
     # ── Resume from checkpoint ──────────────────────────────────────────
     _resume_after_tier = 0  # 0 means start from tier 1
@@ -701,13 +721,14 @@ def run_curriculum(
 
         print(f"\n=== Tier {tier.tier} | modalities={tier.enabled_modalities} | T={tier.max_episode_length} | templates={tier.template_pool} ===")
 
-        # ── Per-tier LR scaling (stability control for Tier 2/3) ────────
-        if tcfg.tier_lr_scale and tier.tier in tcfg.tier_lr_scale:
-            _lr_scale = tcfg.tier_lr_scale[tier.tier]
-            _new_lr = tcfg.lr * _lr_scale
-            for pg in optimizer.param_groups:
-                pg["lr"] = _new_lr
-            print(f"  -> tier {tier.tier} LR scaled to {_new_lr:.2e} (×{_lr_scale})")
+        # ── Per-tier LR scaling (base-relative per param group) ──────────
+        _lr_scale = (tcfg.tier_lr_scale or {}).get(tier.tier, 1.0)
+        for pg, base_lr in zip(optimizer.param_groups, _base_lrs):
+            pg["lr"] = base_lr * _lr_scale
+        if _lr_scale != 1.0:
+            print(f"  -> tier {tier.tier} LR scaled to {optimizer.param_groups[0]['lr']:.2e} (×{_lr_scale})")
+        else:
+            print(f"  -> tier {tier.tier} LR restored to base {optimizer.param_groups[0]['lr']:.2e}")
 
         # ── Fix #2: Reset Adam state at tier boundary ───────────────────
         new_mods = set(tier.enabled_modalities) - set(prev_tier_modalities)
@@ -779,6 +800,7 @@ def run_curriculum(
         )
 
         promoted = False
+        promotion_streak = 0
         for epoch in range(tcfg.epochs_per_tier):
             _accum_unlocks = 0  # accumulate force-unlocks between log events
             for step, batch in enumerate(train_loader):
@@ -861,13 +883,26 @@ def run_curriculum(
                 with open(os.path.join(_branch_out, "val.json"), "w") as _vf:
                     json.dump({k: float(v) for k, v in val.items()}, _vf, indent=2)
 
-            if val["latent_acc"] >= tier.promote_at_accuracy:
+            can_promote, failures = _evaluate_tier_promotion(val, tier)
+            if can_promote:
+                promotion_streak += 1
+                print(
+                    f"  -> promotion gate passed for tier {tier.tier} "
+                    f"({promotion_streak}/{max(1, tier.promote_patience)})"
+                )
+            else:
+                if promotion_streak:
+                    print(f"  -> promotion streak reset for tier {tier.tier}")
+                promotion_streak = 0
+                print(f"  -> promotion blocked for tier {tier.tier}: {'; '.join(failures)}")
+
+            if promotion_streak >= max(1, tier.promote_patience):
                 print(f"  -> promoting from tier {tier.tier}")
                 promoted = True
                 break
 
         if not promoted:
-            print(f"  -> tier {tier.tier} did not reach promotion threshold; continuing anyway")
+            print(f"  -> tier {tier.tier} did not satisfy the full promotion gate; continuing anyway")
 
         prev_tier_modalities = tier.enabled_modalities
 

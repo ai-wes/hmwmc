@@ -78,12 +78,41 @@ class CurriculumTier:
     template_pool: Tuple[str, ...]
     max_delay: int
     occlusion: bool
-    promote_at_accuracy: float          # validation latent-state acc to promote
+    promote_at_accuracy: float          # latent-state floor; not the sole promotion gate
+    promotion_metric_floors: Dict[str, float] = field(default_factory=dict)
+    promote_patience: int = 1
 
 
 DEFAULT_TIERS: Tuple[CurriculumTier, ...] = (
-    CurriculumTier(1, 24, ("vision", "numeric"), ("trigger_delay",), 3, False, 0.70),
-    CurriculumTier(2, 48, ("vision", "numeric", "audio"), ("trigger_delay", "occlusion_identity", "multi_chain"), 8, True, 0.65),
+    CurriculumTier(
+        1,
+        24,
+        ("vision", "numeric"),
+        ("trigger_delay",),
+        3,
+        False,
+        0.90,
+        promotion_metric_floors={
+            "qacc/who_holds_token": 0.75,
+            "qacc/who_was_first_tagged": 0.70,
+        },
+        promote_patience=2,
+    ),
+    CurriculumTier(
+        2,
+        48,
+        ("vision", "numeric", "audio"),
+        ("trigger_delay", "occlusion_identity", "multi_chain"),
+        8,
+        True,
+        0.95,
+        promotion_metric_floors={
+            "qacc/who_holds_token": 0.65,
+            "holder_acc": 0.70,
+            "qacc/what_was_true_rule": 0.75,
+        },
+        promote_patience=2,
+    ),
     CurriculumTier(3, 64, ("vision", "numeric", "audio", "text"), ("trigger_delay", "occlusion_identity", "multi_chain"), 12, True, 1.01),
 )
 
