@@ -294,10 +294,10 @@ class EntityTable(nn.Module):
             return self.n_entities * self.d_entity
         return self.d_entity
 
-    def forward(self, h_seq: Tensor) -> Tuple[Tensor, Dict[str, float]]:
+    def forward(self, h_seq: Tensor) -> Tuple[Tensor, Dict[str, float], Tensor]:
         """
-        h_seq: (B, T, D). Returns (entity_seq, diagnostics).
-        entity_seq: (B, T, output_dim).
+        h_seq: (B, T, D).
+        Returns (entity_seq, diagnostics, entity_stack), including when T=0.
         """
         B, T, D = h_seq.shape
         device = h_seq.device
@@ -308,6 +308,7 @@ class EntityTable(nn.Module):
             return (
                 torch.zeros(B, 0, self.output_dim, device=device, dtype=dtype),
                 {},
+                torch.zeros(B, 0, n_e, self.d_entity, device=device, dtype=dtype),
             )
 
         # Precompute input projections: (B, T, d_entity).
@@ -1579,7 +1580,11 @@ class StateCheckpointBank(nn.Module):
         times = torch.zeros(B, K, dtype=torch.long, device=device)
         checkpoint_holders = torch.zeros(B, K, self.n_entities, device=device, dtype=dtype)
 
-        uniform_idx = torch.linspace(0, max(T - 1, 0), steps=K, device=device).long()
+        uniform_idx = (
+            torch.tensor([max(T - 1, 0)], device=device, dtype=torch.long)
+            if K == 1
+            else torch.linspace(0, T - 1, steps=K, device=device).long()
+        )
         for b in range(B):
             if event_scores is not None:
                 k_ev = min(max(1, K // 2), T)
@@ -1588,7 +1593,11 @@ class StateCheckpointBank(nn.Module):
             else:
                 chosen = uniform_idx
             if chosen.numel() > K:
-                chosen = chosen[:K]
+                chosen = (
+                    chosen[-1:]
+                    if K == 1
+                    else torch.cat([chosen[:K - 1], chosen[-1:]], dim=0)
+                )
             n = int(chosen.numel())
             if n == 0:
                 continue

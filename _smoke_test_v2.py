@@ -61,7 +61,7 @@ def test_event_tape():
     tape = EventTape(d_model=64, cfg=tcfg, d_entity_total=0)
     B, T = 2, 10
     h_seq = torch.randn(B, T, 64)
-    z_per_step = torch.randn(B, T)
+    z_per_step = torch.randn(B, T, 4)
     out = tape(h_seq, z_per_step, entity_states=None)
     assert len(out) == 4, f"Expected 4-tuple, got {len(out)}"
     entries, mask, times, diag = out
@@ -204,6 +204,26 @@ def test_structured_query_stack():
     assert entity_logits.shape == (B, 3, 10)
     assert binary_logits.shape == (B, 3, 2)
 check("StructuredState -> TypedEvent -> Checkpoint -> StructuredQueryHeadV2", test_structured_query_stack)
+
+def test_structured_entity_blend_masks_entity_only_suffix():
+    base = torch.randn(2, 3, 10)
+    structured = torch.randn(2, 3, 4)
+    mask = torch.tensor([[True, False, True], [False, True, False]])
+    blended = StructuredQueryHeadV2._blend_entity_prefix(
+        base, structured, mask, base_weight=0.25, entity_weight=1.5,
+    )
+    expected_prefix = 0.25 * base[..., :4] + 1.5 * structured
+    expected_prefix = torch.where(mask.unsqueeze(-1), expected_prefix, base[..., :4])
+    assert torch.allclose(blended[..., :4], expected_prefix)
+    expected_suffix = base[..., 4:].masked_fill(
+        mask.unsqueeze(-1), torch.finfo(base.dtype).min,
+    )
+    assert torch.equal(blended[..., 4:], expected_suffix)
+    full_width = StructuredQueryHeadV2._blend_entity_prefix(
+        base[..., :4], structured, mask, base_weight=0.25, entity_weight=1.5,
+    )
+    assert torch.allclose(full_width, expected_prefix)
+check("structured entity blend masks entity-only suffix", test_structured_entity_blend_masks_entity_only_suffix)
 
 # ── 9. Score logging ─────────────────────────────────────────────
 print("\n=== 9. Score logging groups ===")
