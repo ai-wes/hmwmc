@@ -683,6 +683,44 @@ class StructuredQueryHeadV2(nn.Module):
                 mask |= qtypes == idx
         return mask
 
+    @staticmethod
+    def _blend_entity_prefix(
+        base_logits: Tensor,
+        entity_logits: Tensor,
+        query_mask: Tensor,
+        base_weight: float,
+        entity_weight: float,
+    ) -> Tensor:
+        if base_logits.shape[:-1] != entity_logits.shape[:-1]:
+            raise ValueError(
+                "Structured entity logits must match the categorical logits "
+                f"except for width, got {tuple(entity_logits.shape)} and "
+                f"{tuple(base_logits.shape)}"
+            )
+        entity_width = entity_logits.size(-1)
+        if entity_width > base_logits.size(-1):
+            raise ValueError(
+                "Structured entity logits cannot be wider than the categorical "
+                f"head, got {entity_width} > {base_logits.size(-1)}"
+            )
+        if query_mask.shape != base_logits.shape[:-1]:
+            raise ValueError(
+                "Query mask must match the categorical logits except for width, "
+                f"got {tuple(query_mask.shape)} and {tuple(base_logits.shape)}"
+            )
+        base_prefix = base_logits[..., :entity_width]
+        blended_prefix = base_weight * base_prefix + entity_weight * entity_logits
+        selected_prefix = torch.where(
+            query_mask.unsqueeze(-1), blended_prefix, base_prefix,
+        )
+        if entity_width == base_logits.size(-1):
+            return selected_prefix
+        base_suffix = base_logits[..., entity_width:]
+        selected_suffix = base_suffix.masked_fill(
+            query_mask.unsqueeze(-1), torch.finfo(base_logits.dtype).min,
+        )
+        return torch.cat((selected_prefix, selected_suffix), dim=-1)
+
     def _gather_at_query_times(self, tensor: Tensor, query_times: Tensor) -> Tensor:
         B, Q = query_times.shape
         trailing = tensor.shape[2:]
@@ -776,8 +814,10 @@ class StructuredQueryHeadV2(nn.Module):
 
         if structured_state_holder_logits is not None and current_holder_mask.any():
             holder_at_q = self._gather_at_query_times(structured_state_holder_logits, query_times)
-            blended = 0.25 * entity_logits + 1.50 * holder_at_q
-            entity_logits = torch.where(current_holder_mask.unsqueeze(-1), blended, entity_logits)
+            entity_logits = self._blend_entity_prefix(
+                entity_logits, holder_at_q, current_holder_mask,
+                base_weight=0.25, entity_weight=1.50,
+            )
 
         memory_parts: List[Tensor] = []
         mask_parts: List[Tensor] = []
@@ -821,14 +861,13 @@ class StructuredQueryHeadV2(nn.Module):
             entity_logits = torch.where(historical_entity_mask.unsqueeze(-1), hist_entity_logits, entity_logits)
             binary_logits = torch.where(historical_binary_mask.unsqueeze(-1), hist_binary_logits, binary_logits)
 
+            cf_mask = self._mask_from_names(query_types, ("holder_if_handoff2_absent",))
             if state_checkpoint_holder_logits is not None:
                 checkpoint_current = state_checkpoint_holder_logits[:, -1]
                 checkpoint_current = checkpoint_current.unsqueeze(1).expand(-1, query_times.size(1), -1)
-                cf_mask = self._mask_from_names(query_types, ("holder_if_handoff2_absent",))
-                entity_logits = torch.where(
-                    cf_mask.unsqueeze(-1),
-                    0.5 * entity_logits + 0.5 * checkpoint_current,
-                    entity_logits,
+                entity_logits = self._blend_entity_prefix(
+                    entity_logits, checkpoint_current, cf_mask,
+                    base_weight=0.5, entity_weight=0.5,
                 )
 
         return entity_logits, binary_logits

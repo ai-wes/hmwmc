@@ -70,16 +70,24 @@ assert div_loss.requires_grad, "diversity_loss should be differentiable"
 # Test 7: EntityTable
 et_cfg = EntityTableConfig(enabled=True, n_entities=4, d_entity=32)
 et = EntityTable(d_model=64, cfg=et_cfg)
-et_out, et_diag = et(x)
+et_out, et_diag, et_stack = et(x)
 print(f"Test 7 (entity): out={et_out.shape}, output_dim={et.output_dim}, diag={et_diag}")
 assert et_out.shape == (2, 10, 4 * 32), f"Expected (2,10,128), got {et_out.shape}"
+assert et_stack.shape == (2, 10, 4, 32), f"Expected (2,10,4,32), got {et_stack.shape}"
 
 # Test 7b: EntityTable attn read mode
 et_cfg_attn = EntityTableConfig(enabled=True, n_entities=4, d_entity=32, read_mode="attn")
 et_attn = EntityTable(d_model=64, cfg=et_cfg_attn)
-et_attn_out, _ = et_attn(x)
+et_attn_out, _, et_attn_stack = et_attn(x)
 print(f"Test 7b (entity attn): out={et_attn_out.shape}, output_dim={et_attn.output_dim}")
 assert et_attn_out.shape == (2, 10, 32)
+assert et_attn_stack.shape == (2, 10, 4, 32)
+
+# EntityTable keeps the same 3-value contract for empty sequences.
+empty_et_out, empty_et_diag, empty_et_stack = et(torch.randn(2, 0, 64))
+assert empty_et_out.shape == (2, 0, 4 * 32)
+assert empty_et_diag == {}
+assert empty_et_stack.shape == (2, 0, 4, 32)
 
 # Test 8: T=0 edge case
 empty = torch.randn(2, 0, 64)
@@ -118,9 +126,18 @@ assert structured.memory_tokens.shape == (2, 10, 4, 64)
 typed = TypedEventLog(d_model=64, n_entities=4, cfg=TypedEventLogConfig(enabled=True, max_events=6))
 typed_out = typed(x, structured, z_per_step=torch.randn(2, 10, 2))
 checkpoints = StateCheckpointBank(d_model=64, n_entities=4, cfg=StateCheckpointConfig(enabled=True, n_checkpoints=4))
-checkpoint_out = checkpoints(structured, typed_out.event_scores)
+checkpoint_scores = torch.zeros(2, 10)
+checkpoint_scores[:, 1] = 10.0
+checkpoint_scores[:, 2] = 9.0
+checkpoint_out = checkpoints(structured, checkpoint_scores)
 print(f"Test 12 (typed events/checkpoints): events={typed_out.entries.shape}, checkpoints={checkpoint_out.entries.shape}")
 assert typed_out.entries.shape == (2, 6, 64)
 assert checkpoint_out.entries.shape == (2, 4, 64)
+assert checkpoint_out.times[:, -1].eq(x.size(1) - 1).all(), checkpoint_out.times
+single_checkpoint = StateCheckpointBank(
+    d_model=64, n_entities=4,
+    cfg=StateCheckpointConfig(enabled=True, n_checkpoints=1),
+)(structured, checkpoint_scores)
+assert single_checkpoint.times[:, 0].eq(x.size(1) - 1).all(), single_checkpoint.times
 
 print("\nALL 12 TESTS PASSED")
