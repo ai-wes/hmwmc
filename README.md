@@ -1,93 +1,196 @@
-How to actually run it
-From the directory containing all three Python files plus the chunked model:
+# HMWMC / TMEW-1
 
-python tmew1_run.py --smoke
+**A synthetic benchmark and PyTorch research prototype for multimodal temporal reasoning, structured memory, and homeostatic adaptation.**
 
-If that prints loss numbers and per-query accuracies without traceback, run the full thing:
+## Abstract
 
-python tmew1_run.py --epochs 4 --batch-size 8
+HMWMC studies whether a stateful multimodal world model can retain and query event structure across delayed effects, entity handoffs, occlusion, parallel causal chains, and misleading cues. The accompanying TMEW-1 environment generates short synthetic episodes with vision, numeric, audio, and text observations under latent rules. The model combines modality-specific encoders, gated fusion, adaptive temporal blocks, surprise-gated Homeostatic Predictive Memory (HPM), episodic memory, and explicit structured state, event, and checkpoint stores. Evaluation asks the model to predict the next observation and answer entity, binary, temporal-ordering, belief-revision, and limited counterfactual questions. The repository is a research prototype, not evidence of general-world reasoning: the environment is synthetic, the default validation split is seed-separated rather than compositionally held out, the preserved results are primarily single-seed runs, and the ablation record is incomplete. The current v2 contract repair is preserved at commit `78121b6`.
 
-The first real signal you're looking for is on the Tier 1 validation line. next_step should drop within the first epoch, latent_acc should climb above 0.5 (chance is 0.25 with four rules), and qacc/did_alarm_fire should be the first query type to lift off because it only requires recent state. If qacc/who_was_first_tagged is still at chance after Tier 2, that's your episodic memory failing — and that's the experiment the whole benchmark exists to run.
-What's still missing for the full benchmark spec
-This is honestly enough to start training and learn something real about the architecture. The remaining items from your spec — false-cue / belief-revision template, multi-entity interaction template, counterfactual queries, longer episode lengths, compositional held-out splits — all slot into the same generator and runner without architectural changes. I'd hold off on building them until you've seen Tier 1–2 learning curves, because those will tell you whether the problem is benchmark difficulty or model capacity. There's no point building Tier 5 if Tier 1 isn't moving.
-When you're ready, the next thing I'd build is a held-out compositional eval set — same generator, but with template/delay combinations that never appear in training. That's the test that tells you whether the model is learning temporal abstraction or memorizing episode shapes, and it costs maybe 30 lines on top of what's already here.
+## Evidence status
 
-
-Core losses (lower is better):
-
-
-total — Weighted sum of all losses below. The single number the optimizer minimizes.
-next_step — Next-timestep prediction loss. The primary world-model objective: given frames 0…t, predict frame t+1. Started bad (1.22) and quickly dropped to ~0.05 — the model learned the world dynamics fast.
-aux_latent — Auxiliary cross-entropy loss for predicting which of the 6 latent rules is active. Started at ~1.79 (near chance for 6 classes = ln(6) ≈ 1.79) and dropped to ~0.12 by step 200 — the model learned to identify the hidden rule.
-q_loss — Cross-entropy loss on query answers (who holds token, did alarm fire, etc.). Dropped from 0.60 → 0.26.
-holder_loss — Per-timestep loss for predicting which entity holds the token right now. Shows 0.000 in Tier 1 because Tier 1 only has trigger_delay template (no handoffs). Jumps to ~2.0 in Tier 2 when handoff episodes appear, then drops to ~1.0 as it learns.
-stress — Homeostatic stress from the RD (reaction-diffusion) module. Measures how far the internal state is from equilibrium. Low = stable. It's consistently good (95%+), which means the model isn't being destabilized.
-
-
-Accuracies (higher is better):
-
-latent_acc — What fraction of the batch the model correctly identified the hidden rule. Reached 100% by step 150.
-holder_acc — Per-timestep accuracy: at each frame, does the model correctly predict who holds the token? 0% in Tier 1 (no handoffs), climbing to ~72% in Tier 2.
-entity_acc — Accuracy on entity-answer queries (who_holds_token, who_was_first_tagged, which_entity_occluded, which_entity_first_occluded). Ranges 45-95% — these are hard because there are 6 possible entities.
-binary_acc — Accuracy on yes/no queries (did_alarm_fire, did_trigger_before_alarm, did_chain2_fire). Quickly hit 100%.
-PNN status (the pnn=O/C/O tag):
-
-Progressive Neural Network gate states for the 3 layers. O=open (plastic, still learning), C=closed (converging), L=locked (frozen, fully learned). The gates cycling between O/C/L means the network is selectively consolidating learned knowledge.
-
----
-
-## Query Types (Evaluation Tasks)
-
-These are the questions posed to the model after it watches an episode unfold. They test different aspects of temporal reasoning, memory, and causal understanding. Each query is asked at a specific timestep and the model must answer using only information available up to that point in the episode.
-
-### Entity-answer queries (model picks one of 6 entities)
-
-| Query | What it tests | How it works |
+| Surface | Status | Evidence boundary |
 |---|---|---|
-| **who_holds_token** | Working memory + tracking through handoffs | A "token" is passed between entities when they collide. The model must remember the full chain of transfers and report who currently holds it. Bucketed by handoff count (0–6+) in diagnostics because difficulty scales with the number of transfers. |
-| **who_was_first_tagged** | Episodic recall of temporal order | Multiple entities get "tagged" (triggered) during an episode. The model must remember which entity was tagged earliest — not the most recent one. Tests whether the model encodes event ordering, not just recency. |
-| **which_entity_occluded** | Object permanence under occlusion | An entity is hidden (its vision pixels go dark). The model must identify which entity disappeared. Relatively easy when the model can compare consecutive frames. |
-| **which_entity_first_occluded** | Temporal ordering + object permanence | When multiple entities are occluded at different times, the model must report which one was occluded first. Combines occlusion tracking with temporal memory. |
+| Synthetic simulator and curriculum | Implemented | Deterministic procedural episodes; no external or real-user data |
+| Multimodal world model and HPM | Implemented | PyTorch research code with diagnostic instrumentation |
+| Structured state, typed events, checkpoints, and query routing | Implemented and regression-tested | Contract tests cover tensor shapes, routing, gradients, empty sequences, and checkpoint boundaries |
+| End-to-end training path | Smoke-tested | The smoke run checks execution only; its tiny metrics are not benchmark results |
+| Full v2 curriculum benchmark | Not rerun on this release | The preserved result log predates the v2 code path |
+| Seed-separated validation | Implemented | Separate procedural seed ranges; not a compositional or cross-domain holdout |
+| Multi-seed estimates and run-level confidence intervals | Not completed | The table below identifies single-run evidence and only computes binomial intervals where logged counts exist |
+| Canonical ablation report | Incomplete | Several branch outcomes are recorded, but the full suite has not been rerun and normalized on this release |
+| External or real-world generalization | Not evaluated | No claim is made beyond the synthetic benchmark |
 
-### Binary queries (model answers yes=1 / no=0)
+## Benchmark specification
 
-| Query | What it tests | How it works |
+TMEW-1 is a procedurally generated grid-world benchmark. An episode contains two to six moving entities, one of six latent rules, delayed events, optional occlusion, and one or two causal chains. Observations are rendered into modality-specific tensors; query targets are derived directly from simulator state.
+
+### Curriculum
+
+| Tier | Length | Modalities | Default templates |
+|---|---:|---|---|
+| 1 | 24 | vision, numeric | delayed trigger |
+| 2 | 48 | vision, numeric, audio | delayed trigger, occlusion, multi-chain; the runner boosts handoff and false-cue examples |
+| 3 | 64 | vision, numeric, audio, text | the full boosted template pool |
+
+The default world uses a `16 x 16` grid, at most six entities, six latent rules, and deterministic episode seeds. The full configuration lives in `WorldConfig`, `CurriculumTier`, and `TrainConfig` in [`tmew1_train_v2.py`](tmew1_train_v2.py).
+
+### Core query families
+
+| Query | Answer type | Capability under test |
 |---|---|---|
-| **did_alarm_fire** | Causal chain detection | Each episode has a trigger event that starts a countdown; when the countdown expires, an "alarm" fires. The model must detect whether this causal chain completed. Usually the first query to reach high accuracy because it only requires recent-state awareness. |
-| **did_trigger_before_alarm** | Temporal ordering of causal events | The model must determine whether the trigger event occurred before the alarm fired — sounds trivial, but it requires the model to encode the relative order of two events in time, not just their existence. Tests temporal sequencing explicitly. |
-| **did_chain2_fire** | Multi-chain causal reasoning | In `multi_chain` episodes, a second independent causal chain runs alongside the first. The model must track whether chain 2's alarm fired, independent of chain 1. Tests parallel causal tracking. |
+| `who_holds_token` | entity | state tracking across handoffs |
+| `who_was_first_tagged` | entity | temporal-order recall |
+| `did_alarm_fire` | binary | delayed causal-chain completion |
+| `which_entity_occluded` | entity | object permanence |
+| `did_trigger_before_alarm` | binary | temporal ordering |
+| `which_entity_first_occluded` | entity | ordering under occlusion |
+| `did_chain2_fire` | binary | parallel causal tracking |
+| `what_was_true_rule` | categorical diagnostic | belief revision under a false cue |
 
-### Diagnostics-only query (not used during training)
+Additional branch configurations introduce relational, negation, and bounded counterfactual questions. Those additions should not be interpreted as open-ended counterfactual reasoning.
 
-| Query | What it tests | How it works |
-|---|---|---|
-| **what_was_true_rule** | Belief revision under deception | Only generated in episodes with a "false cue" — a misleading signal injected to suggest the wrong latent rule. The model must see through the false cue and identify the actual active rule. Reported as `with_cue` accuracy in diagnostics. This is the hardest test: it requires the model to override a strong perceptual signal with deeper causal reasoning. |
+## Model architecture
 
-### Diagnostic Breakdowns
+The current v2 path is assembled in [`homeostatic_multimodal_world_model_chunked_v2.py`](homeostatic_multimodal_world_model_chunked_v2.py), [`hpm_v2.py`](hpm_v2.py), [`tmew1_queries_v2.py`](tmew1_queries_v2.py), and [`tmew1_run_v2.py`](tmew1_run_v2.py).
 
-- **who_holds_token by handoffs (0, 1, 2, 3, 4, 5, 6+)**: Accuracy bucketed by how many times the token changed hands. More handoffs = longer dependency chain = harder.
-- **who_was_first_tagged by handoffs**: Same bucketing — more handoffs means more events competing in memory.
-- **what_was_true_rule with_cue / without_cue**: Accuracy when a false cue was present vs. absent. The gap measures vulnerability to deception.
-- **temporal ordering (trigger<alarm)**: Aggregate accuracy on `did_trigger_before_alarm`.
-- **first occluded entity**: Aggregate accuracy on `which_entity_first_occluded`.
-- **chain2 fire**: Aggregate accuracy on `did_chain2_fire`.
+1. **Modality encoders and gated fusion.** Text, vision, audio, and numeric streams are encoded separately and fused at each timestep.
+2. **Adaptive temporal backbone.** Sparse recurrent world blocks maintain hidden and slot state. An online controller can alter plasticity in response to diagnostics and stability signals.
+3. **Episodic and homeostatic memory.** Episodic memory stores event-boundary representations. HPM uses prediction-error statistics, gated writes, and configurable slot dynamics to retain surprising state.
+4. **Structured memory.** The v2 configuration adds an entity-indexed state table, typed event log, and time-indexed checkpoint bank. The final timestep is retained even in the one-checkpoint edge case.
+5. **Prediction and query heads.** Modality heads optimize next-step prediction. Auxiliary heads predict the latent rule and current holder; the structured query head combines sequence state with entity, event, and checkpoint context.
 
-### Episode Templates
+The default v2 builder uses `d_model=256`, six temporal layers, 32 per-layer memory slots, and 64 episodic slots. These settings are a research configuration, not a claim of scaling performance.
 
-Each episode is generated from one of these templates, which determine what events occur:
+## Dataset generation
 
-| Template | What it generates |
-|---|---|
-| **trigger_delay** | A single entity triggers a countdown → alarm fires after a delay. The simplest causal chain. |
-| **handoff** | The token is passed between entities on collision. Tests working memory across multiple transfers. |
-| **multi_chain** | Two independent trigger→alarm causal chains run in parallel, each with its own trigger pair. |
-| **occlusion_identity** | An entity is hidden partway through the episode. Tests object permanence. |
-| **false_cue** | A misleading audio/visual signal suggests the wrong latent rule. Tests belief revision. |
+All data are generated locally by the simulator; there is no downloaded dataset. For the standard training path:
 
-### Curriculum Tiers
+- each tier generates 2,048 training episodes and 256 validation episodes by default;
+- each episode is deterministic given its tier, configuration, and integer seed;
+- the training loop uses global seed `0` unless overridden;
+- query labels, event labels, holder state, and the latent rule are derived from simulator state rather than human annotation.
 
-| Tier | Episode Length | Modalities | Key additions |
+The procedural generator is implemented in [`tmew1_train_v2.py`](tmew1_train_v2.py); query augmentation is implemented in [`tmew1_queries_v2.py`](tmew1_queries_v2.py).
+
+## Held-out split methodology
+
+The repository currently provides a **seed-separated procedural validation split**:
+
+- training episodes use `base_seed = 1000 * tier`;
+- validation episodes use `base_seed = 9000 + 1000 * tier`;
+- the episode index is added to the base seed.
+
+Within a tier, the default training and validation seed ranges do not overlap. The validation set therefore contains newly generated episodes from the same simulator distribution. Templates, rule families, and generator code are shared between training and validation. A template-compositional holdout, cross-generator holdout, and real-data evaluation remain future work; “held out” in this repository means seed-disjoint validation only.
+
+## Baselines
+
+The current experiment program uses a frozen HPM-enabled reference run and branch-specific promotion/kill rubrics in [`tmew1_experiments_v2.py`](tmew1_experiments_v2.py). It does not yet include a standardized comparison against published external architectures.
+
+Useful nominal floors are:
+
+- binary questions: `0.50` under a balanced uniform guess;
+- latent-rule prediction: `1/6 = 0.167` under a uniform guess;
+- entity questions: approximately `1/6 = 0.167` at the six-class output width, although the effective floor changes with the number of active entities and masking.
+
+The stored “baseline” values are run artifacts from this codebase, not population estimates. Comparisons should name the branch, metric, split, and seed.
+
+## Results and confidence intervals
+
+The table below reports the latest complete Tier-3 validation snapshot preserved in [`docs/new_results.txt`](docs/new_results.txt). Git history binds that log to commit `d01d87b` (2026-04-17), when the executable path was the legacy [`tmew1_run.py`](tmew1_run.py); `tmew1_run_v2.py` did not yet exist. The log records one run and the source defaulted to seed `0`, but the exact command, dependency versions, and hardware are not embedded in the artifact. The validation loader contains 256 generated episodes, while each diagnostic has its own eligible subset. Wilson intervals are shown only where the log records both an accuracy and an eligible count; they quantify binomial sampling uncertainty for that subset, not variation across training seeds.
+
+| Metric | Validation value | Eligible `n` | 95% Wilson CI | Notes |
+|---|---:|---:|---:|---|
+| latent-rule accuracy | 1.000 | not logged | not available | episode-level auxiliary probe |
+| holder auxiliary accuracy | 0.886 | not logged | not available | per-timestep holder head; not the same as query accuracy |
+| `who_holds_token` query accuracy | 0.539 | not logged | not available | entity query on the validation loader |
+| belief revision with false cue | 1.000 | 31 | [0.890, 1.000] | diagnostic subset |
+| trigger-before-alarm ordering | 0.992 | 127 | [0.957, 0.999] | 126 of 127 eligible diagnostics |
+| second-chain completion | 1.000 | 131 | [0.972, 1.000] | diagnostic subset; query-loader accuracy in the same snapshot is 0.986 |
+
+These numbers are legacy-run provenance, not a benchmark of the repaired v2 release. They show that the earlier code path learned several synthetic tasks in one run; they are not multi-seed estimates and do not establish external generalization.
+
+## Ablations
+
+The branch framework covers harder worlds (A), harder query families (B), and architecture changes (C). The available records largely come from the legacy experiment path and include useful negative results:
+
+| Branch | Change | Recorded outcome | Boundary |
 |---|---|---|---|
-| **Tier 1** | T=24 | vision, numeric | Basic world model learning — trigger_delay only |
-| **Tier 2** | T=48 | + audio | Handoffs, multi_chain, occlusion, false_cue |
-| **Tier 3** | T=64 | + text | All templates, longest episodes, maximum difficulty |
+| A1 | denser entity worlds | kill | holder-query accuracy fell to 0.217 in the recorded final validation |
+| A2 | longer horizon (`T=96`) | kill | holder-query accuracy was 0.375 versus a 0.459 reference |
+| A4 | more consequential dynamic rules | kill by regression guard | rule-state metrics improved, but temporal ordering fell to 0.923 from about 0.992 |
+| B4 | bounded counterfactual queries | promote under its configured rubric | one target saturated at 1.000 and may be too easy; `holder_if_handoff2_absent` reached 0.437 |
+
+The full A/B/C matrix is not a finished ablation result. Some working notes are incomplete or use earlier thresholds, the C-family architecture comparison has not been consolidated into a canonical multi-seed table, and these outcomes have not been rerun on v2. Use [`docs/experiment_plan.md`](docs/experiment_plan.md) and the branch runner as raw provenance, not as a polished paper appendix.
+
+## Reproduction
+
+Python 3.12 is the currently tested interpreter. Dependencies are intentionally listed in a small, unpinned [`requirements.txt`](requirements.txt); there is not yet a locked, repository-owned environment.
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+Run the contract and end-to-end smoke suite:
+
+```bash
+bash scripts/run_ci_checks.sh
+```
+
+Run only the v2 contract smoke:
+
+```bash
+python _smoke_test_v2.py
+```
+
+Run a full default curriculum:
+
+```bash
+python tmew1_run_v2.py --epochs 4 --batch-size 32 --train-episodes 2048
+```
+
+The full run uses CUDA when available and otherwise falls back to CPU. It writes tier checkpoints in the current directory. Exact reproducibility across dependency releases is not guaranteed until versions and hardware settings are locked.
+
+### Regression inventory
+
+CI executes:
+
+- `_smoke_test_v2.py` — 12 explicit v2 contract checks;
+- `_test_hpmv2.py` — 12 HPM/structured-memory checks;
+- `_test_config_override.py` — configuration isolation;
+- `_test_et_only.py` — entity-routing modes and gradient flow;
+- `_test_hpm_changes.py` — legacy HPM paths and gradients;
+- `tmew1_run_v2.py --smoke` — tiny end-to-end CPU pipeline.
+
+The end-to-end check also fails if the runner emits a standalone `nan`/`inf`, `non-finite`, or skipped-backward signal. This prevents a numerically collapsed smoke step from being reported as green merely because the process reached the end.
+
+`_test_mp.py`, `_test_mp2.py`, and `_test_log_groups.py` are assert-free demonstrations and are not counted as regression tests.
+
+## Limitations
+
+- TMEW-1 is a synthetic, low-entity-count environment with short horizons and handcrafted event families.
+- The current validation set is seed-disjoint but distribution-matched; no compositional holdout is implemented in the default runner.
+- Most preserved results are single-seed runs. Multi-seed means, run-level confidence intervals, and statistical comparisons are not available.
+- The preserved Tier-3 result log predates the v2 runner and does not embed its exact command, environment, or hardware.
+- The full ablation program has not been rerun against one immutable environment and normalized rubric.
+- Some historical working notes remain exploratory and should not be treated as peer-reviewed claims.
+- The dependency set is not pinned. CI constrains Python and CPU execution, but it does not create a fully locked research environment.
+- Smoke-test metrics are execution diagnostics, not performance claims.
+- No real-world, embodied, or user-facing benefit has been evaluated.
+
+## Repository map
+
+| Path | Purpose |
+|---|---|
+| `tmew1_train_v2.py` | simulator, curriculum, data generation, model builder |
+| `tmew1_run_v2.py` | training/evaluation runner, query heads, checkpoints, diagnostics |
+| `tmew1_queries_v2.py` | query generation and structured query routing |
+| `hpm_v2.py` | HPM, structured state, typed events, checkpoints |
+| `homeostatic_multimodal_world_model_chunked_v2.py` | multimodal backbone and controller |
+| `tmew1_experiments_v2.py` | branch configurations and promotion/kill rubrics |
+| `run_ablation_suite.py` | ablation orchestration |
+| `docs/new_results.txt` | preserved raw run log used in the results table |
+| `docs/raw_runs/README.md` | immutable pointers to legacy raw logs removed from editor-history paths |
+| `scripts/run_ci_checks.sh` | local and CI regression entrypoint |

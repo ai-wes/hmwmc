@@ -3,3 +3,10 @@ training_runs_logs/
 __pycache__/
 *.pyc
 experiments/
+.pytest_cache/
+.venv/
+*.egg-info/
+build/
+dist/
+checkpoint_*.pt
+branch_runs/
