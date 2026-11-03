@@ -1,0 +1,125 @@
+{
+  "tier": 2,
+  "seed": 0,
+  "gpu_peak_mem_gb": 3.900958208,
+  "who_holds_token_by_handoffs": {
+    "0": {
+      "acc": 0.7777777777777778,
+      "n": 27
+    },
+    "1": {
+      "acc": 0.1282051282051282,
+      "n": 39
+    },
+    "2": {
+      "acc": 0.3548387096774194,
+      "n": 31
+    },
+    "3": {
+      "acc": 0.14285714285714285,
+      "n": 21
+    },
+    "4": {
+      "acc": 0.0,
+      "n": 8
+    },
+    "5": {
+      "acc": 0.1,
+      "n": 10
+    },
+    "6+": {
+      "acc": 0.3076923076923077,
+      "n": 13
+    }
+  },
+  "who_was_first_tagged_by_handoffs": {
+    "0": {
+      "acc": 0.7727272727272727,
+      "n": 22
+    },
+    "1": {
+      "acc": 0.7352941176470589,
+      "n": 34
+    },
+    "2": {
+      "acc": 0.6956521739130435,
+      "n": 23
+    },
+    "3": {
+      "acc": 0.5454545454545454,
+      "n": 11
+    },
+    "4": {
+      "acc": 0.2777777777777778,
+      "n": 18
+    },
+    "5": {
+      "acc": 0.625,
+      "n": 8
+    },
+    "6+": {
+      "acc": 0.48148148148148145,
+      "n": 27
+    }
+  },
+  "what_was_true_rule_by_falsecue": {
+    "with_cue": {
+      "acc": 0.8,
+      "n": 35
+    },
+    "without_cue": {
+      "acc": null,
+      "n": 0
+    }
+  },
+  "did_trigger_before_alarm": {
+    "acc": 0.9926470588235294,
+    "n": 136
+  },
+  "which_entity_first_occluded": {
+    "acc": 0.8848920863309353,
+    "n": 139
+  },
+  "did_chain2_fire": {
+    "acc": 0.9848484848484849,
+    "n": 132
+  },
+  "extra_query_metrics": {},
+  "which_entity_changed_color": {
+    "acc": 0.233201581027668,
+    "n": 253
+  },
+  "color_change_by_lag": {
+    "0-5": {
+      "acc": 0.0,
+      "n": 3
+    },
+    "6-15": {
+      "acc": 0.46153846153846156,
+      "n": 13
+    },
+    "16-30": {
+      "acc": 0.3137254901960784,
+      "n": 51
+    },
+    "31+": {
+      "acc": 0.1989247311827957,
+      "n": 186
+    }
+  },
+  "mean_episodic_read_entropy": 3.3930246382951736,
+  "emergent_probes": {
+    "slot_specialization": 0.0017987489700317383,
+    "slot_specialization_n": 204,
+    "thread_separation": 0.07957962462197957,
+    "thread_separation_n": 38,
+    "retroactive_binding": -0.13244407773017883,
+    "retroactive_binding_n": 10,
+    "state_reactivation": -0.12117135524749756,
+    "state_reactivation_n": 10,
+    "event_chunking": 5.694960926973241,
+    "event_chunking_n": 62,
+    "surprise_event_corr": 1.568729655641227,
+    "surprise_event_corr_n": 62
+  }
+}

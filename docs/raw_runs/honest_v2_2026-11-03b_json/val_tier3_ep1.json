@@ -1,0 +1,22 @@
+{
+  "tier": 3,
+  "epoch": 1,
+  "seed": 0,
+  "next_step": 0.2561306059360504,
+  "latent_acc": 1.0,
+  "holder_acc": 0.4747024029493332,
+  "event_acc": 0.9244172051548958,
+  "loss/text": 0.6744014620780945,
+  "loss/vision": 0.007592942623887211,
+  "loss/audio": 0.011630896711722016,
+  "loss/numeric": 0.03458631969988346,
+  "text_entropy": 0.6100461989912275,
+  "qacc/who_holds_token": 0.2850403534248471,
+  "qacc/who_was_first_tagged": 0.6912619099020958,
+  "qacc/did_alarm_fire": 1.0,
+  "qacc/which_entity_occluded": 0.8458266928792,
+  "qacc/did_trigger_before_alarm": 0.9926470592617989,
+  "qacc/which_entity_first_occluded": 0.8619910851120949,
+  "qacc/did_chain2_fire": 0.9525200054049492,
+  "qacc/what_was_true_rule": 0.9238095283508301
+}

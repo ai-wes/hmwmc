@@ -984,3 +984,17 @@ Benchmark revision 2026-11-03b: made entity identity observable and state change
 ### Runs launched
 
 - Honest-benchmark default curriculum, seed 0, with the per-epoch probe monitor; then branches A1 (denser worlds) and A2 (T=96) judged against it. The earlier A1/A2 kill verdicts were produced under the mislabelled holder query with ~70% of optimizer steps skipped and are void.
+
+## [2026-11-03 07:30]
+
+### Results of the benchmark-revision test
+
+- Honest baseline (seed 0, 0 skipped steps): Tier 3 holder query 0.293 (was 0.963 with the ambient cue), holder_acc 0.470 (was 0.968); latent 1.000, belief revision 1.000, ordering 0.993, chain-2 0.993 unchanged; first-tagged 0.684 (was 0.648). Holder by handoffs-before-query: 0.778 at zero handoffs, 0.13–0.52 otherwise. Emergent probes flat across all 12 monitored epochs (slot specialization ≤ 0.047, retroactive binding and state reactivation negative).
+- Conclusion: the previous holder result was readout. The model is the bottleneck for state retention on the revised benchmark.
+- A1: kill (belief revision 0.893 vs 1.000; holder query 0.196). A2: CUDA OOM in Tier 3 at T=96, batch 32, 8 GB card; rerun with `--batch-size 16` or on a larger GPU.
+- Logs and the baseline's JSON outputs preserved under `docs/raw_runs/`; README results and limitations updated.
+
+### Next Steps
+
+- Memory ablations on the revised benchmark (HPM off, episodic off, structured state off, ET-only / tape-only reads), three seeds, to find what is load-bearing before changing the architecture.
+- Then grounded per-entity updates in the structured state table (slot e reads entity e's numeric block) and a query-conditioned read.

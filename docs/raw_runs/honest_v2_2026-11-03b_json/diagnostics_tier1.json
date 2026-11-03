@@ -1,0 +1,125 @@
+{
+  "tier": 1,
+  "seed": 0,
+  "gpu_peak_mem_gb": 2.009269248,
+  "who_holds_token_by_handoffs": {
+    "0": {
+      "acc": 0.9508196721311475,
+      "n": 61
+    },
+    "1": {
+      "acc": 0.03571428571428571,
+      "n": 28
+    },
+    "2": {
+      "acc": 0.6666666666666666,
+      "n": 30
+    },
+    "3": {
+      "acc": 0.4,
+      "n": 10
+    },
+    "4": {
+      "acc": 0.3333333333333333,
+      "n": 3
+    },
+    "5": {
+      "acc": 0.2857142857142857,
+      "n": 7
+    },
+    "6+": {
+      "acc": 0.3333333333333333,
+      "n": 3
+    }
+  },
+  "who_was_first_tagged_by_handoffs": {
+    "0": {
+      "acc": 0.8367346938775511,
+      "n": 49
+    },
+    "1": {
+      "acc": 0.6388888888888888,
+      "n": 36
+    },
+    "2": {
+      "acc": 0.5357142857142857,
+      "n": 28
+    },
+    "3": {
+      "acc": 0.5454545454545454,
+      "n": 11
+    },
+    "4": {
+      "acc": 0.2,
+      "n": 5
+    },
+    "5": {
+      "acc": 0.5714285714285714,
+      "n": 7
+    },
+    "6+": {
+      "acc": 0.75,
+      "n": 4
+    }
+  },
+  "what_was_true_rule_by_falsecue": {
+    "with_cue": {
+      "acc": 0.13513513513513514,
+      "n": 74
+    },
+    "without_cue": {
+      "acc": null,
+      "n": 0
+    }
+  },
+  "did_trigger_before_alarm": {
+    "acc": 0.9924242424242424,
+    "n": 132
+  },
+  "which_entity_first_occluded": {
+    "acc": 1.0,
+    "n": 136
+  },
+  "did_chain2_fire": {
+    "acc": 0.9618320610687023,
+    "n": 131
+  },
+  "extra_query_metrics": {},
+  "which_entity_changed_color": {
+    "acc": 0.2171945701357466,
+    "n": 221
+  },
+  "color_change_by_lag": {
+    "0-5": {
+      "acc": 0.3,
+      "n": 30
+    },
+    "6-15": {
+      "acc": 0.18421052631578946,
+      "n": 76
+    },
+    "16-30": {
+      "acc": 0.21739130434782608,
+      "n": 115
+    },
+    "31+": {
+      "acc": null,
+      "n": 0
+    }
+  },
+  "mean_episodic_read_entropy": 2.727305129170418,
+  "emergent_probes": {
+    "slot_specialization": 0.0003018975257873535,
+    "slot_specialization_n": 198,
+    "thread_separation": 0.04153860660517328,
+    "thread_separation_n": 31,
+    "retroactive_binding": -0.12431523497357513,
+    "retroactive_binding_n": 33,
+    "state_reactivation": -0.10349818522279913,
+    "state_reactivation_n": 33,
+    "event_chunking": 5.673202194431285,
+    "event_chunking_n": 54,
+    "surprise_event_corr": 1.452173986675258,
+    "surprise_event_corr_n": 54
+  }
+}

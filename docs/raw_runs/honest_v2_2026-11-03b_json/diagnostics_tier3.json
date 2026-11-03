@@ -1,0 +1,125 @@
+{
+  "tier": 3,
+  "seed": 0,
+  "gpu_peak_mem_gb": 5.16737792,
+  "who_holds_token_by_handoffs": {
+    "0": {
+      "acc": 0.7777777777777778,
+      "n": 18
+    },
+    "1": {
+      "acc": 0.2222222222222222,
+      "n": 36
+    },
+    "2": {
+      "acc": 0.5185185185185185,
+      "n": 27
+    },
+    "3": {
+      "acc": 0.25,
+      "n": 24
+    },
+    "4": {
+      "acc": 0.1875,
+      "n": 16
+    },
+    "5": {
+      "acc": 0.13333333333333333,
+      "n": 15
+    },
+    "6+": {
+      "acc": 0.2413793103448276,
+      "n": 29
+    }
+  },
+  "who_was_first_tagged_by_handoffs": {
+    "0": {
+      "acc": 1.0,
+      "n": 9
+    },
+    "1": {
+      "acc": 0.5333333333333333,
+      "n": 15
+    },
+    "2": {
+      "acc": 0.6923076923076923,
+      "n": 26
+    },
+    "3": {
+      "acc": 0.6363636363636364,
+      "n": 11
+    },
+    "4": {
+      "acc": 0.23809523809523808,
+      "n": 21
+    },
+    "5": {
+      "acc": 0.6,
+      "n": 10
+    },
+    "6+": {
+      "acc": 0.6888888888888889,
+      "n": 45
+    }
+  },
+  "what_was_true_rule_by_falsecue": {
+    "with_cue": {
+      "acc": 0.8709677419354839,
+      "n": 31
+    },
+    "without_cue": {
+      "acc": null,
+      "n": 0
+    }
+  },
+  "did_trigger_before_alarm": {
+    "acc": 1.0,
+    "n": 127
+  },
+  "which_entity_first_occluded": {
+    "acc": 0.8962962962962963,
+    "n": 135
+  },
+  "did_chain2_fire": {
+    "acc": 0.9923664122137404,
+    "n": 131
+  },
+  "extra_query_metrics": {},
+  "which_entity_changed_color": {
+    "acc": 0.21653543307086615,
+    "n": 254
+  },
+  "color_change_by_lag": {
+    "0-5": {
+      "acc": 1.0,
+      "n": 1
+    },
+    "6-15": {
+      "acc": 0.25,
+      "n": 4
+    },
+    "16-30": {
+      "acc": 0.2222222222222222,
+      "n": 9
+    },
+    "31+": {
+      "acc": 0.2125,
+      "n": 240
+    }
+  },
+  "mean_episodic_read_entropy": 3.568576619029045,
+  "emergent_probes": {
+    "slot_specialization": 0.04690897464752197,
+    "slot_specialization_n": 211,
+    "thread_separation": 0.10066494862216295,
+    "thread_separation_n": 39,
+    "retroactive_binding": -0.0953642725944519,
+    "retroactive_binding_n": 10,
+    "state_reactivation": -0.14394907355308534,
+    "state_reactivation_n": 10,
+    "event_chunking": 6.781508544115468,
+    "event_chunking_n": 63,
+    "surprise_event_corr": 1.5174743898921337,
+    "surprise_event_corr_n": 63
+  }
+}

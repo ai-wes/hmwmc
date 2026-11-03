@@ -1,0 +1,50 @@
+{
+  "train": {
+    "batch_size": 32,
+    "train_episodes_per_tier": 2048,
+    "val_episodes": 256,
+    "epochs_per_tier": 4,
+    "lr": 0.0003,
+    "weight_decay": 0.01,
+    "grad_clip": 1.0,
+    "aux_latent_weight": 0.5,
+    "log_every": 10,
+    "warmup_steps": 5,
+    "modality_warmup_steps": 200,
+    "device": "cuda",
+    "seed": 0,
+    "num_workers": 2,
+    "tier_lr_scale": null,
+    "holder_loss_weight": 0.3,
+    "diversity_loss_enabled": true
+  },
+  "world": {
+    "grid_h": 16,
+    "grid_w": 16,
+    "vision_channels": 3,
+    "audio_dim": 24,
+    "numeric_dim": 40,
+    "text_vocab_size": 64,
+    "text_seq_len": 1,
+    "min_entities": 2,
+    "max_entities": 6,
+    "episode_length": 64,
+    "num_latent_rules": 6,
+    "occlusion_prob": 0.25,
+    "noise_std": 0.02,
+    "chain2_frequency_boost": 1.0,
+    "chain2_temporal_overlap": false,
+    "rule_dynamic": false
+  },
+  "model": {
+    "d_model": 256,
+    "num_layers": 6,
+    "num_memory_slots": 32,
+    "num_episodic_slots": 64,
+    "params": 12019094
+  },
+  "model_config_overrides": {},
+  "probe_every_epoch": true,
+  "torch": "2.11.0+cu128",
+  "gpu": "NVIDIA GeForce RTX 3070"
+}

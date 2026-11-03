@@ -1,0 +1,17 @@
+{
+  "tier": 1,
+  "epoch": 0,
+  "seed": 0,
+  "slot_specialization": 0.008793115615844727,
+  "slot_specialization_n": 198,
+  "thread_separation": 0.04545644978930578,
+  "thread_separation_n": 31,
+  "retroactive_binding": -0.020455085869991417,
+  "retroactive_binding_n": 33,
+  "state_reactivation": -0.007697302283662738,
+  "state_reactivation_n": 33,
+  "event_chunking": 6.523341596174238,
+  "event_chunking_n": 54,
+  "surprise_event_corr": 1.0022140760231832,
+  "surprise_event_corr_n": 54
+}

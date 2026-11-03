@@ -140,6 +140,26 @@ Two runs of `python tmew1_run_v2.py --epochs 4 --batch-size 32 --train-episodes 
 
 Tier 1, which has no audio holder cue, remains weak on the holder query in both runs (0.512 and 0.591) and does not pass its promotion gate; Tier 2 passes its gate in the fixed run. These are single-seed numbers from one machine and should be read as a working baseline for the repaired code path, not as a multi-seed estimate.
 
+### Benchmark revision 2026-11-03b: readout versus memory
+
+The same command, seed, and machine on the revised observation contract (grounded identity, holder cue only on handoff steps, tagging as a one-step event; log and JSON outputs in [`docs/raw_runs/`](docs/raw_runs/README.md)). Final-epoch Tier 3 validation, 0 of 768 optimizer steps skipped:
+
+| Metric | Leaky cue (run above) | Revision 2026-11-03b | Reading |
+|---|---:|---:|---|
+| latent-rule accuracy | 1.000 | 1.000 | observable; unchanged |
+| belief revision with false cue (`n=31`) | 1.000 | 1.000 | observable; unchanged |
+| trigger-before-alarm ordering | 1.000 | 0.993 | unchanged |
+| second-chain completion | 0.994 | 0.993 | unchanged |
+| which entity occluded / first occluded | 0.867 / 0.841 | 0.837 / 0.883 | unchanged |
+| holder auxiliary accuracy (per timestep) | 0.968 | 0.470 | collapses once the standing holder is not in the input |
+| `who_holds_token` query | 0.963 | 0.293 | 0.778 with no handoff before the query, 0.13–0.52 with one or more (`n=165`) |
+| `who_was_first_tagged` query | 0.648 | 0.684 | tag events now observable; still not retained |
+| emergent probes (slot specialization / thread separation / retroactive binding / state reactivation) | 0.036 / 0.035 / −0.18 / −0.16 | 0.047 / 0.101 / −0.10 / −0.14 | flat across all 12 epochs of the per-epoch monitor |
+
+Interpretation: the earlier 0.96 holder result was a per-step readout of the ambient audio cue, not memory. Every quantity that stays observable is unchanged, and every quantity that now has to be carried across steps drops to near the handoff-count floor. On this revision the model, not the benchmark, is the bottleneck for state retention; the structured state table, HPM, and episodic memory are not yet load-bearing for the holder.
+
+Branch reruns on the revision (single seed): A1 (6–8 entities) is killed by its rubric on a belief-revision regression (0.893 versus 1.000) with holder query 0.196; A2 (`T=96`) ran out of memory in Tier 3 at batch 32 on the 8 GB card and needs `--batch-size 16` or a larger GPU, so it has no verdict.
+
 ## Ablations
 
 The branch framework covers harder worlds (A), harder query families (B), and architecture changes (C). The available records largely come from the legacy experiment path and include useful negative results:
@@ -225,6 +245,7 @@ The end-to-end check also fails if the runner emits a standalone `nan`/`inf`, `n
 - Most preserved results are single-seed runs. Multi-seed means, run-level confidence intervals, and statistical comparisons are not available.
 - The `who_holds_token` label definition changed on 2026-11-03 (holder at `time_asked` instead of end-of-episode holder); holder-query accuracies logged before that date are not comparable with later ones.
 - Tier 1 exposes no holder cue (vision and numeric only), so its holder query depends on inferring stochastic handoff rules from positions; it has not passed its promotion gate in any preserved v2 run.
+- On benchmark revision 2026-11-03b the holder and first-tagged queries are memory questions and the current architecture answers them near the handoff-count floor; the 0.96 holder result before the revision was a readout and should not be cited as memory performance.
 - The preserved Tier-3 result log predates the v2 runner and does not embed its exact command, environment, or hardware.
 - The full ablation program has not been rerun against one immutable environment and normalized rubric.
 - Some historical working notes remain exploratory and should not be treated as peer-reviewed claims.

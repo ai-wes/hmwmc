@@ -20,5 +20,8 @@ The empty `training_logs_20260411150611.txt` snapshot is intentionally omitted. 
 |---|---|---|
 | `baseline_v2_2026-11-03.log` | commit `82ab1e1`, unmodified | 544 of 768 optimizer steps skipped for non-finite gradients; negative baseline. Multi-line gradient-skip parameter dumps are truncated |
 | `fixed_v2_2026-11-03.log` | `82ab1e1` plus the 2026-11-03 holder-label and episodic-init fixes | 0 skipped steps; the run reported in the README results table |
+| `honest_v2_2026-11-03b.log` + `honest_v2_2026-11-03b_json/` | `6db1b34`, benchmark revision 2026-11-03b | default curriculum with the per-epoch probe monitor; holder query 0.293 once the ambient cue is removed. JSON directory holds `run_config.json`, `val_tier*_ep*.json`, `diagnostics_tier*.json`, `probes_tier*_ep*.json` |
+| `honest_A1_2026-11-03b.log` | `6db1b34` | branch A1 (6–8 entities), verdict kill on belief-revision regression |
+| `honest_A2_2026-11-03b.log` | `6db1b34` | branch A2 (`T=96`), CUDA out of memory in Tier 3 at batch 32 on an 8 GB card; no verdict |
 
 Each file begins with a header giving the exact command, Python, PyTorch, and GPU used.
