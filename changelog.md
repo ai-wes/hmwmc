@@ -937,3 +937,26 @@ Hooked the Colab notebook up to the repaired v2 path so larger and multi-seed ru
 
 - Run at least three seeds of the default curriculum on Colab and quote the aggregated Tier 3 numbers in the README in place of the single-seed table.
 - Use the branch runner with `--seed` to repeat A/C branches across seeds before promoting or killing any of them on v2.
+
+## [2026-11-03 06:30]
+
+### Summary
+
+Added a per-epoch emergent-property monitor and network-size presets to the v2 runner, and surfaced both in the Colab notebook.
+
+### Changes
+
+- `tmew1_run_v2.py`: `--probe-every-epoch` runs the six zero-shot probes on a fixed 64-episode diagnostic set after every validation pass and writes `probes_tier{N}_ep{E}.json`; `--size {default,large,xl}` plus `--d-model/--num-layers/--memory-slots/--episodic-slots`; the larger presets retune the controller (`exploit_budget=40`, `intervention_interval=8`, `strategic_unlock_fraction=0.25`) per the April double-parameter postmortem. Writes `run_config.json` (model shape, parameter count, torch version, GPU) and records peak GPU memory in `diagnostics_tier{N}.json`.
+- `tmew1_train_v2.py`: `build_model` lets explicit overrides take precedence over the research defaults (previously a duplicate-keyword error for `d_model`).
+- `tmew1_aggregate_runs.py`: `--trajectory` reports the per-epoch probe trajectory (mean/std across seeds); included in the JSON summary.
+- `tmew1_colab.ipynb`: `MODEL_SIZE` (default `large`) and `PROBE_EVERY_EPOCH` controls in the seed loop; a probe-trajectory plot cell.
+- `README.md`: monitor, presets, and measured memory.
+
+### Validation
+
+- CI passes.
+- `--size large --probe-every-epoch`: 33.5M parameters; Tier 1 clean at batch 32 (peak 4.7 GB), Tier 2 OOM at batch 32 on the 8 GB RTX 3070; resumed at batch 16 through Tier 3 with zero non-finite steps (peak 5.0 / 6.5 GB). Probe files written for every tier/epoch. These short runs (1 epoch, 256 episodes) check execution only.
+
+### Next Steps
+
+- Multi-seed `large` runs on a 15 GB GPU at batch 32, with the probe trajectory, to see whether the extra capacity moves slot specialization or retroactive binding off zero.

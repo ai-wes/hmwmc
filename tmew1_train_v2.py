@@ -509,7 +509,7 @@ def build_model(world_cfg: WorldConfig, **model_config_overrides) -> Tuple[Homeo
         audio_dim=world_cfg.audio_dim,
         numeric_dim=world_cfg.numeric_dim,
     )
-    cfg = WorldModelConfig(
+    base_kwargs: Dict[str, Any] = dict(
         modality=modality,
         d_model=256,
         num_layers=6,
@@ -540,8 +540,11 @@ def build_model(world_cfg: WorldConfig, **model_config_overrides) -> Tuple[Homeo
         entity_table_config=None,
         event_tape_config=None,
         entity_history_config=None,
-        **model_config_overrides,
     )
+    # Explicit overrides (size presets, branch configs) take precedence over
+    # the research defaults above.
+    base_kwargs.update(model_config_overrides)
+    cfg = WorldModelConfig(**base_kwargs)
     model = HomeostaticMultimodalWorldModel(cfg)
     criterion = MultimodalPredictionLoss(cfg, LossWeights(text=0.3, numeric=1.0, audio=1.0, vision=1.0))
     probe = LatentRuleProbe(cfg.d_model, world_cfg.num_latent_rules)

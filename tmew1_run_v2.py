@@ -46,9 +46,12 @@ from tmew1_diagnostics_v2 import (
     episode_to_diag_tensors,
     collate_diag,
     run_diagnostic_report,
+    run_emergent_probes,
+    TMEW1DiagnosticDataset,
 )
 
 from homeostatic_multimodal_world_model_chunked_v2 import (
+    ControllerConfig,
     HomeostaticMultimodalWorldModel,
     MultimodalPredictionLoss,
     ForwardOutput,
@@ -722,6 +725,99 @@ def evaluate(
 # -----------------------------------------------------------------------------
 # Curriculum runner
 # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Network-size presets
+# -----------------------------------------------------------------------------
+# "default" reproduces build_model's research configuration (~12.0M params).
+# Larger presets also retune the homeostatic controller as recorded in
+# docs/NOTES.md after the April double-parameter run: a deeper stack needs a
+# larger exploit budget and a longer intervention interval or the controller
+# intervenes too often and destabilises training.
+MODEL_SIZE_PRESETS: Dict[str, Dict[str, Any]] = {
+    "default": {},
+    "large": {
+        "d_model": 384,
+        "num_layers": 8,
+        "num_memory_slots": 48,
+        "num_episodic_slots": 96,
+        "controller": ControllerConfig(
+            exploit_budget=40.0,
+            unlock_stress_threshold=0.18,
+            stress_threshold=0.30,
+            intervention_interval=8,
+            strategic_unlock_fraction=0.25,
+        ),
+    },
+    "xl": {
+        "d_model": 512,
+        "num_layers": 10,
+        "num_memory_slots": 64,
+        "num_episodic_slots": 128,
+        "controller": ControllerConfig(
+            exploit_budget=40.0,
+            unlock_stress_threshold=0.18,
+            stress_threshold=0.30,
+            intervention_interval=8,
+            strategic_unlock_fraction=0.25,
+        ),
+    },
+}
+
+
+def resolve_model_overrides(
+    size: str = "default",
+    d_model: Optional[int] = None,
+    num_layers: Optional[int] = None,
+    memory_slots: Optional[int] = None,
+    episodic_slots: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Compose a size preset with explicit per-field overrides (explicit wins)."""
+    if size not in MODEL_SIZE_PRESETS:
+        raise ValueError(f"unknown --size {size!r}; choose from {sorted(MODEL_SIZE_PRESETS)}")
+    overrides = dict(MODEL_SIZE_PRESETS[size])
+    for key, value in (
+        ("d_model", d_model),
+        ("num_layers", num_layers),
+        ("num_memory_slots", memory_slots),
+        ("num_episodic_slots", episodic_slots),
+    ):
+        if value is not None:
+            overrides[key] = int(value)
+    return overrides
+
+
+def _run_probe_monitor(
+    model: HomeostaticMultimodalWorldModel,
+    world_cfg: WorldConfig,
+    tier: CurriculumTier,
+    device: str,
+    epoch: int,
+    seed: int,
+    out_dir: str,
+    n_episodes: int = 64,
+) -> Dict[str, Any]:
+    """
+    Per-epoch emergent-property monitor.
+
+    Runs the six zero-shot probes on a fixed 64-episode diagnostic set (the same
+    seed range run_diagnostic_report uses for its probe set) so values are
+    comparable across epochs and tiers, writes probes_tier{N}_ep{E}.json, and
+    prints a one-line summary.
+    """
+    probe_ds = TMEW1DiagnosticDataset(world_cfg, tier, n=n_episodes, base_seed=99000 + 50000, enable_false_cue=True)
+    probe_loader = DataLoader(probe_ds, batch_size=8, shuffle=False, collate_fn=collate_diag, num_workers=0)
+    probes = run_emergent_probes(model, probe_loader, device, enabled=tier.enabled_modalities)
+    payload = {"tier": tier.tier, "epoch": epoch, "seed": seed, **probes}
+    with open(os.path.join(out_dir, f"probes_tier{tier.tier}_ep{epoch}.json"), "w") as f:
+        json.dump(payload, f, indent=2, default=_json_default)
+    summary = ", ".join(
+        f"{k}={v:.3f}" for k, v in probes.items()
+        if isinstance(v, (int, float)) and not isinstance(v, bool) and not k.endswith("_n")
+    )
+    print(f"  [probes] t{tier.tier} ep{epoch}: {summary}")
+    return payload
+
+
 def _json_default(obj: Any):
     """Fallback serializer for numpy/torch scalars inside diagnostic reports."""
     if isinstance(obj, (np.floating, np.integer)):
@@ -740,10 +836,12 @@ def run_curriculum(
     num_queries: int = 4,
     resume_from: Optional[str] = None,
     model_config_overrides: Optional[Dict[str, Any]] = None,
+    probe_every_epoch: bool = False,
 ) -> None:
     torch.manual_seed(tcfg.seed)
     np.random.seed(tcfg.seed)
     random.seed(tcfg.seed)
+    _out_dir = os.environ.get("TMEW1_BRANCH_OUT_DIR", "")
 
     score_logger = ScoreLogger("tmew_scores")
     specs = build_default_metric_specs()
@@ -820,6 +918,29 @@ def run_curriculum(
     probe = probe.to(tcfg.device)
     query_head = query_head.to(tcfg.device)
     holder_head = holder_head.to(tcfg.device)
+
+    _n_params = sum(p.numel() for p in model.parameters())
+    print(
+        f"model: d_model={model.cfg.d_model} layers={model.cfg.num_layers} "
+        f"memory_slots={model.cfg.num_memory_slots} episodic_slots={model.cfg.num_episodic_slots} "
+        f"params={_n_params / 1e6:.2f}M device={tcfg.device}"
+    )
+    if _out_dir:
+        os.makedirs(_out_dir, exist_ok=True)
+        with open(os.path.join(_out_dir, "run_config.json"), "w") as _rf:
+            json.dump({
+                "train": {k: v for k, v in vars(tcfg).items() if isinstance(v, (int, float, str, bool, type(None)))},
+                "world": {k: v for k, v in vars(world_cfg).items() if isinstance(v, (int, float, str, bool, type(None)))},
+                "model": {
+                    "d_model": model.cfg.d_model, "num_layers": model.cfg.num_layers,
+                    "num_memory_slots": model.cfg.num_memory_slots, "num_episodic_slots": model.cfg.num_episodic_slots,
+                    "params": _n_params,
+                },
+                "model_config_overrides": {k: (vars(v) if hasattr(v, "__dataclass_fields__") else v) for k, v in (model_config_overrides or {}).items()},
+                "probe_every_epoch": bool(probe_every_epoch),
+                "torch": torch.__version__,
+                "gpu": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
+            }, _rf, indent=2, default=_json_default)
 
     # NaN localizer: forward-hook diagnostic that identifies the first module
     # whose output goes non-finite. Only reports when report() is called.
@@ -1028,6 +1149,8 @@ def run_curriculum(
                     json.dump(_val_payload, _vf, indent=2)
                 with open(os.path.join(_branch_out, f"val_tier{tier.tier}_ep{epoch}.json"), "w") as _vf:
                     json.dump({"tier": tier.tier, "epoch": epoch, "seed": tcfg.seed, **_val_payload}, _vf, indent=2)
+            if probe_every_epoch and _branch_out:
+                _run_probe_monitor(model, world_cfg, tier, tcfg.device, epoch, tcfg.seed, _branch_out)
 
             can_promote, failures = _evaluate_tier_promotion(val, tier)
             if can_promote:
@@ -1071,8 +1194,9 @@ def run_curriculum(
 
         _diag_report = run_diagnostic_report(model, query_head, world_cfg, tier, tcfg.device, n_episodes=256)
         if _ckpt_dir:
+            _peak_gb = torch.cuda.max_memory_allocated() / 1e9 if torch.cuda.is_available() else None
             with open(os.path.join(_ckpt_dir, f"diagnostics_tier{tier.tier}.json"), "w") as _df:
-                json.dump({"tier": tier.tier, "seed": tcfg.seed, **_diag_report}, _df, indent=2, default=_json_default)
+                json.dump({"tier": tier.tier, "seed": tcfg.seed, "gpu_peak_mem_gb": _peak_gb, **_diag_report}, _df, indent=2, default=_json_default)
 
         # Send a replay episode to the viz dashboard
         if _VIZ_ENABLED:
@@ -1128,7 +1252,18 @@ def main() -> None:
         "--out-dir", type=str, default=None,
         help="Directory for checkpoints, val_tier*.json and diagnostics_tier*.json (default: current directory, no JSON)",
     )
+    parser.add_argument("--size", type=str, default="default", choices=sorted(MODEL_SIZE_PRESETS),
+                        help="Network-size preset: default (~12M params), large (d_model 384, 8 layers), xl (d_model 512, 10 layers)")
+    parser.add_argument("--d-model", type=int, default=None, help="Override d_model (must be divisible by 8)")
+    parser.add_argument("--num-layers", type=int, default=None, help="Override number of temporal layers")
+    parser.add_argument("--memory-slots", type=int, default=None, help="Override per-layer memory slots")
+    parser.add_argument("--episodic-slots", type=int, default=None, help="Override episodic memory slots")
+    parser.add_argument("--probe-every-epoch", action="store_true",
+                        help="Run the six emergent-capability probes after every validation pass and write probes_tier{N}_ep{E}.json (needs --out-dir)")
     args = parser.parse_args()
+
+    if args.probe_every_epoch and not args.out_dir:
+        parser.error("--probe-every-epoch requires --out-dir")
 
     if args.out_dir:
         os.makedirs(args.out_dir, exist_ok=True)
@@ -1150,7 +1285,12 @@ def main() -> None:
         num_workers=args.workers,
         seed=args.seed,
     )
-    run_curriculum(world_cfg, tcfg, resume_from=args.resume)
+    overrides = resolve_model_overrides(args.size, args.d_model, args.num_layers, args.memory_slots, args.episodic_slots)
+    run_curriculum(
+        world_cfg, tcfg, resume_from=args.resume,
+        model_config_overrides=overrides or None,
+        probe_every_epoch=args.probe_every_epoch,
+    )
 
 
 if __name__ == "__main__":

@@ -181,7 +181,15 @@ python tmew1_run_v2.py --seed 1 --out-dir runs/v2_seed1
 python tmew1_aggregate_runs.py "runs/v2_seed*" --tier 3
 ```
 
-`--out-dir` writes `val_tier{N}_ep{E}.json`, `diagnostics_tier{N}.json` (handoff-bucket recall, belief revision, and the zero-shot emergent-capability probes), and the tier checkpoints into that directory; the aggregator prints mean and standard deviation across seeds. [`tmew1_colab.ipynb`](tmew1_colab.ipynb) wraps the same commands for Colab or any Jupyter kernel with a GPU: clone, install, smoke test, a multi-seed loop that persists to Google Drive, aggregation, and the Phase-1 branch experiments through [`tmew1_branch_runner_v2.py`](tmew1_branch_runner_v2.py).
+`--out-dir` writes `run_config.json`, `val_tier{N}_ep{E}.json`, `diagnostics_tier{N}.json` (handoff-bucket recall, belief revision, the zero-shot emergent-capability probes, and peak GPU memory), and the tier checkpoints into that directory; the aggregator prints mean and standard deviation across seeds, and `--trajectory` adds the per-epoch probe trajectory.
+
+Emergent-property monitor and network size:
+
+```bash
+python tmew1_run_v2.py --size large --probe-every-epoch --seed 0 --out-dir runs/large_seed0
+```
+
+`--probe-every-epoch` runs the six zero-shot probes (HPM slot specialization, causal thread separation, retroactive cause binding, state reactivation, event boundary chunking, surprise–event correlation) on a fixed 64-episode diagnostic set after every validation pass and writes `probes_tier{N}_ep{E}.json`. `--size` selects a network preset: `default` (`d_model=256`, 6 layers, about 12M parameters), `large` (`d_model=384`, 8 layers, 48 memory slots, 96 episodic slots, about 34M), or `xl` (`d_model=512`, 10 layers, about 72M); the larger presets also retune the homeostatic controller (`exploit_budget=40`, `intervention_interval=8`, `strategic_unlock_fraction=0.25`) as the April double-parameter postmortem recommended. `--d-model`, `--num-layers`, `--memory-slots`, and `--episodic-slots` override individual fields. Only the default preset has a preserved full run; the larger presets are provided for scaling experiments and have not been benchmarked here. Measured peak allocated GPU memory for `large`: 4.7 GB in Tier 1 at batch 32, 5.0 GB in Tier 2 and 6.5 GB in Tier 3 at batch 16; Tier 2 at batch 32 exceeded an 8 GB card, so use `--batch-size 16` there and batch 32 on a 15 GB T4 or larger. [`tmew1_colab.ipynb`](tmew1_colab.ipynb) wraps the same commands for Colab or any Jupyter kernel with a GPU: clone, install, smoke test, a multi-seed loop that persists to Google Drive, aggregation, and the Phase-1 branch experiments through [`tmew1_branch_runner_v2.py`](tmew1_branch_runner_v2.py).
 
 ### Regression inventory
 

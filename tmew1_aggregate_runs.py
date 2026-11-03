@@ -102,21 +102,73 @@ def format_summary(runs: List[Dict[str, Any]], summary: Dict[str, Dict[str, Dict
     return "\n".join(lines)
 
 
+PROBE_RE = re.compile(r"probes_tier(\d+)_ep(\d+)\.json$")
+
+
+def probe_trajectory(run_dirs: List[str]) -> Dict[str, Dict[str, Dict[str, float]]]:
+    """
+    Mean/std across seeds of each emergent probe at every (tier, epoch), from the
+    per-epoch monitor files written by ``tmew1_run_v2.py --probe-every-epoch``.
+    Returns {"t{N} ep{E}": {probe: {"mean", "std", "n_seeds"}}} in curriculum order.
+    """
+    by_point: Dict[tuple, Dict[str, List[float]]] = {}
+    for run_dir in run_dirs:
+        for path in glob.glob(os.path.join(run_dir, "probes_tier*_ep*.json")):
+            m = PROBE_RE.search(path)
+            if not m:
+                continue
+            with open(path) as f:
+                rec = json.load(f)
+            point = (int(m.group(1)), int(m.group(2)))
+            for k, v in rec.items():
+                if k in ("tier", "epoch", "seed") or k.endswith("_n"):
+                    continue
+                if isinstance(v, (int, float)) and not isinstance(v, bool) and v == v:
+                    by_point.setdefault(point, {}).setdefault(k, []).append(float(v))
+    out: Dict[str, Dict[str, Dict[str, float]]] = {}
+    for point in sorted(by_point):
+        out[f"t{point[0]} ep{point[1]}"] = {
+            k: {"mean": float(np.mean(v)), "std": float(np.std(v, ddof=1)) if len(v) > 1 else 0.0, "n_seeds": len(v)}
+            for k, v in by_point[point].items()
+        }
+    return out
+
+
+def format_trajectory(traj: Dict[str, Dict[str, Dict[str, float]]]) -> str:
+    if not traj:
+        return "no probes_tier*_ep*.json files found (run with --probe-every-epoch)"
+    probes = sorted({k for point in traj.values() for k in point})
+    lines = ["## emergent probes per epoch (mean across seeds)", f"{'point':<10}" + "".join(f"{p[:18]:>20}" for p in probes)]
+    for point, metrics in traj.items():
+        row = f"{point:<10}"
+        for p in probes:
+            s = metrics.get(p)
+            row += f"{s['mean']:>14.3f}±{s['std']:<5.3f}" if s else f"{'':>20}"
+        lines.append(row)
+    return "\n".join(lines)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("pattern", help="Glob of run directories, e.g. 'runs/v2_seed*'")
     parser.add_argument("--tier", type=int, default=None, help="Tier to summarize (default: highest completed)")
     parser.add_argument("--json", type=str, default=None, help="Also write the summary to this JSON path")
+    parser.add_argument("--trajectory", action="store_true", help="Also print the per-epoch emergent-probe trajectory")
     args = parser.parse_args()
 
-    runs = [r for r in (load_run(d, args.tier) for d in sorted(glob.glob(args.pattern))) if r is not None]
+    run_dirs = sorted(glob.glob(args.pattern))
+    runs = [r for r in (load_run(d, args.tier) for d in run_dirs) if r is not None]
     if not runs:
         raise SystemExit(f"No completed runs found for pattern {args.pattern!r}")
     summary = summarize(runs)
     print(format_summary(runs, summary))
+    traj = probe_trajectory(run_dirs) if args.trajectory else {}
+    if args.trajectory:
+        print()
+        print(format_trajectory(traj))
     if args.json:
         with open(args.json, "w") as f:
-            json.dump({"runs": [{k: v for k, v in r.items() if k != "diag"} for r in runs], "summary": summary}, f, indent=2)
+            json.dump({"runs": [{k: v for k, v in r.items() if k != "diag"} for r in runs], "summary": summary, "trajectory": traj}, f, indent=2)
         print(f"\nwrote {args.json}")
 
 
