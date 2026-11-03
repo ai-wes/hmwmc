@@ -50,6 +50,7 @@ from tmew1_diagnostics_v2 import (
     TMEW1DiagnosticDataset,
 )
 
+from hpm_v2 import HPMConfig
 from homeostatic_multimodal_world_model_chunked_v2 import (
     ControllerConfig,
     HomeostaticMultimodalWorldModel,
@@ -764,17 +765,35 @@ MODEL_SIZE_PRESETS: Dict[str, Dict[str, Any]] = {
 }
 
 
+# Memory ablations on the default curriculum. Each removes one memory path so
+# the honest benchmark can say which modules are load-bearing.
+ABLATIONS: Dict[str, Dict[str, Any]] = {
+    "none": {},
+    "hpm": {"hpm_config": HPMConfig(enabled=False)},
+    "episodic": {"episodic_enabled": False},
+    "structured": {
+        "structured_state_config": None,
+        "typed_event_log_config": None,
+        "state_checkpoint_config": None,
+    },
+}
+
+
 def resolve_model_overrides(
     size: str = "default",
     d_model: Optional[int] = None,
     num_layers: Optional[int] = None,
     memory_slots: Optional[int] = None,
     episodic_slots: Optional[int] = None,
+    ablate: str = "none",
 ) -> Dict[str, Any]:
-    """Compose a size preset with explicit per-field overrides (explicit wins)."""
+    """Compose a size preset, an ablation, and explicit per-field overrides (explicit wins)."""
     if size not in MODEL_SIZE_PRESETS:
         raise ValueError(f"unknown --size {size!r}; choose from {sorted(MODEL_SIZE_PRESETS)}")
+    if ablate not in ABLATIONS:
+        raise ValueError(f"unknown --ablate {ablate!r}; choose from {sorted(ABLATIONS)}")
     overrides = dict(MODEL_SIZE_PRESETS[size])
+    overrides.update(ABLATIONS[ablate])
     for key, value in (
         ("d_model", d_model),
         ("num_layers", num_layers),
@@ -938,6 +957,7 @@ def run_curriculum(
                 },
                 "model_config_overrides": {k: (vars(v) if hasattr(v, "__dataclass_fields__") else v) for k, v in (model_config_overrides or {}).items()},
                 "probe_every_epoch": bool(probe_every_epoch),
+                "ablation": os.environ.get("TMEW1_ABLATION", "none"),
                 "torch": torch.__version__,
                 "gpu": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
             }, _rf, indent=2, default=_json_default)
@@ -1258,6 +1278,8 @@ def main() -> None:
     parser.add_argument("--num-layers", type=int, default=None, help="Override number of temporal layers")
     parser.add_argument("--memory-slots", type=int, default=None, help="Override per-layer memory slots")
     parser.add_argument("--episodic-slots", type=int, default=None, help="Override episodic memory slots")
+    parser.add_argument("--ablate", type=str, default="none", choices=sorted(ABLATIONS),
+                        help="Memory ablation: hpm (HPM off), episodic (episodic bank off), structured (state table, typed events, checkpoints off)")
     parser.add_argument("--probe-every-epoch", action="store_true",
                         help="Run the six emergent-capability probes after every validation pass and write probes_tier{N}_ep{E}.json (needs --out-dir)")
     args = parser.parse_args()
@@ -1268,6 +1290,7 @@ def main() -> None:
     if args.out_dir:
         os.makedirs(args.out_dir, exist_ok=True)
         os.environ["TMEW1_BRANCH_OUT_DIR"] = args.out_dir
+    os.environ["TMEW1_ABLATION"] = args.ablate
 
     if args.viz:
         _VIZ_ENABLED = True
@@ -1285,7 +1308,7 @@ def main() -> None:
         num_workers=args.workers,
         seed=args.seed,
     )
-    overrides = resolve_model_overrides(args.size, args.d_model, args.num_layers, args.memory_slots, args.episodic_slots)
+    overrides = resolve_model_overrides(args.size, args.d_model, args.num_layers, args.memory_slots, args.episodic_slots, ablate=args.ablate)
     run_curriculum(
         world_cfg, tcfg, resume_from=args.resume,
         model_config_overrides=overrides or None,

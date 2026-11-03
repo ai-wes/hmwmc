@@ -433,6 +433,9 @@ class WorldModelConfig:
 
     # Runtime behavior
     enable_online_homeostasis: bool = True
+    # Ablation switch: when False the episodic bank is neither read nor written
+    # (the block output passes through final_norm unchanged).
+    episodic_enabled: bool = True
     detach_state_between_steps: bool = False
     scan_chunk_size: int = 16
 
@@ -1612,6 +1615,11 @@ class HomeostaticMultimodalWorldModel(nn.Module):
         steps = x_chunk.size(1)
         for step in range(steps):
             x_t = x_chunk[:, step, :]
+            if not getattr(self.cfg, "episodic_enabled", True):
+                x_t = self.final_norm(x_t)
+                outputs.append(x_t)
+                prev_output = x_t
+                continue
             episodic_context, episodic_entropy, _ = self.episodic_memory.read(x_t, episodic_memory, episodic_strengths)
             entropies.append(_as_float(episodic_entropy))
             x_t = self.final_norm(x_t + episodic_context)

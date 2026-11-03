@@ -998,3 +998,19 @@ Benchmark revision 2026-11-03b: made entity identity observable and state change
 
 - Memory ablations on the revised benchmark (HPM off, episodic off, structured state off, ET-only / tape-only reads), three seeds, to find what is load-bearing before changing the architecture.
 - Then grounded per-entity updates in the structured state table (slot e reads entity e's numeric block) and a query-conditioned read.
+
+## [2026-11-03 08:05]
+
+### Summary
+
+Added `--ablate {none,hpm,episodic,structured}` to `tmew1_run_v2.py` and a memory-ablation section (section 5b) to the Colab notebook, so the honest benchmark can say which memory path is load-bearing.
+
+### Changes
+
+- `homeostatic_multimodal_world_model_chunked_v2.py`: `WorldModelConfig.episodic_enabled` (default True); when False the episodic bank is neither read nor written.
+- `tmew1_run_v2.py`: `ABLATIONS` map (hpm → `HPMConfig(enabled=False)`; episodic → `episodic_enabled=False`; structured → state table, typed event log and checkpoint bank off, which falls back to the plain `QueryHead` and the `CurrentHolderHead`); `--ablate` CLI flag; ablation recorded in `run_config.json`.
+- `tmew1_colab.ipynb`: section 5b runs the four conditions over three seeds with the per-epoch probe monitor, aggregates each, and prints a side-by-side table.
+
+### Validation
+
+- Each ablation ran a 1-epoch, 64-episode curriculum on the GPU end to end with zero non-finite steps; parameter counts 11.42M (hpm off), 12.02M (episodic off), 10.96M (structured off) versus 12.02M.
