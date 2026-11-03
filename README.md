@@ -14,7 +14,7 @@ HMWMC studies whether a stateful multimodal world model can retain and query eve
 | Multimodal world model and HPM | Implemented | PyTorch research code with diagnostic instrumentation |
 | Structured state, typed events, checkpoints, and query routing | Implemented and regression-tested | Contract tests cover tensor shapes, routing, gradients, empty sequences, and checkpoint boundaries |
 | End-to-end training path | Smoke-tested | The smoke run checks execution only; its tiny metrics are not benchmark results |
-| Full v2 curriculum benchmark | Not rerun on this release | The preserved result log predates the v2 code path |
+| Full v2 curriculum benchmark | Rerun once on this release (2026-11-03, seed 0, RTX 3070) | Single-seed run after the holder-label and episodic-init fixes; see Results. The unmodified release was also run and preserved as a negative baseline |
 | Seed-separated validation | Implemented | Separate procedural seed ranges; not a compositional or cross-domain holdout |
 | Multi-seed estimates and run-level confidence intervals | Not completed | The table below identifies single-run evidence and only computes binomial intervals where logged counts exist |
 | Canonical ablation report | Incomplete | Several branch outcomes are recorded, but the full suite has not been rerun and normalized on this release |
@@ -46,6 +46,8 @@ The default world uses a `16 x 16` grid, at most six entities, six latent rules,
 | `which_entity_first_occluded` | entity | ordering under occlusion |
 | `did_chain2_fire` | binary | parallel causal tracking |
 | `what_was_true_rule` | categorical diagnostic | belief revision under a false cue |
+
+Each query carries a `time_asked` in the back half of the episode, and every stateful target is defined as of that step. In particular `who_holds_token` is the holder at `time_asked`, not the holder at the end of the episode. Earlier v2 releases labelled it with the end-of-episode holder; because the backbone is a causal scan, roughly a third of Tier 2/3 holder queries were then unanswerable by construction (on the Tier 3 validation set only 67.6% of those labels matched the holder at `time_asked`). `_test_query_labels.py` pins the corrected semantics.
 
 Additional branch configurations introduce relational, negation, and bounded counterfactual questions. Those additions should not be interpreted as open-ended counterfactual reasoning.
 
@@ -109,6 +111,25 @@ The table below reports the latest complete Tier-3 validation snapshot preserved
 
 These numbers are legacy-run provenance, not a benchmark of the repaired v2 release. They show that the earlier code path learned several synthetic tasks in one run; they are not multi-seed estimates and do not establish external generalization.
 
+### v2 curriculum run (2026-11-03)
+
+Two runs of `python tmew1_run_v2.py --epochs 4 --batch-size 32 --train-episodes 2048` (seed 0, Python 3.12.3, PyTorch 2.9.0+cu128, one RTX 3070) are preserved with their commands and environment in [`docs/raw_runs/`](docs/raw_runs/README.md). The first is the unmodified release; the second adds the holder-at-query-time label fix and the non-zero episodic-slot initialization (see the 2026-11-03 changelog entry). Values are final-epoch Tier 3 validation on the 256-episode seed-separated split.
+
+| Metric | Unmodified release | With fixes | Notes |
+|---|---:|---:|---|
+| optimizer steps skipped for non-finite gradients | 544 / 768 | 0 / 768 | the unmodified run is numerically broken, not merely weak |
+| latent-rule accuracy | 0.582 | 1.000 | same metric definition in both runs |
+| holder auxiliary accuracy (per timestep) | 0.467 | 0.968 | same definition; supervised by the per-step simulator holder |
+| belief revision with false cue (diagnostic, `n=31`) | 0.226 | 1.000, 95% Wilson [0.890, 1.000] | same definition |
+| trigger-before-alarm ordering (`n=127`) | 0.976 | 1.000, [0.971, 1.000] | same definition |
+| second-chain completion (`n=131`) | 0.939 | 1.000, [0.972, 1.000] | same definition |
+| first occluded entity (`n=135`) | 0.896 | 0.896, [0.833, 0.937] | unchanged |
+| `who_holds_token` query accuracy | 0.269 | 0.963 | **not comparable**: the label definition changed between runs |
+| `who_holds_token` by handoffs before `time_asked` (`n=165`) | not available | 0.964, [0.923, 0.983]; 0.733 in the five-handoff bucket (`n=15`) | diagnostic subset under the corrected labels |
+| `who_was_first_tagged` query accuracy | 0.634 | 0.648 | unchanged; still the weakest entity query |
+
+Tier 1, which has no audio holder cue, remains weak on the holder query in both runs (0.512 and 0.591) and does not pass its promotion gate; Tier 2 passes its gate in the fixed run. These are single-seed numbers from one machine and should be read as a working baseline for the repaired code path, not as a multi-seed estimate.
+
 ## Ablations
 
 The branch framework covers harder worlds (A), harder query families (B), and architecture changes (C). The available records largely come from the legacy experiment path and include useful negative results:
@@ -153,6 +174,15 @@ python tmew1_run_v2.py --epochs 4 --batch-size 32 --train-episodes 2048
 
 The full run uses CUDA when available and otherwise falls back to CPU. It writes tier checkpoints in the current directory. Exact reproducibility across dependency releases is not guaranteed until versions and hardware settings are locked.
 
+Multi-seed runs and machine-readable outputs:
+
+```bash
+python tmew1_run_v2.py --seed 1 --out-dir runs/v2_seed1
+python tmew1_aggregate_runs.py "runs/v2_seed*" --tier 3
+```
+
+`--out-dir` writes `val_tier{N}_ep{E}.json`, `diagnostics_tier{N}.json` (handoff-bucket recall, belief revision, and the zero-shot emergent-capability probes), and the tier checkpoints into that directory; the aggregator prints mean and standard deviation across seeds. [`tmew1_colab.ipynb`](tmew1_colab.ipynb) wraps the same commands for Colab or any Jupyter kernel with a GPU: clone, install, smoke test, a multi-seed loop that persists to Google Drive, aggregation, and the Phase-1 branch experiments through [`tmew1_branch_runner_v2.py`](tmew1_branch_runner_v2.py).
+
 ### Regression inventory
 
 CI executes:
@@ -162,6 +192,7 @@ CI executes:
 - `_test_config_override.py` — configuration isolation;
 - `_test_et_only.py` — entity-routing modes and gradient flow;
 - `_test_hpm_changes.py` — legacy HPM paths and gradients;
+- `_test_query_labels.py` — query labels are answerable at `time_asked` (holder-at-query-time semantics in both v2 generators);
 - `tmew1_run_v2.py --smoke` — tiny end-to-end CPU pipeline.
 
 The end-to-end check also fails if the runner emits a standalone `nan`/`inf`, `non-finite`, or skipped-backward signal. This prevents a numerically collapsed smoke step from being reported as green merely because the process reached the end.
@@ -173,6 +204,8 @@ The end-to-end check also fails if the runner emits a standalone `nan`/`inf`, `n
 - TMEW-1 is a synthetic, low-entity-count environment with short horizons and handcrafted event families.
 - The current validation set is seed-disjoint but distribution-matched; no compositional holdout is implemented in the default runner.
 - Most preserved results are single-seed runs. Multi-seed means, run-level confidence intervals, and statistical comparisons are not available.
+- The `who_holds_token` label definition changed on 2026-11-03 (holder at `time_asked` instead of end-of-episode holder); holder-query accuracies logged before that date are not comparable with later ones.
+- Tier 1 exposes no holder cue (vision and numeric only), so its holder query depends on inferring stochastic handoff rules from positions; it has not passed its promotion gate in any preserved v2 run.
 - The preserved Tier-3 result log predates the v2 runner and does not embed its exact command, environment, or hardware.
 - The full ablation program has not been rerun against one immutable environment and normalized rubric.
 - Some historical working notes remain exploratory and should not be treated as peer-reviewed claims.
@@ -190,7 +223,10 @@ The end-to-end check also fails if the runner emits a standalone `nan`/`inf`, `n
 | `hpm_v2.py` | HPM, structured state, typed events, checkpoints |
 | `homeostatic_multimodal_world_model_chunked_v2.py` | multimodal backbone and controller |
 | `tmew1_experiments_v2.py` | branch configurations and promotion/kill rubrics |
+| `tmew1_branch_runner_v2.py` | Phase-1 branch runner: composes world/tier/HPM overrides and judges them against a baseline record |
 | `run_ablation_suite.py` | ablation orchestration |
+| `tmew1_aggregate_runs.py` | mean/std across seeds of validation metrics, handoff buckets, and emergent probes from `--out-dir` runs |
+| `tmew1_colab.ipynb` | Colab/Jupyter runner for multi-seed curricula and branch experiments |
 | `docs/new_results.txt` | preserved raw run log used in the results table |
 | `docs/raw_runs/README.md` | immutable pointers to legacy raw logs removed from editor-history paths |
 | `scripts/run_ci_checks.sh` | local and CI regression entrypoint |

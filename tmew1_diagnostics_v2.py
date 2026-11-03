@@ -436,7 +436,9 @@ def generate_episode_with_diagnostics(
         qtype = q_rng.choice(pool)
         time_asked = (T - 1) if qtype in BRANCH_QUERY_TYPES else q_rng.randint(back_half_start, T - 1)
         if qtype == "who_holds_token":
-            queries.append(Query(qtype, handoff.holder_id, time_asked, is_binary=False))
+            # Holder at the time the question is asked (see HandoffState.holder_at).
+            # ``holder_per_step`` already reflects the forced handoff above.
+            queries.append(Query(qtype, int(holder_per_step[time_asked]), time_asked, is_binary=False))
         elif qtype == "who_was_first_tagged":
             queries.append(Query(qtype, max(0, handoff.first_tagged_id), time_asked, is_binary=False))
         elif qtype == "did_alarm_fire":
@@ -642,6 +644,7 @@ def recall_by_difficulty(
             entity_logits, binary_logits = query_head(augmented_seq, qtimes, batch["query_types"])
 
         bs, q = batch["query_types"].shape
+        holder_steps = batch.get("holder_per_step")
         for bi in range(bs):
             n_h = int(batch["num_handoffs"][bi].item())
             had_cue = bool(batch["had_false_cue"][bi].item())
@@ -656,7 +659,15 @@ def recall_by_difficulty(
                 correct = int(pred == target)
 
                 if qtype == holds_idx:
-                    bucket_correct[bucket].append(correct)
+                    # The holder query asks about the holder *at* time_asked, so
+                    # the difficulty bucket counts only handoffs up to that step.
+                    if holder_steps is not None:
+                        t_q = int(batch["query_times"][bi, qi].item())
+                        seg = holder_steps[bi, : t_q + 1]
+                        n_before = int((seg[1:] != seg[:-1]).sum().item()) if seg.numel() > 1 else 0
+                        bucket_correct[bucket_for(n_before)].append(correct)
+                    else:
+                        bucket_correct[bucket].append(correct)
                 elif qtype == first_tagged_idx:
                     first_tagged_by_handoffs[bucket].append(correct)
                 elif qtype == true_rule_idx and true_rule_idx >= 0:

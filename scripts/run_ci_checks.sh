@@ -9,6 +9,7 @@ checks=(
   _test_config_override.py
   _test_et_only.py
   _test_hpm_changes.py
+  _test_query_labels.py
 )
 
 for check in "${checks[@]}"; do
