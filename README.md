@@ -174,6 +174,15 @@ python tmew1_run_v2.py --epochs 4 --batch-size 32 --train-episodes 2048
 
 The full run uses CUDA when available and otherwise falls back to CPU. It writes tier checkpoints in the current directory. Exact reproducibility across dependency releases is not guaranteed until versions and hardware settings are locked.
 
+Multi-seed runs and machine-readable outputs:
+
+```bash
+python tmew1_run_v2.py --seed 1 --out-dir runs/v2_seed1
+python tmew1_aggregate_runs.py "runs/v2_seed*" --tier 3
+```
+
+`--out-dir` writes `val_tier{N}_ep{E}.json`, `diagnostics_tier{N}.json` (handoff-bucket recall, belief revision, and the zero-shot emergent-capability probes), and the tier checkpoints into that directory; the aggregator prints mean and standard deviation across seeds. [`tmew1_colab.ipynb`](tmew1_colab.ipynb) wraps the same commands for Colab or any Jupyter kernel with a GPU: clone, install, smoke test, a multi-seed loop that persists to Google Drive, aggregation, and the Phase-1 branch experiments through [`tmew1_branch_runner_v2.py`](tmew1_branch_runner_v2.py).
+
 ### Regression inventory
 
 CI executes:
@@ -214,7 +223,10 @@ The end-to-end check also fails if the runner emits a standalone `nan`/`inf`, `n
 | `hpm_v2.py` | HPM, structured state, typed events, checkpoints |
 | `homeostatic_multimodal_world_model_chunked_v2.py` | multimodal backbone and controller |
 | `tmew1_experiments_v2.py` | branch configurations and promotion/kill rubrics |
+| `tmew1_branch_runner_v2.py` | Phase-1 branch runner: composes world/tier/HPM overrides and judges them against a baseline record |
 | `run_ablation_suite.py` | ablation orchestration |
+| `tmew1_aggregate_runs.py` | mean/std across seeds of validation metrics, handoff buckets, and emergent probes from `--out-dir` runs |
+| `tmew1_colab.ipynb` | Colab/Jupyter runner for multi-seed curricula and branch experiments |
 | `docs/new_results.txt` | preserved raw run log used in the results table |
 | `docs/raw_runs/README.md` | immutable pointers to legacy raw logs removed from editor-history paths |
 | `scripts/run_ci_checks.sh` | local and CI regression entrypoint |

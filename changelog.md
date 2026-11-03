@@ -913,3 +913,27 @@ Made the v2 architecture train. The unmodified release was run end to end on an 
 - Tier 1 holder query is still 0.59 (no holder cue in vision/numeric). Candidate: port the legacy identity-grounded numeric channels to v2 so entity ids are observable, then re-evaluate the Tier 1 gate.
 - `who_was_first_tagged` stays at ~0.65 in every run; it is now the weakest entity query and the next diagnostic target.
 - Multi-seed reruns (at least 3 seeds) before quoting the fixed numbers as a benchmark.
+
+## [2026-11-03 05:20]
+
+### Summary
+
+Hooked the Colab notebook up to the repaired v2 path so larger and multi-seed runs, including the zero-shot emergent-capability probes, can be run on Google Cloud / Colab or any Jupyter kernel with a GPU.
+
+### Changes
+
+- `tmew1_run_v2.py`: new `--seed` and `--out-dir` flags. With `--out-dir` the runner writes `val_tier{N}_ep{E}.json` after every validation pass and `diagnostics_tier{N}.json` (handoff buckets, belief revision, emergent probes) after every tier, alongside the tier checkpoints and the branch runner's `val.json`.
+- `tmew1_aggregate_runs.py` (new): mean and standard deviation across seed directories for validation metrics, holder-query handoff buckets, and emergent probes; optional JSON summary.
+- `tmew1_colab.ipynb`: rewritten. It previously called the legacy `tmew1_run.py` / `tmew1_branch_runner.py` with a hard-coded Drive checkpoint path. It now clones a configurable branch, verifies CUDA, mounts Drive for persistent output, runs the smoke test, loops `tmew1_run_v2.py` over seeds with per-run logs, aggregates, and runs the Phase-1 branches through `tmew1_branch_runner_v2.py` sequentially (parallel branches would exhaust T4 memory).
+- `README.md`: reproduction section and repository map updated; `runs/` added to `.gitignore`.
+
+### Validation
+
+- `tmew1_run_v2.py --smoke --seed 3 --out-dir ...` on CPU writes the expected JSON files; `tmew1_aggregate_runs.py` reads them.
+- The notebook's seed-loop cell was executed locally with `--smoke` substituted for the full-run arguments.
+- CI (`scripts/run_ci_checks.sh`) re-run after the runner change.
+
+### Next Steps
+
+- Run at least three seeds of the default curriculum on Colab and quote the aggregated Tier 3 numbers in the README in place of the single-seed table.
+- Use the branch runner with `--seed` to repeat A/C branches across seeds before promoting or killing any of them on v2.

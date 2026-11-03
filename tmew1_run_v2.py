@@ -722,6 +722,17 @@ def evaluate(
 # -----------------------------------------------------------------------------
 # Curriculum runner
 # -----------------------------------------------------------------------------
+def _json_default(obj: Any):
+    """Fallback serializer for numpy/torch scalars inside diagnostic reports."""
+    if isinstance(obj, (np.floating, np.integer)):
+        return obj.item()
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, Tensor):
+        return obj.detach().cpu().tolist()
+    return str(obj)
+
+
 def run_curriculum(
     world_cfg: WorldConfig,
     tcfg: TrainConfig,
@@ -1007,11 +1018,16 @@ def run_curriculum(
                 metrics=val,
                 specs=specs,
             )
-            # Persist val dict for branch runner rubric evaluation
+            # Persist val dict for branch runner rubric evaluation, plus a
+            # per-tier/per-epoch copy so multi-seed runs can be aggregated.
             _branch_out = os.environ.get("TMEW1_BRANCH_OUT_DIR")
             if _branch_out:
+                os.makedirs(_branch_out, exist_ok=True)
+                _val_payload = {k: float(v) for k, v in val.items()}
                 with open(os.path.join(_branch_out, "val.json"), "w") as _vf:
-                    json.dump({k: float(v) for k, v in val.items()}, _vf, indent=2)
+                    json.dump(_val_payload, _vf, indent=2)
+                with open(os.path.join(_branch_out, f"val_tier{tier.tier}_ep{epoch}.json"), "w") as _vf:
+                    json.dump({"tier": tier.tier, "epoch": epoch, "seed": tcfg.seed, **_val_payload}, _vf, indent=2)
 
             can_promote, failures = _evaluate_tier_promotion(val, tier)
             if can_promote:
@@ -1053,7 +1069,10 @@ def run_curriculum(
         }, ckpt_path)
         print(f"  -> saved checkpoint to {ckpt_path}")
 
-        run_diagnostic_report(model, query_head, world_cfg, tier, tcfg.device, n_episodes=256)
+        _diag_report = run_diagnostic_report(model, query_head, world_cfg, tier, tcfg.device, n_episodes=256)
+        if _ckpt_dir:
+            with open(os.path.join(_ckpt_dir, f"diagnostics_tier{tier.tier}.json"), "w") as _df:
+                json.dump({"tier": tier.tier, "seed": tcfg.seed, **_diag_report}, _df, indent=2, default=_json_default)
 
         # Send a replay episode to the viz dashboard
         if _VIZ_ENABLED:
@@ -1104,7 +1123,16 @@ def main() -> None:
     parser.add_argument("--train-episodes", type=int, default=2048)
     parser.add_argument("--workers", type=int, default=2, help="DataLoader worker processes")
     parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint .pt file to resume from")
+    parser.add_argument("--seed", type=int, default=0, help="Global training seed (data seeds are per-tier and fixed)")
+    parser.add_argument(
+        "--out-dir", type=str, default=None,
+        help="Directory for checkpoints, val_tier*.json and diagnostics_tier*.json (default: current directory, no JSON)",
+    )
     args = parser.parse_args()
+
+    if args.out_dir:
+        os.makedirs(args.out_dir, exist_ok=True)
+        os.environ["TMEW1_BRANCH_OUT_DIR"] = args.out_dir
 
     if args.viz:
         _VIZ_ENABLED = True
@@ -1120,6 +1148,7 @@ def main() -> None:
         train_episodes_per_tier=args.train_episodes,
         epochs_per_tier=args.epochs,
         num_workers=args.workers,
+        seed=args.seed,
     )
     run_curriculum(world_cfg, tcfg, resume_from=args.resume)
 
