@@ -59,17 +59,13 @@ def test_queries_generator_labels_holder_at_query_time() -> None:
     for tier in DEFAULT_TIERS:
         for i in range(64):
             ep = generate_episode_with_queries(cfg, tier, seed=5000 + 1000 * tier.tier + i, num_queries=4)
-            # Recover the per-step holder from the ambient audio channel
-            # (0.3 at 8 + holder_id each step, 1.0 on the handoff step).
-            holder_audio = ep.audio[:, 8:8 + cfg.max_entities]
-            holder_per_step = holder_audio.argmax(axis=-1)
+            assert ep.holder_per_step is not None and ep.holder_per_step.shape == (ep.length,)
             for q in ep.queries:
                 if q.qtype != "who_holds_token":
                     continue
-                assert np.max(holder_audio[q.time_asked]) > 0.0
-                assert q.target == int(holder_per_step[q.time_asked]), (
-                    f"tier {tier.tier} seed {i}: target {q.target} != audio holder "
-                    f"{int(holder_per_step[q.time_asked])} at t={q.time_asked}"
+                assert q.target == int(ep.holder_per_step[q.time_asked]), (
+                    f"tier {tier.tier} seed {i}: target {q.target} != holder "
+                    f"{int(ep.holder_per_step[q.time_asked])} at t={q.time_asked}"
                 )
                 n_checked += 1
     assert n_checked > 0

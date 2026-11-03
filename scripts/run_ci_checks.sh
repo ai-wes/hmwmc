@@ -10,6 +10,7 @@ checks=(
   _test_et_only.py
   _test_hpm_changes.py
   _test_query_labels.py
+  _test_observation_contract.py
 )
 
 for check in "${checks[@]}"; do

@@ -53,7 +53,10 @@ class WorldConfig:
     grid_w: int = 16
     vision_channels: int = 3
     audio_dim: int = 24
-    numeric_dim: int = 10
+    # 10 global features + 5 identity-grounded features per entity slot
+    # (x, y, visible, color, tagged-this-step). Entity ids are otherwise hidden
+    # simulator labels: vision renders colour planes only.
+    numeric_dim: int = 40
     text_vocab_size: int = 64
     text_seq_len: int = 1               # one symbolic token per step
     min_entities: int = 2
@@ -184,6 +187,7 @@ def _step_world(state: WorldState, cfg: WorldConfig, t: int, template: str, max_
     events: Dict[str, Any] = {
         "trigger": False, "alarm_fire": False, "occluded_ids": [],
         "chain2_trigger": False, "chain2_fire": False,
+        "tagged_ids": [],   # entities tagged on this step (transition only)
     }
 
     # --- A4: rule-dynamic motion modulation ---
@@ -237,6 +241,8 @@ def _step_world(state: WorldState, cfg: WorldConfig, t: int, template: str, max_
                         _dlo, _dhi = 2, max_delay
                     state.alarm_in = state.rng.randint(_dlo, _dhi)
                     events["trigger"] = True
+                    if not a.tagged:
+                        events["tagged_ids"].append(a.id)
                     a.tagged = True
                     break
             if events["trigger"]:
@@ -345,18 +351,24 @@ def _render_audio(
         vec[14] = 1.0
     if events.get("chain2_fire"):
         vec[15] = 1.0
-    # Holder identity channels at 8+entity_id
+    # Holder identity channels at 8+entity_id: a transient cue on the step the
+    # token changes hands only. The standing holder is deliberately NOT
+    # rendered (an earlier release emitted 0.3 on the current holder every
+    # step, which turned holder tracking into a per-step readout); the
+    # ``current_holder_id`` argument is kept for call compatibility.
     new_holder_id = events.get("new_holder_id", -1)
     if 0 <= new_holder_id < cfg.max_entities and (8 + new_holder_id) < cfg.audio_dim:
         vec[8 + new_holder_id] = 1.0
-    if current_holder_id is not None and 0 <= current_holder_id < cfg.max_entities and (8 + current_holder_id) < cfg.audio_dim:
-        vec[8 + current_holder_id] = max(vec[8 + current_holder_id], 0.3)
     # Ambient noise
     vec[5:8] = np.random.normal(0, 0.05, 3).astype(np.float32)
     return vec
 
 
-def _render_numeric(state: WorldState, cfg: WorldConfig) -> np.ndarray:
+NUMERIC_ENTITY_OFFSET = 10
+NUMERIC_ENTITY_STRIDE = 5
+
+
+def _render_numeric(state: WorldState, cfg: WorldConfig, events: Optional[Dict[str, Any]] = None) -> np.ndarray:
     vec = np.zeros(cfg.numeric_dim, dtype=np.float32)
     vec[0] = float(len([e for e in state.entities if e.visible])) / max(1, cfg.max_entities)
     vec[1] = float(state.alarm_in) / 10.0 if state.alarm_in > 0 else 0.0
@@ -369,6 +381,27 @@ def _render_numeric(state: WorldState, cfg: WorldConfig) -> np.ndarray:
     vec[7] = float(state.chain2_alarm_in) / 10.0 if state.chain2_alarm_in > 0 else 0.0
     vec[8] = 1.0 if state.chain2_alarm_fired else 0.0
     vec[9] = float(sum(1 for e in state.entities if e.tagged)) / max(1, len(state.entities))  # fraction tagged
+
+    # Identity-grounded per-entity block (ported from the legacy generator).
+    # Vision uses colour planes, so without these channels the simulator's
+    # entity ids are hidden labels. The block for entity i is:
+    #   [x_norm, y_norm, visible, color_norm, tagged_this_step]
+    # ``tagged_this_step`` is an event, not standing state: the standing tag
+    # flag was never observable in any modality and exposing it would turn
+    # ``who_was_first_tagged`` into a readout instead of a memory question.
+    tagged_now = set(events.get("tagged_ids", ())) if events else set()
+    max_x = max(1, cfg.grid_w - 1)
+    max_y = max(1, cfg.grid_h - 1)
+    max_color = max(1, cfg.vision_channels - 1)
+    for e in state.entities:
+        base = NUMERIC_ENTITY_OFFSET + NUMERIC_ENTITY_STRIDE * int(e.id)
+        if base + NUMERIC_ENTITY_STRIDE > cfg.numeric_dim:
+            continue
+        vec[base + 0] = float(e.x) / float(max_x)
+        vec[base + 1] = float(e.y) / float(max_y)
+        vec[base + 2] = 1.0 if e.visible else 0.0
+        vec[base + 3] = float(e.color) / float(max_color)
+        vec[base + 4] = 1.0 if e.id in tagged_now else 0.0
     return vec
 
 
@@ -421,7 +454,7 @@ def generate_episode(cfg: WorldConfig, tier: CurriculumTier, seed: int) -> Episo
         events = _step_world(state, cfg, t, template, tier.max_delay)
         vision[t] = _render_vision(state, cfg)
         audio[t] = _render_audio(state, cfg, events)
-        numeric[t] = _render_numeric(state, cfg)
+        numeric[t] = _render_numeric(state, cfg, events)
         text[t] = _render_text(state, cfg, events)
         if events.get("alarm_fire") and fired_at < 0:
             fired_at = t

@@ -47,6 +47,16 @@ The default world uses a `16 x 16` grid, at most six entities, six latent rules,
 | `did_chain2_fire` | binary | parallel causal tracking |
 | `what_was_true_rule` | categorical diagnostic | belief revision under a false cue |
 
+### Observation contract (benchmark revision 2026-11-03b)
+
+The observation stream is designed so that entity identity is grounded but state changes are exposed only as transient events, so identity questions are answerable and memory questions cannot be solved by per-step readout:
+
+- **Numeric (`numeric_dim=40`)**: 10 global features plus a 5-wide block per entity slot `[x, y, visible, color, tagged_this_step]`, ported from the legacy generator. Without this block the simulator's entity ids were hidden labels, since vision renders colour planes only.
+- **Audio holder channels (`8 + entity_id`)**: fire with value 1.0 only on the step the token changes hands. The previous release also emitted 0.3 on the current holder every step, which made `who_holds_token` a readout rather than a memory question.
+- **Tagging**: observable only as a one-step event in the per-entity numeric block. The standing tag flag was never rendered in any modality (the vision renderer drew tagged and untagged entities identically), so `who_was_first_tagged` was unanswerable before this revision; it is now a question about remembering which tag event came first.
+
+`_test_observation_contract.py` pins these three properties. Results logged before this revision used the leaky holder cue and the hidden tag state and are not comparable with later ones.
+
 Each query carries a `time_asked` in the back half of the episode, and every stateful target is defined as of that step. In particular `who_holds_token` is the holder at `time_asked`, not the holder at the end of the episode. Earlier v2 releases labelled it with the end-of-episode holder; because the backbone is a causal scan, roughly a third of Tier 2/3 holder queries were then unanswerable by construction (on the Tier 3 validation set only 67.6% of those labels matched the holder at `time_asked`). `_test_query_labels.py` pins the corrected semantics.
 
 Additional branch configurations introduce relational, negation, and bounded counterfactual questions. Those additions should not be interpreted as open-ended counterfactual reasoning.
@@ -126,7 +136,7 @@ Two runs of `python tmew1_run_v2.py --epochs 4 --batch-size 32 --train-episodes 
 | first occluded entity (`n=135`) | 0.896 | 0.896, [0.833, 0.937] | unchanged |
 | `who_holds_token` query accuracy | 0.269 | 0.963 | **not comparable**: the label definition changed between runs |
 | `who_holds_token` by handoffs before `time_asked` (`n=165`) | not available | 0.964, [0.923, 0.983]; 0.733 in the five-handoff bucket (`n=15`) | diagnostic subset under the corrected labels |
-| `who_was_first_tagged` query accuracy | 0.634 | 0.648 | unchanged; still the weakest entity query |
+| `who_was_first_tagged` query accuracy | 0.634 | 0.648 | unchanged; the tag state was unobservable in this revision (see Observation contract) |
 
 Tier 1, which has no audio holder cue, remains weak on the holder query in both runs (0.512 and 0.591) and does not pass its promotion gate; Tier 2 passes its gate in the fixed run. These are single-seed numbers from one machine and should be read as a working baseline for the repaired code path, not as a multi-seed estimate.
 
@@ -201,6 +211,7 @@ CI executes:
 - `_test_et_only.py` — entity-routing modes and gradient flow;
 - `_test_hpm_changes.py` — legacy HPM paths and gradients;
 - `_test_query_labels.py` — query labels are answerable at `time_asked` (holder-at-query-time semantics in both v2 generators);
+- `_test_observation_contract.py` — per-entity numeric block is well-formed, holder audio cue is transient, tag events identify the first-tagged entity;
 - `tmew1_run_v2.py --smoke` — tiny end-to-end CPU pipeline.
 
 The end-to-end check also fails if the runner emits a standalone `nan`/`inf`, `non-finite`, or skipped-backward signal. This prevents a numerically collapsed smoke step from being reported as green merely because the process reached the end.

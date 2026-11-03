@@ -1212,7 +1212,7 @@ def run_curriculum(
 def smoke_test() -> None:
     """30-second end-to-end pipeline check. Tiny config, single tier, two batches."""
     print("Running smoke test...")
-    world_cfg = WorldConfig(grid_h=8, grid_w=8, episode_length=16, max_entities=4, audio_dim=24, numeric_dim=10, num_latent_rules=6)
+    world_cfg = WorldConfig(grid_h=8, grid_w=8, episode_length=16, max_entities=4, audio_dim=24, numeric_dim=30, num_latent_rules=6)
     tcfg = TrainConfig(
         batch_size=2,
         train_episodes_per_tier=4,

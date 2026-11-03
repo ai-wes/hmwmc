@@ -960,3 +960,27 @@ Added a per-epoch emergent-property monitor and network-size presets to the v2 r
 ### Next Steps
 
 - Multi-seed `large` runs on a 15 GB GPU at batch 32, with the probe trajectory, to see whether the extra capacity moves slot specialization or retroactive binding off zero.
+
+## [2026-11-03 07:10]
+
+### Summary
+
+Benchmark revision 2026-11-03b: made entity identity observable and state changes transient so the v2 benchmark tests memory rather than readout. This is the test of the hypothesis that the benchmark, not the model, was the bottleneck.
+
+### Changes
+
+- `tmew1_train_v2.py`: `numeric_dim` 10 → 40 with a per-entity block `[x, y, visible, color, tagged_this_step]` (ported from the legacy generator; `NUMERIC_ENTITY_OFFSET`/`NUMERIC_ENTITY_STRIDE` exported). `_step_world` records `events["tagged_ids"]` on the tag transition. `_render_audio` no longer emits the 0.3 ambient cue on the current holder; only the 1.0 handoff cue remains. `_render_numeric` takes the step's events.
+- `tmew1_queries_v2.py`: records tag events in `_step_world_with_handoff`; `EpisodeWithQueries.holder_per_step` added.
+- `tmew1_diagnostics_v2.py`: passes events to the numeric renderer.
+- `tmew1_run_v2.py`: smoke config `numeric_dim=30` (10 + 5 × 4 entities).
+- `_test_observation_contract.py` (new, in CI): entity block well-formed, holder cue transient, tag events identify the first-tagged entity. `_test_query_labels.py` now checks against `holder_per_step` instead of recovering the holder from the (removed) ambient audio cue.
+- `README.md`: Observation contract section; regression inventory; results-table note.
+
+### Why
+
+- Vision drew tagged and untagged entities identically and numeric carried only tag aggregates, so `who_was_first_tagged` had no observable answer (0.63–0.65 in every run).
+- The ambient holder cue made `who_holds_token` a per-step readout (0.96 after the label fix) and hid whether any memory module was load-bearing; the emergent probes sat at zero.
+
+### Runs launched
+
+- Honest-benchmark default curriculum, seed 0, with the per-epoch probe monitor; then branches A1 (denser worlds) and A2 (T=96) judged against it. The earlier A1/A2 kill verdicts were produced under the mislabelled holder query with ~70% of optimizer steps skipped and are void.

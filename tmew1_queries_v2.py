@@ -73,6 +73,7 @@ class EpisodeWithQueries:
     template: str
     length: int
     queries: List[Query]
+    holder_per_step: Optional[np.ndarray] = None   # (T,) simulator holder id after each step
 
 
 # -----------------------------------------------------------------------------
@@ -200,6 +201,8 @@ def _step_world_with_handoff(
                         _dlo, _dhi = 2, max_delay
                     state.alarm_in = state.rng.randint(_dlo, _dhi)
                     events["trigger"] = True
+                    if not a.tagged:
+                        events.setdefault("tagged_ids", []).append(a.id)
                     a.tagged = True
                     if handoff.first_tagged_id < 0:
                         handoff.first_tagged_id = a.id
@@ -276,6 +279,7 @@ def generate_episode_with_queries(
     T = tier.max_episode_length
     vision = np.zeros((T, cfg.vision_channels, cfg.grid_h, cfg.grid_w), dtype=np.float32)
     audio = np.zeros((T, cfg.audio_dim), dtype=np.float32)
+    holder_per_step = np.zeros((T,), dtype=np.int64)
     numeric = np.zeros((T, cfg.numeric_dim), dtype=np.float32)
     text = np.zeros((T, 1), dtype=np.int64)
 
@@ -291,7 +295,8 @@ def generate_episode_with_queries(
         event_history.append(dict(events))
         vision[t] = _render_vision(state, cfg)
         audio[t] = _render_audio(state, cfg, events, current_holder_id=handoff.holder_id)
-        numeric[t] = _render_numeric(state, cfg)
+        numeric[t] = _render_numeric(state, cfg, events)
+        holder_per_step[t] = handoff.holder_id
         text[t] = _render_text(state, cfg, events)
         if events["occluded_ids"]:
             last_occluded_id = events["occluded_ids"][0]
@@ -311,8 +316,9 @@ def generate_episode_with_queries(
         receiver = next((e for e in state.entities if e.id != handoff.holder_id), state.entities[0])
         handoff.transfer_history.append((force_t, handoff.holder_id, receiver.id))
         handoff.holder_id = receiver.id
-        # Re-render audio from the forced timestep onward so the ambient holder
-        # identity matches the synthetic transfer for the rest of the episode.
+        holder_per_step[force_t:] = receiver.id
+        # Re-render audio from the forced timestep onward so the transient
+        # handoff cue matches the synthetic transfer.
         for t in range(force_t, T):
             forced_events = dict(event_history[t])
             if t == force_t:
@@ -364,6 +370,7 @@ def generate_episode_with_queries(
         template=template,
         length=T,
         queries=queries,
+        holder_per_step=holder_per_step,
     )
 
 

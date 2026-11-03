@@ -253,7 +253,7 @@ def generate_episode_with_diagnostics(
         vision[t] = _render_vision(state, cfg)
         audio[t] = _render_audio(state, cfg, events, current_holder_id=handoff.holder_id)
         audio[t] = _inject_false_cue(audio[t], t, false_cue_step, correction_step)
-        numeric[t] = _render_numeric(state, cfg)
+        numeric[t] = _render_numeric(state, cfg, events)
         text[t] = _render_text(state, cfg, events)
         holder_per_step[t] = handoff.holder_id
 
