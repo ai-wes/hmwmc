@@ -879,3 +879,37 @@ Reviewed the local `_v2` implementation against the newest baseline_v2 failure p
 - Rebuild typed event entries and checkpoints from per-entity state deltas instead of pooled sequence summaries.
 - Increase holder supervision weight and possibly weight multi-handoff holder cases directly.
 - Remove or isolate the dead latent-only promotion code in `tmew1_train_v2.py` to avoid future confusion.
+
+## [2026-11-03 04:55]
+
+### Summary
+
+Made the v2 architecture train. The unmodified release was run end to end on an RTX 3070 as a baseline and found to be broken in two independent ways: 544 of 768 optimizer steps were skipped for non-finite gradients, and the `who_holds_token` label was the end-of-episode holder even though the backbone is a causal scan. Both are fixed; a rerun reaches Tier 3 holder query 0.963, per-step holder accuracy 0.968, latent-rule accuracy 1.000, and belief revision 1.000 with zero skipped steps.
+
+### Changes
+
+- `homeostatic_multimodal_world_model_chunked_v2.py`: empty episodic slots are initialised to a fixed unit-RMS random row (non-persistent buffer `episodic_empty_init`) instead of zeros. `F.normalize` in `EpisodicMemoryBank.write` and the per-step `RMSNorm` over the bank both have Jacobians that scale as `1/eps` at the zero vector; with 64 slots most stay empty through an episode and the recurrence compounded that into inf/NaN gradients. Reproduced under `torch.autograd.set_detect_anomaly` by resuming the baseline Tier 1 checkpoint (failed on step 5 at the `slot_alpha` multiply); after the fix the same checkpoint trains 80 steps clean.
+- `tmew1_queries_v2.py`: `HandoffState.holder_at(t)` replays the transfer history; `who_holds_token` targets are now the holder at `time_asked`.
+- `tmew1_diagnostics_v2.py`: same label fix using `holder_per_step`; the handoff-difficulty bucket for the holder query now counts only handoffs up to `time_asked`.
+- `_test_query_labels.py` (new, wired into `scripts/run_ci_checks.sh`): pins holder-at-query-time semantics in both generators and the `holder_at` replay.
+- `README.md`: query semantics, regression inventory, evidence status, a results table for the two 2026-11-03 runs, and limitations.
+- `docs/raw_runs/`: both run logs preserved with command, commit, Python/PyTorch versions, and GPU in the header.
+
+### Evidence
+
+- Generator measurement before the fix: on the Tier 1/2/3 validation sets only 80.1% / 66.1% / 67.6% of `who_holds_token` labels equalled the holder at `time_asked`, so a causal model was capped near 0.68 on Tier 3 regardless of memory quality.
+- Baseline (unmodified) Tier 3 validation: latent 0.582, holder_acc 0.467, who_holds_token 0.269, belief revision 0.226.
+- Fixed Tier 3 validation: latent 1.000, holder_acc 0.968, who_holds_token 0.963 (0.964 over 165 diagnostic queries, Wilson [0.923, 0.983]), belief revision 1.000 (n=31), temporal ordering 1.000 (n=127), chain-2 1.000 (n=131). Tier 2 passed its promotion gate; Tier 1 and Tier 3 did not.
+- CI (`scripts/run_ci_checks.sh`) passes before and after the changes.
+
+### Decisions
+
+- Kept the architecture unchanged apart from the init; the changelog's earlier proposals (hard entity assignment, per-entity checkpoints, higher holder weight) were not needed to recover holder tracking once training was numerically sound and the labels were answerable.
+- Left the legacy `tmew1_queries.py` / `tmew1_train.py` untouched to keep the preserved legacy provenance intact, even though they already carried a prefix-answered query fix and identity-grounded numeric channels (`numeric_dim=40`) that v2 never received.
+- Did not commit; the user has not asked for a commit.
+
+### Next Steps
+
+- Tier 1 holder query is still 0.59 (no holder cue in vision/numeric). Candidate: port the legacy identity-grounded numeric channels to v2 so entity ids are observable, then re-evaluate the Tier 1 gate.
+- `who_was_first_tagged` stays at ~0.65 in every run; it is now the weakest entity query and the next diagnostic target.
+- Multi-seed reruns (at least 3 seeds) before quoting the fixed numbers as a benchmark.

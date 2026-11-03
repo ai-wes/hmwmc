@@ -1,0 +1,2987 @@
+# HMWMC v2 run with holder-label fix and episodic-init fix, 2026-11-03 04:31-04:52 local
+# code: commit 82ab1e1 plus the 2026-11-03 working-tree changes (tmew1_queries_v2.py, tmew1_diagnostics_v2.py, homeostatic_multimodal_world_model_chunked_v2.py)
+# command: python tmew1_run_v2.py --epochs 4 --batch-size 32 --train-episodes 2048   (seed 0, cwd outside repo, PYTHONPATH=repo)
+# env: Python 3.12.3, torch 2.11.0+cu128 numpy 2.5.4, GPU: NVIDIA GeForce RTX 3070, 595.99.02, CUDA 12.8 wheels
+# note: 0 optimizer steps skipped; who_holds_token uses holder-at-time_asked labels (not comparable to pre-fix numbers for that query)
+
+
+=== Tier 1 | modalities=('vision', 'numeric') | T=24 | templates=('trigger_delay',) ===
+04:31:03 | INFO | === =================================t1 ep0 s0010 | pnn=L/O/L/O/O/L open=3================================ ===
+04:31:03 | INFO |   ── Loss ──
+04:31:03 | INFO | total: raw=1.507906 | score= 69.84% | band=medium-high
+04:31:03 | INFO | next_step: raw=0.008956 | score= 98.21% | band=good
+04:31:03 | INFO | aux_latent: raw=1.737328 | score= 13.13% | band=bad
+04:31:03 | INFO | q_loss: raw=0.375931 | score= 81.20% | band=good
+04:31:03 | INFO | loss/vision: raw=0.027356 | score= 94.53% | band=good
+04:31:03 | INFO | loss/numeric: raw=0.151754 | score= 69.65% | band=medium-high
+04:31:03 | INFO | stress: raw=0.004697 | score= 96.87% | band=good
+04:31:03 | INFO |   ── Accuracy ──
+04:31:03 | INFO | latent_acc: raw=0.125000 | score= 12.50% | band=bad
+04:31:03 | INFO | entity_acc: raw=0.855072 | score= 85.51% | band=good
+04:31:03 | INFO | binary_acc: raw=0.474576 | score= 47.46% | band=medium
+04:31:03 | INFO |   ── PNN ──
+04:31:03 | INFO | pnn_open: 3.000000
+04:31:03 | INFO | pnn_unlocks: 0.000000
+04:31:03 | INFO |   ── HPM ──
+04:31:03 | INFO | hpm_gate_mean: raw=0.631784 | score= 36.82% | band=low-medium
+04:31:03 | INFO | hpm_z_abs_mean: raw=1.787927 | score= 64.24% | band=medium-high
+04:31:03 | INFO | hpm_z_abs_max: raw=2.063333 | score= 79.37% | band=medium-high
+04:31:03 | INFO | hpm_err_mean: raw=1.843523 | score= 63.13% | band=medium-high
+04:31:03 | INFO | hpm_write_mag: raw=1.083838 | score= 63.87% | band=medium-high
+04:31:03 | INFO | hpm_open_frac: 1.000000
+04:31:03 | INFO | hpm_closing_frac: 0.000000
+04:31:03 | INFO | hpm_locked_frac: 0.000000
+04:31:03 | INFO | hpm_force_unlocks_step: raw=0.000000 | score=100.00% | band=good
+04:31:03 | INFO | hpm_mu: raw=0.191070 | score= 46.82% | band=medium
+04:31:03 | INFO | hpm_sigma: raw=0.936409 | score= 46.82% | band=medium
+04:31:03 | INFO | hpm_write_regular_frac: raw=1.000000 | score=100.00% | band=good
+04:31:03 | INFO | hpm_write_forced_frac: raw=0.000000 | score=100.00% | band=good
+04:31:12 | INFO | === =================================t1 ep0 s0020 | pnn=L/O/L/L/O/O open=3 (+1 unlocked)================================ ===
+04:31:12 | INFO |   ── Loss ──
+04:31:12 | INFO | total: raw=1.599855 | score= 68.00% | band=medium-high
+04:31:12 | INFO | next_step: raw=0.012403 | score= 97.52% | band=good
+04:31:12 | INFO | aux_latent: raw=1.759602 | score= 12.02% | band=bad
+04:31:12 | INFO | q_loss: raw=0.452686 | score= 77.37% | band=medium-high
+04:31:12 | INFO | loss/vision: raw=0.018885 | score= 96.22% | band=good
+04:31:12 | INFO | loss/numeric: raw=0.105142 | score= 78.97% | band=medium-high
+04:31:12 | INFO | stress: raw=0.008329 | score= 94.45% | band=good
+04:31:12 | INFO |   ── Accuracy ──
+04:31:12 | INFO | latent_acc: raw=0.250000 | score= 25.00% | band=low-medium
+04:31:12 | INFO | entity_acc: raw=0.794118 | score= 79.41% | band=medium-high
+04:31:12 | INFO | binary_acc: raw=0.466667 | score= 46.67% | band=medium
+04:31:12 | INFO |   ── PNN ──
+04:31:12 | INFO | pnn_open: 3.000000
+04:31:12 | INFO | pnn_unlocks: 1.000000
+04:31:12 | INFO |   ── HPM ──
+04:31:12 | INFO | hpm_gate_mean: raw=0.700686 | score= 29.93% | band=low-medium
+04:31:12 | INFO | hpm_z_abs_mean: raw=1.713233 | score= 65.74% | band=medium-high
+04:31:12 | INFO | hpm_z_abs_max: raw=2.037661 | score= 79.62% | band=medium-high
+04:31:12 | INFO | hpm_err_mean: raw=1.829705 | score= 63.41% | band=medium-high
+04:31:12 | INFO | hpm_write_mag: raw=1.184145 | score= 60.53% | band=medium-high
+04:31:12 | INFO | hpm_open_frac: 1.000000
+04:31:12 | INFO | hpm_closing_frac: 0.000000
+04:31:12 | INFO | hpm_locked_frac: 0.000000
+04:31:12 | INFO | hpm_force_unlocks_step: raw=0.000000 | score=100.00% | band=good
+04:31:12 | INFO | hpm_mu: raw=0.349050 | score= 44.18% | band=medium
+04:31:12 | INFO | hpm_sigma: raw=0.884756 | score= 44.24% | band=medium
+04:31:12 | INFO | hpm_write_regular_frac: raw=1.000000 | score=100.00% | band=good
+04:31:12 | INFO | hpm_write_forced_frac: raw=0.000000 | score=100.00% | band=good
+04:31:24 | INFO | === =================================t1 ep0 s0030 | pnn=O/O/C/O/O/C open=4 (+3 unlocked)================================ ===
+04:31:24 | INFO |   ── Loss ──
+04:31:24 | INFO | total: raw=1.519801 | score= 69.60% | band=medium-high
+04:31:24 | INFO | next_step: raw=0.016444 | score= 96.71% | band=good
+04:31:24 | INFO | aux_latent: raw=1.698073 | score= 15.10% | band=bad
+04:31:24 | INFO | q_loss: raw=0.404564 | score= 79.77% | band=medium-high
+04:31:24 | INFO | loss/vision: raw=0.016921 | score= 96.62% | band=good
+04:31:24 | INFO | loss/numeric: raw=0.092705 | score= 81.46% | band=good
+04:31:24 | INFO | stress: raw=0.009724 | score= 93.52% | band=good
+04:31:24 | INFO |   ── Accuracy ──
+04:31:24 | INFO | latent_acc: raw=0.218750 | score= 21.88% | band=low-medium
+04:31:24 | INFO | entity_acc: raw=0.787500 | score= 78.75% | band=medium-high
+04:31:24 | INFO | binary_acc: raw=0.500000 | score= 50.00% | band=medium
+04:31:24 | INFO |   ── PNN ──
+04:31:24 | INFO | pnn_open: 4.000000
+04:31:24 | INFO | pnn_unlocks: 3.000000
+04:31:24 | INFO |   ── HPM ──
+04:31:24 | INFO | hpm_gate_mean: raw=0.797432 | score= 20.26% | band=low-medium
+04:31:24 | INFO | hpm_z_abs_mean: raw=1.657789 | score= 66.84% | band=medium-high
+04:31:24 | INFO | hpm_z_abs_max: raw=1.976121 | score= 80.24% | band=good
+04:31:24 | INFO | hpm_err_mean: raw=1.835094 | score= 63.30% | band=medium-high
+04:31:24 | INFO | hpm_write_mag: raw=1.200505 | score= 59.98% | band=medium
+04:31:24 | INFO | hpm_open_frac: 1.000000
+04:31:24 | INFO | hpm_closing_frac: 0.000000
+04:31:24 | INFO | hpm_locked_frac: 0.000000
+04:31:24 | INFO | hpm_force_unlocks_step: raw=0.000000 | score=100.00% | band=good
+04:31:24 | INFO | hpm_mu: raw=0.492764 | score= 41.79% | band=medium
+04:31:24 | INFO | hpm_sigma: raw=0.838223 | score= 41.91% | band=medium
+04:31:24 | INFO | hpm_write_regular_frac: raw=1.000000 | score=100.00% | band=good
+04:31:24 | INFO | hpm_write_forced_frac: raw=0.000000 | score=100.00% | band=good
+04:31:32 | INFO | === =================================t1 ep0 s0040 | pnn=C/O/L/C/O/L open=2================================ ===
+04:31:32 | INFO |   ── Loss ──
+04:31:32 | INFO | total: raw=1.248045 | score= 75.04% | band=medium-high
+04:31:32 | INFO | next_step: raw=0.018913 | score= 96.22% | band=good
+04:31:32 | INFO | aux_latent: raw=1.291579 | score= 35.42% | band=low-medium
+04:31:32 | INFO | q_loss: raw=0.314453 | score= 84.28% | band=good
+04:31:32 | INFO | loss/vision: raw=0.018890 | score= 96.22% | band=good
+04:31:32 | INFO | loss/numeric: raw=0.075675 | score= 84.86% | band=good
+04:31:32 | INFO | stress: raw=0.009541 | score= 93.64% | band=good
+04:31:32 | INFO |   ── Accuracy ──
+04:31:32 | INFO | latent_acc: raw=0.281250 | score= 28.12% | band=low-medium
+04:31:32 | INFO | entity_acc: raw=0.840580 | score= 84.06% | band=good
+04:31:32 | INFO | binary_acc: raw=0.661017 | score= 66.10% | band=medium-high
+04:31:32 | INFO |   ── PNN ──
+04:31:32 | INFO | pnn_open: 2.000000
+04:31:32 | INFO | pnn_unlocks: 0.000000
+04:31:32 | INFO |   ── HPM ──
+04:31:32 | INFO | hpm_gate_mean: raw=0.656000 | score= 34.40% | band=low-medium
+04:31:32 | INFO | hpm_z_abs_mean: raw=1.550091 | score= 69.00% | band=medium-high
+04:31:32 | INFO | hpm_z_abs_max: raw=1.952922 | score= 80.47% | band=good
+04:31:32 | INFO | hpm_err_mean: raw=1.791813 | score= 64.16% | band=medium-high
+04:31:32 | INFO | hpm_write_mag: raw=1.069996 | score= 64.33% | band=medium-high
+04:31:32 | INFO | hpm_open_frac: 1.000000
+04:31:32 | INFO | hpm_closing_frac: 0.000000
+04:31:32 | INFO | hpm_locked_frac: 0.000000
+04:31:32 | INFO | hpm_force_unlocks_step: raw=0.000000 | score=100.00% | band=good
+04:31:32 | INFO | hpm_mu: raw=0.617120 | score= 39.71% | band=low-medium
+04:31:32 | INFO | hpm_sigma: raw=0.795439 | score= 39.77% | band=low-medium
+04:31:32 | INFO | hpm_write_regular_frac: raw=1.000000 | score=100.00% | band=good
+04:31:32 | INFO | hpm_write_forced_frac: raw=0.000000 | score=100.00% | band=good
+04:31:40 | INFO | === =================================t1 ep0 s0050 | pnn=L/O/O/L/O/O open=4 (+2 unlocked)================================ ===
+04:31:40 | INFO |   ── Loss ──
+04:31:40 | INFO | total: raw=1.220140 | score= 75.60% | band=medium-high
+04:31:40 | INFO | next_step: raw=0.015341 | score= 96.93% | band=good
+04:31:40 | INFO | aux_latent: raw=1.190877 | score= 40.46% | band=medium
+04:31:40 | INFO | q_loss: raw=0.354130 | score= 82.29% | band=good
+04:31:40 | INFO | loss/vision: raw=0.015270 | score= 96.95% | band=good
+04:31:40 | INFO | loss/numeric: raw=0.046094 | score= 90.78% | band=good
+04:31:40 | INFO | stress: raw=0.007561 | score= 94.96% | band=good
+04:31:40 | INFO |   ── Accuracy ──
+04:31:40 | INFO | latent_acc: raw=0.312500 | score= 31.25% | band=low-medium
+04:31:40 | INFO | entity_acc: raw=0.763158 | score= 76.32% | band=medium-high
+04:31:40 | INFO | binary_acc: raw=0.692308 | score= 69.23% | band=medium-high
+04:31:40 | INFO |   ── PNN ──
+04:31:40 | INFO | pnn_open: 4.000000
+04:31:40 | INFO | pnn_unlocks: 2.000000
+04:31:40 | INFO |   ── HPM ──
+04:31:40 | INFO | hpm_gate_mean: raw=0.713092 | score= 28.69% | band=low-medium
+04:31:40 | INFO | hpm_z_abs_mean: raw=1.526231 | score= 69.48% | band=medium-high
+04:31:40 | INFO | hpm_z_abs_max: raw=2.024970 | score= 79.75% | band=medium-high
+04:31:40 | INFO | hpm_err_mean: raw=1.818062 | score= 63.64% | band=medium-high
+04:31:40 | INFO | hpm_write_mag: raw=1.118425 | score= 62.72% | band=medium-high
+04:31:40 | INFO | hpm_open_frac: 1.000000
+04:31:40 | INFO | hpm_closing_frac: 0.000000
+04:31:40 | INFO | hpm_locked_frac: 0.000000
+04:31:40 | INFO | hpm_force_unlocks_step: raw=0.000000 | score=100.00% | band=good
+04:31:40 | INFO | hpm_mu: raw=0.730897 | score= 37.82% | band=low-medium
+04:31:40 | INFO | hpm_sigma: raw=0.757153 | score= 37.86% | band=low-medium
+04:31:40 | INFO | hpm_write_regular_frac: raw=1.000000 | score=100.00% | band=good
+04:31:40 | INFO | hpm_write_forced_frac: raw=0.000000 | score=100.00% | band=good
+04:31:48 | INFO | === =================================t1 ep0 s0060 | pnn=O/O/L/O/O/O open=5 (+2 unlocked)================================ ===
+04:31:48 | INFO |   ── Loss ──
+04:31:48 | INFO | total: raw=1.070634 | score= 78.59% | band=medium-high
+04:31:48 | INFO | next_step: raw=0.015061 | score= 96.99% | band=good
+04:31:48 | INFO | aux_latent: raw=1.127769 | score= 43.61% | band=medium
+04:31:48 | INFO | q_loss: raw=0.256391 | score= 87.18% | band=good
+04:31:48 | INFO | loss/vision: raw=0.013536 | score= 97.29% | band=good
+04:31:48 | INFO | loss/numeric: raw=0.036668 | score= 92.67% | band=good
+04:31:48 | INFO | stress: raw=0.009139 | score= 93.91% | band=good
+04:31:48 | INFO |   ── Accuracy ──
+04:31:48 | INFO | latent_acc: raw=0.281250 | score= 28.12% | band=low-medium
+04:31:48 | INFO | entity_acc: raw=0.818182 | score= 81.82% | band=good
+04:31:48 | INFO | binary_acc: raw=0.862745 | score= 86.27% | band=good
+04:31:48 | INFO |   ── PNN ──
+04:31:48 | INFO | pnn_open: 5.000000
+04:31:48 | INFO | pnn_unlocks: 2.000000
+04:31:48 | INFO |   ── HPM ──
+04:31:48 | INFO | hpm_gate_mean: raw=0.666031 | score= 33.40% | band=low-medium
+04:31:48 | INFO | hpm_z_abs_mean: raw=1.498248 | score= 70.04% | band=medium-high
+04:31:48 | INFO | hpm_z_abs_max: raw=1.958307 | score= 80.42% | band=good
+04:31:48 | INFO | hpm_err_mean: raw=1.842604 | score= 63.15% | band=medium-high
+04:31:48 | INFO | hpm_write_mag: raw=1.049562 | score= 65.01% | band=medium-high
+04:31:48 | INFO | hpm_open_frac: 1.000000
+04:31:48 | INFO | hpm_closing_frac: 0.000000
+04:31:48 | INFO | hpm_locked_frac: 0.000000
+04:31:48 | INFO | hpm_force_unlocks_step: raw=0.000000 | score=100.00% | band=good
+04:31:48 | INFO | hpm_mu: raw=0.836239 | score= 36.06% | band=low-medium
+04:31:48 | INFO | hpm_sigma: raw=0.723184 | score= 36.16% | band=low-medium
+04:31:48 | INFO | hpm_write_regular_frac: raw=1.000000 | score=100.00% | band=good
+04:31:48 | INFO | hpm_write_forced_frac: raw=0.000000 | score=100.00% | band=good
+04:31:53 | INFO | === [val] t1 ep0 ===
+04:31:53 | INFO |   ── Loss ──
+04:31:53 | INFO | next_step: raw=0.065139 | score= 86.97% | band=good
+04:31:53 | INFO | loss/vision: raw=0.018480 | score= 96.30% | band=good
+04:31:53 | INFO | loss/numeric: raw=0.046659 | score= 90.67% | band=good
+04:31:53 | INFO |   ── Accuracy ──
+04:31:53 | INFO | latent_acc: raw=0.273438 | score= 27.34% | band=low-medium
+04:31:53 | INFO | qacc/who_holds_token: raw=0.591378 | score= 59.14% | band=medium
+04:31:53 | INFO | qacc/who_was_first_tagged: raw=0.662196 | score= 66.22% | band=medium-high
+04:31:53 | INFO | qacc/did_alarm_fire: raw=0.962693 | score= 96.27% | band=good
+04:31:53 | INFO | qacc/which_entity_occluded: raw=1.000000 | score=100.00% | band=good
+04:31:53 | INFO | qacc/did_trigger_before_alarm: raw=0.979561 | score= 97.96% | band=good
+04:31:53 | INFO | qacc/which_entity_first_occluded: raw=1.000000 | score=100.00% | band=good
+04:31:53 | INFO | qacc/did_chain2_fire: raw=0.626176 | score= 62.62% | band=medium-high
+04:31:53 | INFO |   ── Other ──
+04:31:53 | INFO | event_acc: 0.847486
+  -> holding tier 1; unmet gates: latent_acc=0.273 < 0.900; qacc/who_holds_token=0.591 < 0.750; qacc/who_was_first_tagged=0.662 < 0.700
+04:31:54 | INFO | === =================================t1 ep1 s0000 | pnn=C/O/L/C/O/O open=3================================ ===
+04:31:54 | INFO |   ── Loss ──
+04:31:54 | INFO | total: raw=1.113484 | score= 77.73% | band=medium-high
+04:31:54 | INFO | next_step: raw=0.021807 | score= 95.64% | band=good
+04:31:54 | INFO | aux_latent: raw=1.271701 | score= 36.41% | band=low-medium
+04:31:54 | INFO | q_loss: raw=0.221817 | score= 88.91% | band=good
+04:31:54 | INFO | loss/vision: raw=0.018751 | score= 96.25% | band=good
+04:31:54 | INFO | loss/numeric: raw=0.049397 | score= 90.12% | band=good
+04:31:54 | INFO | stress: raw=0.012219 | score= 91.85% | band=good
+04:31:54 | INFO |   ── Accuracy ──
+04:31:54 | INFO | latent_acc: raw=0.375000 | score= 37.50% | band=low-medium
+04:31:54 | INFO | entity_acc: raw=0.819444 | score= 81.94% | band=good
+04:31:54 | INFO | binary_acc: raw=0.910714 | score= 91.07% | band=good
+04:31:54 | INFO |   ── PNN ──
+04:31:54 | INFO | pnn_open: 3.000000
+04:31:54 | INFO | pnn_unlocks: 0.000000
+04:31:54 | INFO |   ── HPM ──
+04:31:54 | INFO | hpm_gate_mean: raw=0.645615 | score= 35.44% | band=low-medium
+04:31:54 | INFO | hpm_z_abs_mean: raw=1.476202 | score= 70.48% | band=medium-high
+04:31:54 | INFO | hpm_z_abs_max: raw=1.932635 | score= 80.67% | band=good
+04:31:54 | INFO | hpm_err_mean: raw=1.844276 | score= 63.11% | band=medium-high
+04:31:54 | INFO | hpm_write_mag: raw=1.049976 | score= 65.00% | band=medium-high
+04:31:54 | INFO | hpm_open_frac: 1.000000
+04:31:54 | INFO | hpm_closing_frac: 0.000000
+04:31:54 | INFO | hpm_locked_frac: 0.000000
+04:31:54 | INFO | hpm_force_unlocks_step: raw=0.000000 | score=100.00% | band=good
+04:31:54 | INFO | hpm_mu: raw=0.875966 | score= 35.40% | band=low-medium
+04:31:54 | INFO | hpm_sigma: raw=0.710681 | score= 35.53% | band=low-medium
+04:31:54 | INFO | hpm_write_regular_frac: raw=1.000000 | score=100.00% | band=good
+04:31:54 | INFO | hpm_write_forced_frac: raw=0.000000 | score=100.00% | band=good
+04:32:02 | INFO | === =================================t1 ep1 s0010 | pnn=L/O/O/L/O/O open=4 (+1 unlocked)================================ ===
+04:32:02 | INFO |   ── Loss ──
+04:32:02 | INFO | total: raw=1.000122 | score= 80.00% | band=medium-high
+04:32:02 | INFO | next_step: raw=0.014164 | score= 97.17% | band=good
+04:32:02 | INFO | aux_latent: raw=0.972924 | score= 51.35% | band=medium
+04:32:02 | INFO | q_loss: raw=0.231485 | score= 88.43% | band=good
+04:32:02 | INFO | loss/vision: raw=0.010809 | score= 97.84% | band=good
+04:32:02 | INFO | loss/numeric: raw=0.027472 | score= 94.51% | band=good
+04:32:02 | INFO | stress: raw=0.010273 | score= 93.15% | band=good
+04:32:02 | INFO |   ── Accuracy ──
+04:32:02 | INFO | latent_acc: raw=0.531250 | score= 53.12% | band=medium
+04:32:02 | INFO | entity_acc: raw=0.805556 | score= 80.56% | band=good
+04:32:02 | INFO | binary_acc: raw=0.910714 | score= 91.07% | band=good
+04:32:02 | INFO |   ── PNN ──
+04:32:02 | INFO | pnn_open: 4.000000
+04:32:02 | INFO | pnn_unlocks: 1.000000
+04:32:02 | INFO |   ── HPM ──
+04:32:02 | INFO | hpm_gate_mean: raw=0.746017 | score= 25.40% | band=low-medium
+04:32:02 | INFO | hpm_z_abs_mean: raw=1.434232 | score= 71.32% | band=medium-high
+04:32:02 | INFO | hpm_z_abs_max: raw=1.951002 | score= 80.49% | band=good
+04:32:02 | INFO | hpm_err_mean: raw=1.857779 | score= 62.84% | band=medium-high
+04:32:02 | INFO | hpm_write_mag: raw=1.074913 | score= 64.17% | band=medium-high
+04:32:02 | INFO | hpm_open_frac: 1.000000
+04:32:02 | INFO | hpm_closing_frac: 0.000000
+04:32:02 | INFO | hpm_locked_frac: 0.000000
+04:32:02 | INFO | hpm_force_unlocks_step: raw=0.000000 | score=100.00% | band=good
+04:32:02 | INFO | hpm_mu: raw=0.968855 | score= 33.85% | band=low-medium
+04:32:02 | INFO | hpm_sigma: raw=0.681544 | score= 34.08% | band=low-medium
+04:32:02 | INFO | hpm_write_regular_frac: raw=1.000000 | score=100.00% | band=good
+04:32:02 | INFO | hpm_write_forced_frac: raw=0.000000 | score=100.00% | band=good
+04:32:10 | INFO | === =================================t1 ep1 s0020 | pnn=O/O/L/O/O/O open=5 (+2 unlocked)================================ ===
+04:32:10 | INFO |   ── Loss ──
+04:32:10 | INFO | total: raw=0.854129 | score= 82.92% | band=good
+04:32:10 | INFO | next_step: raw=0.017667 | score= 96.47% | band=good
+04:32:10 | INFO | aux_latent: raw=0.828470 | score= 58.58% | band=medium
+04:32:10 | INFO | q_loss: raw=0.195540 | score= 90.22% | band=good
+04:32:10 | INFO | loss/vision: raw=0.011533 | score= 97.69% | band=good
+04:32:10 | INFO | loss/numeric: raw=0.030532 | score= 93.89% | band=good
+04:32:10 | INFO | stress: raw=0.015314 | score= 89.79% | band=good
+04:32:10 | INFO |   ── Accuracy ──
+04:32:10 | INFO | latent_acc: raw=0.625000 | score= 62.50% | band=medium-high
+04:32:10 | INFO | entity_acc: raw=0.876712 | score= 87.67% | band=good
+04:32:10 | INFO | binary_acc: raw=0.890909 | score= 89.09% | band=good
+04:32:10 | INFO |   ── PNN ──
+04:32:10 | INFO | pnn_open: 5.000000
+04:32:10 | INFO | pnn_unlocks: 2.000000
+04:32:10 | INFO |   ── HPM ──
+04:32:10 | INFO | hpm_gate_mean: raw=0.711479 | score= 28.85% | band=low-medium
+04:32:10 | INFO | hpm_z_abs_mean: raw=1.424008 | score= 71.52% | band=medium-high
+04:32:10 | INFO | hpm_z_abs_max: raw=2.023106 | score= 79.77% | band=medium-high
+04:32:10 | INFO | hpm_err_mean: raw=1.893350 | score= 62.13% | band=medium-high
+04:32:10 | INFO | hpm_write_mag: raw=1.104119 | score= 63.20% | band=medium-high
+04:32:10 | INFO | hpm_open_frac: 1.000000
+04:32:10 | INFO | hpm_closing_frac: 0.000000
+04:32:10 | INFO | hpm_locked_frac: 0.000000
+04:32:10 | INFO | hpm_force_unlocks_step: raw=0.000000 | score=100.00% | band=good
+04:32:10 | INFO | hpm_mu: raw=1.055535 | score= 32.41% | band=low-medium
+04:32:10 | INFO | hpm_sigma: raw=0.655829 | score= 32.79% | band=low-medium
+04:32:10 | INFO | hpm_write_regular_frac: raw=1.000000 | score=100.00% | band=good
+04:32:10 | INFO | hpm_write_forced_frac: raw=0.000000 | score=100.00% | band=good
+04:32:18 | INFO | === =================================t1 ep1 s0030 | pnn=C/O/O/C/O/O open=4 (+1 unlocked)================================ ===
+04:32:18 | INFO |   ── Loss ──
+04:32:18 | INFO | total: raw=0.812980 | score= 83.74% | band=good
+04:32:18 | INFO | next_step: raw=0.016774 | score= 96.65% | band=good
+04:32:18 | INFO | aux_latent: raw=0.584940 | score= 70.75% | band=medium-high
+04:32:18 | INFO | q_loss: raw=0.245129 | score= 87.74% | band=good
+04:32:18 | INFO | loss/vision: raw=0.011870 | score= 97.63% | band=good
+04:32:18 | INFO | loss/numeric: raw=0.023820 | score= 95.24% | band=good
+04:32:18 | INFO | stress: raw=0.017585 | score= 88.28% | band=good
+04:32:18 | INFO |   ── Accuracy ──
+04:32:18 | INFO | latent_acc: raw=0.781250 | score= 78.12% | band=medium-high
+04:32:18 | INFO | entity_acc: raw=0.729730 | score= 72.97% | band=medium-high
+04:32:18 | INFO | binary_acc: raw=0.944444 | score= 94.44% | band=good
+04:32:18 | INFO |   ── PNN ──
+04:32:18 | INFO | pnn_open: 4.000000
+04:32:18 | INFO | pnn_unlocks: 1.000000
+04:32:18 | INFO |   ── HPM ──
+04:32:18 | INFO | hpm_gate_mean: raw=0.733964 | score= 26.60% | band=low-medium
+04:32:18 | INFO | hpm_z_abs_mean: raw=1.356373 | score= 72.87% | band=medium-high
+04:32:18 | INFO | hpm_z_abs_max: raw=2.012165 | score= 79.88% | band=medium-high
+04:32:18 | INFO | hpm_err_mean: raw=1.892896 | score= 62.14% | band=medium-high
+04:32:18 | INFO | hpm_write_mag: raw=1.104508 | score= 63.18% | band=medium-high
+04:32:18 | INFO | hpm_open_frac: 1.000000
+04:32:18 | INFO | hpm_closing_frac: 0.000000
+04:32:18 | INFO | hpm_locked_frac: 0.000000
+04:32:18 | INFO | hpm_force_unlocks_step: raw=0.000000 | score=100.00% | band=good
+04:32:18 | INFO | hpm_mu: raw=1.136551 | score= 31.06% | band=low-medium
+04:32:18 | INFO | hpm_sigma: raw=0.633354 | score= 31.67% | band=low-medium
+04:32:18 | INFO | hpm_write_regular_frac: raw=1.000000 | score=100.00% | band=good
+04:32:18 | INFO | hpm_write_forced_frac: raw=0.000000 | score=100.00% | band=good
+04:32:26 | INFO | === =================================t1 ep1 s0040 | pnn=L/O/C/L/O/O open=3================================ ===
+04:32:26 | INFO |   ── Loss ──
+04:32:26 | INFO | total: raw=0.650267 | score= 86.99% | band=good
+04:32:26 | INFO | next_step: raw=0.022651 | score= 95.47% | band=good
+04:32:26 | INFO | aux_latent: raw=0.466488 | score= 76.68% | band=medium-high
+04:32:26 | INFO | q_loss: raw=0.142146 | score= 92.89% | band=good
+04:32:26 | INFO | loss/vision: raw=0.011037 | score= 97.79% | band=good
+04:32:26 | INFO | loss/numeric: raw=0.032523 | score= 93.50% | band=good
+04:32:26 | INFO | stress: raw=0.019948 | score= 86.70% | band=good
+04:32:26 | INFO |   ── Accuracy ──
+04:32:26 | INFO | latent_acc: raw=0.812500 | score= 81.25% | band=good
+04:32:26 | INFO | entity_acc: raw=0.904110 | score= 90.41% | band=good
+04:32:26 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:32:26 | INFO |   ── PNN ──
+04:32:26 | INFO | pnn_open: 3.000000
+04:32:26 | INFO | pnn_unlocks: 0.000000
+04:32:26 | INFO |   ── HPM ──
+04:32:26 | INFO | hpm_gate_mean: raw=0.671795 | score= 32.82% | band=low-medium
+04:32:26 | INFO | hpm_z_abs_mean: raw=1.277220 | score= 74.46% | band=medium-high
+04:32:26 | INFO | hpm_z_abs_max: raw=1.994675 | score= 80.05% | band=good
+04:32:26 | INFO | hpm_err_mean: raw=1.884084 | score= 62.32% | band=medium-high
+04:32:26 | INFO | hpm_write_mag: raw=1.065254 | score= 64.49% | band=medium-high
+04:32:26 | INFO | hpm_open_frac: 1.000000
+04:32:26 | INFO | hpm_closing_frac: 0.000000
+04:32:26 | INFO | hpm_locked_frac: 0.000000
+04:32:26 | INFO | hpm_force_unlocks_step: raw=0.000000 | score=100.00% | band=good
+04:32:26 | INFO | hpm_mu: raw=1.209436 | score= 29.84% | band=low-medium
+04:32:26 | INFO | hpm_sigma: raw=0.613360 | score= 30.67% | band=low-medium
+04:32:26 | INFO | hpm_write_regular_frac: raw=1.000000 | score=100.00% | band=good
+04:32:26 | INFO | hpm_write_forced_frac: raw=0.000000 | score=100.00% | band=good
+04:32:35 | INFO | === =================================t1 ep1 s0050 | pnn=O/O/L/O/O/O open=5 (+2 unlocked)================================ ===
+04:32:35 | INFO |   ── Loss ──
+04:32:35 | INFO | total: raw=0.553493 | score= 88.93% | band=good
+04:32:35 | INFO | next_step: raw=0.019733 | score= 96.05% | band=good
+04:32:35 | INFO | aux_latent: raw=0.307554 | score= 84.62% | band=good
+04:32:35 | INFO | q_loss: raw=0.163353 | score= 91.83% | band=good
+04:32:35 | INFO | loss/vision: raw=0.010431 | score= 97.91% | band=good
+04:32:35 | INFO | loss/numeric: raw=0.024188 | score= 95.16% | band=good
+04:32:35 | INFO | stress: raw=0.021380 | score= 85.75% | band=good
+04:32:35 | INFO |   ── Accuracy ──
+04:32:35 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:32:35 | INFO | entity_acc: raw=0.838710 | score= 83.87% | band=good
+04:32:35 | INFO | binary_acc: raw=0.984848 | score= 98.48% | band=good
+04:32:35 | INFO |   ── PNN ──
+04:32:35 | INFO | pnn_open: 5.000000
+04:32:35 | INFO | pnn_unlocks: 2.000000
+04:32:35 | INFO |   ── HPM ──
+04:32:35 | INFO | hpm_gate_mean: raw=0.715695 | score= 28.43% | band=low-medium
+04:32:35 | INFO | hpm_z_abs_mean: raw=1.229045 | score= 75.42% | band=medium-high
+04:32:35 | INFO | hpm_z_abs_max: raw=2.163713 | score= 78.36% | band=medium-high
+04:32:35 | INFO | hpm_err_mean: raw=1.893004 | score= 62.14% | band=medium-high
+04:32:35 | INFO | hpm_write_mag: raw=1.047037 | score= 65.10% | band=medium-high
+04:32:35 | INFO | hpm_open_frac: 1.000000
+04:32:35 | INFO | hpm_closing_frac: 0.000000
+04:32:35 | INFO | hpm_locked_frac: 0.000000
+04:32:35 | INFO | hpm_force_unlocks_step: raw=0.000000 | score=100.00% | band=good
+04:32:35 | INFO | hpm_mu: raw=1.275374 | score= 28.74% | band=low-medium
+04:32:35 | INFO | hpm_sigma: raw=0.595502 | score= 29.78% | band=low-medium
+04:32:35 | INFO | hpm_write_regular_frac: raw=1.000000 | score=100.00% | band=good
+04:32:35 | INFO | hpm_write_forced_frac: raw=0.000000 | score=100.00% | band=good
+04:32:43 | INFO | === =================================t1 ep1 s0060 | pnn=L/O/O/L/O/O open=4 (+1 unlocked)================================ ===
+04:32:43 | INFO |   ── Loss ──
+04:32:43 | INFO | total: raw=0.440002 | score= 91.20% | band=good
+04:32:43 | INFO | next_step: raw=0.018074 | score= 96.39% | band=good
+04:32:43 | INFO | aux_latent: raw=0.111750 | score= 94.41% | band=good
+04:32:43 | INFO | q_loss: raw=0.150493 | score= 92.48% | band=good
+04:32:43 | INFO | loss/vision: raw=0.010745 | score= 97.85% | band=good
+04:32:43 | INFO | loss/numeric: raw=0.018406 | score= 96.32% | band=good
+04:32:43 | INFO | stress: raw=0.023451 | score= 84.37% | band=good
+04:32:43 | INFO |   ── Accuracy ──
+04:32:43 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:32:43 | INFO | entity_acc: raw=0.852941 | score= 85.29% | band=good
+04:32:43 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:32:43 | INFO |   ── PNN ──
+04:32:43 | INFO | pnn_open: 4.000000
+04:32:43 | INFO | pnn_unlocks: 1.000000
+04:32:43 | INFO |   ── HPM ──
+04:32:43 | INFO | hpm_gate_mean: raw=0.806598 | score= 19.34% | band=bad
+04:32:43 | INFO | hpm_z_abs_mean: raw=1.177249 | score= 76.46% | band=medium-high
+04:32:43 | INFO | hpm_z_abs_max: raw=2.327326 | score= 76.73% | band=medium-high
+04:32:43 | INFO | hpm_err_mean: raw=1.899239 | score= 62.02% | band=medium-high
+04:32:43 | INFO | hpm_write_mag: raw=1.061002 | score= 64.63% | band=medium-high
+04:32:43 | INFO | hpm_open_frac: 1.000000
+04:32:43 | INFO | hpm_closing_frac: 0.000000
+04:32:43 | INFO | hpm_locked_frac: 0.000000
+04:32:43 | INFO | hpm_force_unlocks_step: raw=0.000000 | score=100.00% | band=good
+04:32:43 | INFO | hpm_mu: raw=1.336012 | score= 27.73% | band=low-medium
+04:32:43 | INFO | hpm_sigma: raw=0.580023 | score= 29.00% | band=low-medium
+04:32:43 | INFO | hpm_write_regular_frac: raw=1.000000 | score=100.00% | band=good
+04:32:43 | INFO | hpm_write_forced_frac: raw=0.000000 | score=100.00% | band=good
+04:32:48 | INFO | === [val] t1 ep1 ===
+04:32:48 | INFO |   ── Loss ──
+04:32:48 | INFO | next_step: raw=0.037021 | score= 92.60% | band=good
+04:32:48 | INFO | loss/vision: raw=0.010113 | score= 97.98% | band=good
+04:32:48 | INFO | loss/numeric: raw=0.026908 | score= 94.62% | band=good
+04:32:48 | INFO |   ── Accuracy ──
+04:32:48 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:32:48 | INFO | qacc/who_holds_token: raw=0.591378 | score= 59.14% | band=medium
+04:32:48 | INFO | qacc/who_was_first_tagged: raw=0.634724 | score= 63.47% | band=medium-high
+04:32:48 | INFO | qacc/did_alarm_fire: raw=0.988883 | score= 98.89% | band=good
+04:32:48 | INFO | qacc/which_entity_occluded: raw=1.000000 | score=100.00% | band=good
+04:32:48 | INFO | qacc/did_trigger_before_alarm: raw=1.000000 | score=100.00% | band=good
+04:32:48 | INFO | qacc/which_entity_first_occluded: raw=1.000000 | score=100.00% | band=good
+04:32:48 | INFO | qacc/did_chain2_fire: raw=0.910660 | score= 91.07% | band=good
+04:32:48 | INFO |   ── Other ──
+04:32:48 | INFO | event_acc: 0.850034
+  -> holding tier 1; unmet gates: qacc/who_holds_token=0.591 < 0.750; qacc/who_was_first_tagged=0.635 < 0.700
+04:32:49 | INFO | === =================================t1 ep2 s0000 | pnn=L/O/O/L/O/O open=4================================ ===
+04:32:49 | INFO |   ── Loss ──
+04:32:49 | INFO | total: raw=0.473849 | score= 90.52% | band=good
+04:32:49 | INFO | next_step: raw=0.024099 | score= 95.18% | band=good
+04:32:49 | INFO | aux_latent: raw=0.074591 | score= 96.27% | band=good
+04:32:49 | INFO | q_loss: raw=0.182670 | score= 90.87% | band=good
+04:32:49 | INFO | loss/vision: raw=0.010704 | score= 97.86% | band=good
+04:32:49 | INFO | loss/numeric: raw=0.026950 | score= 94.61% | band=good
+04:32:49 | INFO | stress: raw=0.020373 | score= 86.42% | band=good
+04:32:49 | INFO |   ── Accuracy ──
+04:32:49 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:32:49 | INFO | entity_acc: raw=0.901408 | score= 90.14% | band=good
+04:32:49 | INFO | binary_acc: raw=0.929825 | score= 92.98% | band=good
+04:32:49 | INFO |   ── PNN ──
+04:32:49 | INFO | pnn_open: 4.000000
+04:32:49 | INFO | pnn_unlocks: 0.000000
+04:32:49 | INFO |   ── HPM ──
+04:32:49 | INFO | hpm_gate_mean: raw=0.783509 | score= 21.65% | band=low-medium
+04:32:49 | INFO | hpm_z_abs_mean: raw=1.141789 | score= 77.16% | band=medium-high
+04:32:49 | INFO | hpm_z_abs_max: raw=2.391159 | score= 76.09% | band=medium-high
+04:32:49 | INFO | hpm_err_mean: raw=1.893621 | score= 62.13% | band=medium-high
+04:32:49 | INFO | hpm_write_mag: raw=1.017210 | score= 66.09% | band=medium-high
+04:32:49 | INFO | hpm_open_frac: 1.000000
+04:32:49 | INFO | hpm_closing_frac: 0.000000
+04:32:49 | INFO | hpm_locked_frac: 0.000000
+04:32:49 | INFO | hpm_force_unlocks_step: raw=0.000000 | score=100.00% | band=good
+04:32:49 | INFO | hpm_mu: raw=1.358972 | score= 27.35% | band=low-medium
+04:32:49 | INFO | hpm_sigma: raw=0.574185 | score= 28.71% | band=low-medium
+04:32:49 | INFO | hpm_write_regular_frac: raw=1.000000 | score=100.00% | band=good
+04:32:49 | INFO | hpm_write_forced_frac: raw=0.000000 | score=100.00% | band=good
+04:32:58 | INFO | === =================================t1 ep2 s0010 | pnn=O/O/L/O/O/O open=5 (+2 unlocked)================================ ===
+04:32:58 | INFO |   ── Loss ──
+04:32:58 | INFO | total: raw=0.496229 | score= 90.08% | band=good
+04:32:58 | INFO | next_step: raw=0.027437 | score= 94.51% | band=good
+04:32:58 | INFO | aux_latent: raw=0.256809 | score= 87.16% | band=good
+04:32:58 | INFO | q_loss: raw=0.130357 | score= 93.48% | band=good
+04:32:58 | INFO | loss/vision: raw=0.011796 | score= 97.64% | band=good
+04:32:58 | INFO | loss/numeric: raw=0.027968 | score= 94.41% | band=good
+04:32:58 | INFO | stress: raw=0.025954 | score= 82.70% | band=good
+04:32:58 | INFO |   ── Accuracy ──
+04:32:58 | INFO | latent_acc: raw=0.937500 | score= 93.75% | band=good
+04:32:58 | INFO | entity_acc: raw=0.898551 | score= 89.86% | band=good
+04:32:58 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:32:58 | INFO |   ── PNN ──
+04:32:58 | INFO | pnn_open: 5.000000
+04:32:58 | INFO | pnn_unlocks: 2.000000
+04:32:58 | INFO |   ── HPM ──
+04:32:58 | INFO | hpm_gate_mean: raw=0.818486 | score= 18.15% | band=bad
+04:32:58 | INFO | hpm_z_abs_mean: raw=1.153744 | score= 76.93% | band=medium-high
+04:32:58 | INFO | hpm_z_abs_max: raw=2.548274 | score= 74.52% | band=medium-high
+04:32:58 | INFO | hpm_err_mean: raw=1.936472 | score= 61.27% | band=medium-high
+04:32:58 | INFO | hpm_write_mag: raw=1.092896 | score= 63.57% | band=medium-high
+04:32:58 | INFO | hpm_open_frac: 1.000000
+04:32:58 | INFO | hpm_closing_frac: 0.000000
+04:32:58 | INFO | hpm_locked_frac: 0.000000
+04:32:58 | INFO | hpm_force_unlocks_step: raw=0.000000 | score=100.00% | band=good
+04:32:58 | INFO | hpm_mu: raw=1.415016 | score= 26.42% | band=low-medium
+04:32:58 | INFO | hpm_sigma: raw=0.561192 | score= 28.06% | band=low-medium
+04:32:58 | INFO | hpm_write_regular_frac: raw=1.000000 | score=100.00% | band=good
+04:32:58 | INFO | hpm_write_forced_frac: raw=0.000000 | score=100.00% | band=good
+04:33:07 | INFO | === =================================t1 ep2 s0020 | pnn=C/O/O/C/O/O open=4 (+1 unlocked)================================ ===
+04:33:07 | INFO |   ── Loss ──
+04:33:07 | INFO | total: raw=0.496484 | score= 90.07% | band=good
+04:33:07 | INFO | next_step: raw=0.025049 | score= 94.99% | band=good
+04:33:07 | INFO | aux_latent: raw=0.031698 | score= 98.42% | band=good
+04:33:07 | INFO | q_loss: raw=0.219292 | score= 89.04% | band=good
+04:33:07 | INFO | loss/vision: raw=0.009583 | score= 98.08% | band=good
+04:33:07 | INFO | loss/numeric: raw=0.024268 | score= 95.15% | band=good
+04:33:07 | INFO | stress: raw=0.021722 | score= 85.52% | band=good
+04:33:07 | INFO |   ── Accuracy ──
+04:33:07 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:33:07 | INFO | entity_acc: raw=0.763889 | score= 76.39% | band=medium-high
+04:33:07 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:33:07 | INFO |   ── PNN ──
+04:33:07 | INFO | pnn_open: 4.000000
+04:33:07 | INFO | pnn_unlocks: 1.000000
+04:33:07 | INFO |   ── HPM ──
+04:33:07 | INFO | hpm_gate_mean: raw=0.838994 | score= 16.10% | band=bad
+04:33:07 | INFO | hpm_z_abs_mean: raw=1.095768 | score= 78.08% | band=medium-high
+04:33:07 | INFO | hpm_z_abs_max: raw=2.698199 | score= 73.02% | band=medium-high
+04:33:07 | INFO | hpm_err_mean: raw=1.936787 | score= 61.26% | band=medium-high
+04:33:07 | INFO | hpm_write_mag: raw=1.115963 | score= 62.80% | band=medium-high
+04:33:07 | INFO | hpm_open_frac: 1.000000
+04:33:07 | INFO | hpm_closing_frac: 0.000000
+04:33:07 | INFO | hpm_locked_frac: 0.000000
+04:33:07 | INFO | hpm_force_unlocks_step: raw=0.000000 | score=100.00% | band=good
+04:33:07 | INFO | hpm_mu: raw=1.465341 | score= 25.58% | band=low-medium
+04:33:07 | INFO | hpm_sigma: raw=0.549266 | score= 27.46% | band=low-medium
+04:33:07 | INFO | hpm_write_regular_frac: raw=1.000000 | score=100.00% | band=good
+04:33:07 | INFO | hpm_write_forced_frac: raw=0.000000 | score=100.00% | band=good
+04:33:15 | INFO | === =================================t1 ep2 s0030 | pnn=L/O/C/L/O/O open=3================================ ===
+04:33:15 | INFO |   ── Loss ──
+04:33:15 | INFO | total: raw=0.377683 | score= 92.45% | band=good
+04:33:15 | INFO | next_step: raw=0.025342 | score= 94.93% | band=good
+04:33:15 | INFO | aux_latent: raw=0.043863 | score= 97.81% | band=good
+04:33:15 | INFO | q_loss: raw=0.118726 | score= 94.06% | band=good
+04:33:15 | INFO | loss/vision: raw=0.010569 | score= 97.89% | band=good
+04:33:15 | INFO | loss/numeric: raw=0.021510 | score= 95.70% | band=good
+04:33:15 | INFO | stress: raw=0.022142 | score= 85.24% | band=good
+04:33:15 | INFO |   ── Accuracy ──
+04:33:15 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:33:15 | INFO | entity_acc: raw=0.890244 | score= 89.02% | band=good
+04:33:15 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:33:15 | INFO |   ── PNN ──
+04:33:15 | INFO | pnn_open: 3.000000
+04:33:15 | INFO | pnn_unlocks: 0.000000
+04:33:15 | INFO |   ── HPM ──
+04:33:15 | INFO | hpm_gate_mean: raw=0.788365 | score= 21.16% | band=low-medium
+04:33:15 | INFO | hpm_z_abs_mean: raw=1.092554 | score= 78.15% | band=medium-high
+04:33:15 | INFO | hpm_z_abs_max: raw=2.840705 | score= 71.59% | band=medium-high
+04:33:15 | INFO | hpm_err_mean: raw=1.964525 | score= 60.71% | band=medium-high
+04:33:15 | INFO | hpm_write_mag: raw=1.155767 | score= 61.47% | band=medium-high
+04:33:15 | INFO | hpm_open_frac: 1.000000
+04:33:15 | INFO | hpm_closing_frac: 0.000000
+04:33:15 | INFO | hpm_locked_frac: 0.000000
+04:33:15 | INFO | hpm_force_unlocks_step: raw=0.000000 | score=100.00% | band=good
+04:33:15 | INFO | hpm_mu: raw=1.510818 | score= 24.82% | band=low-medium
+04:33:15 | INFO | hpm_sigma: raw=0.538444 | score= 26.92% | band=low-medium
+04:33:15 | INFO | hpm_write_regular_frac: raw=1.000000 | score=100.00% | band=good
+04:33:15 | INFO | hpm_write_forced_frac: raw=0.000000 | score=100.00% | band=good
+04:33:23 | INFO | === =================================t1 ep2 s0040 | pnn=O/L/L/O/O/O open=4 (+2 unlocked)================================ ===
+04:33:23 | INFO |   ── Loss ──
+04:33:23 | INFO | total: raw=0.448366 | score= 91.03% | band=good
+04:33:23 | INFO | next_step: raw=0.025321 | score= 94.94% | band=good
+04:33:23 | INFO | aux_latent: raw=0.019816 | score= 99.01% | band=good
+04:33:23 | INFO | q_loss: raw=0.198256 | score= 90.09% | band=good
+04:33:23 | INFO | loss/vision: raw=0.009152 | score= 98.17% | band=good
+04:33:23 | INFO | loss/numeric: raw=0.020991 | score= 95.80% | band=good
+04:33:23 | INFO | stress: raw=0.022552 | score= 84.97% | band=good
+04:33:23 | INFO |   ── Accuracy ──
+04:33:23 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:33:23 | INFO | entity_acc: raw=0.835616 | score= 83.56% | band=good
+04:33:23 | INFO | binary_acc: raw=0.945455 | score= 94.55% | band=good
+04:33:23 | INFO |   ── PNN ──
+04:33:23 | INFO | pnn_open: 4.000000
+04:33:23 | INFO | pnn_unlocks: 2.000000
+04:33:23 | INFO |   ── HPM ──
+04:33:23 | INFO | hpm_gate_mean: raw=0.843511 | score= 15.65% | band=bad
+04:33:23 | INFO | hpm_z_abs_mean: raw=0.992889 | score= 80.14% | band=good
+04:33:23 | INFO | hpm_z_abs_max: raw=2.974373 | score= 70.26% | band=medium-high
+04:33:23 | INFO | hpm_err_mean: raw=1.941049 | score= 61.18% | band=medium-high
+04:33:23 | INFO | hpm_write_mag: raw=1.079864 | score= 64.00% | band=medium-high
+04:33:23 | INFO | hpm_open_frac: 1.000000
+04:33:23 | INFO | hpm_closing_frac: 0.000000
+04:33:23 | INFO | hpm_locked_frac: 0.000000
+04:33:23 | INFO | hpm_force_unlocks_step: raw=0.000000 | score=100.00% | band=good
+04:33:23 | INFO | hpm_mu: raw=1.553204 | score= 24.11% | band=low-medium
+04:33:23 | INFO | hpm_sigma: raw=0.529285 | score= 26.46% | band=low-medium
+04:33:23 | INFO | hpm_write_regular_frac: raw=1.000000 | score=100.00% | band=good
+04:33:23 | INFO | hpm_write_forced_frac: raw=0.000000 | score=100.00% | band=good
+04:33:32 | INFO | === =================================t1 ep2 s0050 | pnn=L/O/O/L/O/O open=4 (+2 unlocked)================================ ===
+04:33:32 | INFO |   ── Loss ──
+04:33:32 | INFO | total: raw=0.442016 | score= 91.16% | band=good
+04:33:32 | INFO | next_step: raw=0.021806 | score= 95.64% | band=good
+04:33:32 | INFO | aux_latent: raw=0.010964 | score= 99.45% | band=good
+04:33:32 | INFO | q_loss: raw=0.202490 | score= 89.88% | band=good
+04:33:32 | INFO | loss/vision: raw=0.008596 | score= 98.28% | band=good
+04:33:32 | INFO | loss/numeric: raw=0.015905 | score= 96.82% | band=good
+04:33:32 | INFO | stress: raw=0.023108 | score= 84.59% | band=good
+04:33:32 | INFO |   ── Accuracy ──
+04:33:32 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:33:32 | INFO | entity_acc: raw=0.782609 | score= 78.26% | band=medium-high
+04:33:32 | INFO | binary_acc: raw=0.966102 | score= 96.61% | band=good
+04:33:32 | INFO |   ── PNN ──
+04:33:32 | INFO | pnn_open: 4.000000
+04:33:32 | INFO | pnn_unlocks: 2.000000
+04:33:32 | INFO |   ── HPM ──
+04:33:32 | INFO | hpm_gate_mean: raw=0.857495 | score= 14.25% | band=bad
+04:33:32 | INFO | hpm_z_abs_mean: raw=0.988564 | score= 80.23% | band=good
+04:33:32 | INFO | hpm_z_abs_max: raw=3.100332 | score= 69.00% | band=medium-high
+04:33:32 | INFO | hpm_err_mean: raw=1.964820 | score= 60.70% | band=medium-high
+04:33:32 | INFO | hpm_write_mag: raw=1.119178 | score= 62.69% | band=medium-high
+04:33:32 | INFO | hpm_open_frac: 1.000000
+04:33:32 | INFO | hpm_closing_frac: 0.000000
+04:33:32 | INFO | hpm_locked_frac: 0.000000
+04:33:32 | INFO | hpm_force_unlocks_step: raw=3.000000 | score= 70.00% | band=medium-high
+04:33:32 | INFO | hpm_mu: raw=1.590768 | score= 23.49% | band=low-medium
+04:33:32 | INFO | hpm_sigma: raw=0.520716 | score= 26.04% | band=low-medium
+04:33:32 | INFO | hpm_write_regular_frac: raw=0.995818 | score= 99.58% | band=good
+04:33:32 | INFO | hpm_write_forced_frac: raw=0.004182 | score= 99.58% | band=good
+04:33:40 | INFO | === =================================t1 ep2 s0060 | pnn=O/O/L/O/O/O open=5 (+2 unlocked)================================ ===
+04:33:40 | INFO |   ── Loss ──
+04:33:40 | INFO | total: raw=0.373899 | score= 92.52% | band=good
+04:33:40 | INFO | next_step: raw=0.019331 | score= 96.13% | band=good
+04:33:40 | INFO | aux_latent: raw=0.011123 | score= 99.44% | band=good
+04:33:40 | INFO | q_loss: raw=0.172011 | score= 91.40% | band=good
+04:33:40 | INFO | loss/vision: raw=0.008476 | score= 98.30% | band=good
+04:33:40 | INFO | loss/numeric: raw=0.012089 | score= 97.58% | band=good
+04:33:40 | INFO | stress: raw=0.021657 | score= 85.56% | band=good
+04:33:40 | INFO |   ── Accuracy ──
+04:33:40 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:33:40 | INFO | entity_acc: raw=0.869565 | score= 86.96% | band=good
+04:33:40 | INFO | binary_acc: raw=0.966102 | score= 96.61% | band=good
+04:33:40 | INFO |   ── PNN ──
+04:33:40 | INFO | pnn_open: 5.000000
+04:33:40 | INFO | pnn_unlocks: 2.000000
+04:33:40 | INFO |   ── HPM ──
+04:33:40 | INFO | hpm_gate_mean: raw=0.845173 | score= 15.48% | band=bad
+04:33:40 | INFO | hpm_z_abs_mean: raw=0.923132 | score= 81.54% | band=good
+04:33:40 | INFO | hpm_z_abs_max: raw=3.217884 | score= 67.82% | band=medium-high
+04:33:40 | INFO | hpm_err_mean: raw=1.955270 | score= 60.89% | band=medium-high
+04:33:40 | INFO | hpm_write_mag: raw=1.137036 | score= 62.10% | band=medium-high
+04:33:40 | INFO | hpm_open_frac: 1.000000
+04:33:40 | INFO | hpm_closing_frac: 0.000000
+04:33:40 | INFO | hpm_locked_frac: 0.000000
+04:33:40 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:33:40 | INFO | hpm_mu: raw=1.624986 | score= 22.92% | band=low-medium
+04:33:40 | INFO | hpm_sigma: raw=0.513172 | score= 25.66% | band=low-medium
+04:33:40 | INFO | hpm_write_regular_frac: raw=0.994921 | score= 99.49% | band=good
+04:33:40 | INFO | hpm_write_forced_frac: raw=0.005079 | score= 99.49% | band=good
+04:33:44 | INFO | === [val] t1 ep2 ===
+04:33:44 | INFO |   ── Loss ──
+04:33:44 | INFO | next_step: raw=0.019606 | score= 96.08% | band=good
+04:33:44 | INFO | loss/vision: raw=0.007314 | score= 98.54% | band=good
+04:33:44 | INFO | loss/numeric: raw=0.012292 | score= 97.54% | band=good
+04:33:44 | INFO |   ── Accuracy ──
+04:33:44 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:33:44 | INFO | qacc/who_holds_token: raw=0.591378 | score= 59.14% | band=medium
+04:33:44 | INFO | qacc/who_was_first_tagged: raw=0.603038 | score= 60.30% | band=medium-high
+04:33:44 | INFO | qacc/did_alarm_fire: raw=0.988883 | score= 98.89% | band=good
+04:33:44 | INFO | qacc/which_entity_occluded: raw=1.000000 | score=100.00% | band=good
+04:33:44 | INFO | qacc/did_trigger_before_alarm: raw=1.000000 | score=100.00% | band=good
+04:33:44 | INFO | qacc/which_entity_first_occluded: raw=1.000000 | score=100.00% | band=good
+04:33:44 | INFO | qacc/did_chain2_fire: raw=0.993056 | score= 99.31% | band=good
+04:33:44 | INFO |   ── Other ──
+04:33:44 | INFO | event_acc: 0.867527
+  -> holding tier 1; unmet gates: qacc/who_holds_token=0.591 < 0.750; qacc/who_was_first_tagged=0.603 < 0.700
+04:33:45 | INFO | === =================================t1 ep3 s0000 | pnn=O/O/L/O/O/O open=5================================ ===
+04:33:45 | INFO |   ── Loss ──
+04:33:45 | INFO | total: raw=0.350826 | score= 92.98% | band=good
+04:33:45 | INFO | next_step: raw=0.021939 | score= 95.61% | band=good
+04:33:45 | INFO | aux_latent: raw=0.009612 | score= 99.52% | band=good
+04:33:45 | INFO | q_loss: raw=0.146427 | score= 92.68% | band=good
+04:33:45 | INFO | loss/vision: raw=0.008428 | score= 98.31% | band=good
+04:33:45 | INFO | loss/numeric: raw=0.014425 | score= 97.12% | band=good
+04:33:45 | INFO | stress: raw=0.018757 | score= 87.50% | band=good
+04:33:45 | INFO |   ── Accuracy ──
+04:33:45 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:33:45 | INFO | entity_acc: raw=0.846154 | score= 84.62% | band=good
+04:33:45 | INFO | binary_acc: raw=0.980000 | score= 98.00% | band=good
+04:33:45 | INFO |   ── PNN ──
+04:33:45 | INFO | pnn_open: 5.000000
+04:33:45 | INFO | pnn_unlocks: 0.000000
+04:33:45 | INFO |   ── HPM ──
+04:33:45 | INFO | hpm_gate_mean: raw=0.795845 | score= 20.42% | band=low-medium
+04:33:45 | INFO | hpm_z_abs_mean: raw=0.941312 | score= 81.17% | band=good
+04:33:45 | INFO | hpm_z_abs_max: raw=3.262587 | score= 67.37% | band=medium-high
+04:33:45 | INFO | hpm_err_mean: raw=1.974018 | score= 60.52% | band=medium-high
+04:33:45 | INFO | hpm_write_mag: raw=1.104434 | score= 63.19% | band=medium-high
+04:33:45 | INFO | hpm_open_frac: 1.000000
+04:33:45 | INFO | hpm_closing_frac: 0.000000
+04:33:45 | INFO | hpm_locked_frac: 0.000000
+04:33:45 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:33:45 | INFO | hpm_mu: raw=1.638020 | score= 22.70% | band=low-medium
+04:33:45 | INFO | hpm_sigma: raw=0.510469 | score= 25.52% | band=low-medium
+04:33:45 | INFO | hpm_write_regular_frac: raw=0.994827 | score= 99.48% | band=good
+04:33:45 | INFO | hpm_write_forced_frac: raw=0.005173 | score= 99.48% | band=good
+04:33:54 | INFO | === =================================t1 ep3 s0010 | pnn=L/O/O/L/O/O open=4 (+1 unlocked)================================ ===
+04:33:54 | INFO |   ── Loss ──
+04:33:54 | INFO | total: raw=0.353351 | score= 92.93% | band=good
+04:33:54 | INFO | next_step: raw=0.024374 | score= 95.13% | band=good
+04:33:54 | INFO | aux_latent: raw=0.010803 | score= 99.46% | band=good
+04:33:54 | INFO | q_loss: raw=0.146206 | score= 92.69% | band=good
+04:33:54 | INFO | loss/vision: raw=0.008695 | score= 98.26% | band=good
+04:33:54 | INFO | loss/numeric: raw=0.015679 | score= 96.86% | band=good
+04:33:54 | INFO | stress: raw=0.018291 | score= 87.81% | band=good
+04:33:54 | INFO |   ── Accuracy ──
+04:33:54 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:33:54 | INFO | entity_acc: raw=0.837838 | score= 83.78% | band=good
+04:33:54 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:33:54 | INFO |   ── PNN ──
+04:33:54 | INFO | pnn_open: 4.000000
+04:33:54 | INFO | pnn_unlocks: 1.000000
+04:33:54 | INFO |   ── HPM ──
+04:33:54 | INFO | hpm_gate_mean: raw=0.771318 | score= 22.87% | band=low-medium
+04:33:54 | INFO | hpm_z_abs_mean: raw=0.856124 | score= 82.88% | band=good
+04:33:54 | INFO | hpm_z_abs_max: raw=3.345041 | score= 66.55% | band=medium-high
+04:33:54 | INFO | hpm_err_mean: raw=1.953680 | score= 60.93% | band=medium-high
+04:33:54 | INFO | hpm_write_mag: raw=1.155048 | score= 61.50% | band=medium-high
+04:33:54 | INFO | hpm_open_frac: 1.000000
+04:33:54 | INFO | hpm_closing_frac: 0.000000
+04:33:54 | INFO | hpm_locked_frac: 0.000000
+04:33:54 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:33:54 | INFO | hpm_mu: raw=1.667823 | score= 22.20% | band=low-medium
+04:33:54 | INFO | hpm_sigma: raw=0.504119 | score= 25.21% | band=low-medium
+04:33:54 | INFO | hpm_write_regular_frac: raw=0.993254 | score= 99.33% | band=good
+04:33:54 | INFO | hpm_write_forced_frac: raw=0.006746 | score= 99.33% | band=good
+04:34:03 | INFO | === =================================t1 ep3 s0020 | pnn=O/O/L/O/O/O open=5 (+2 unlocked)================================ ===
+04:34:03 | INFO |   ── Loss ──
+04:34:03 | INFO | total: raw=0.401763 | score= 91.96% | band=good
+04:34:03 | INFO | next_step: raw=0.022366 | score= 95.53% | band=good
+04:34:03 | INFO | aux_latent: raw=0.007494 | score= 99.63% | band=good
+04:34:03 | INFO | q_loss: raw=0.163234 | score= 91.84% | band=good
+04:34:03 | INFO | loss/vision: raw=0.008882 | score= 98.22% | band=good
+04:34:03 | INFO | loss/numeric: raw=0.013484 | score= 97.30% | band=good
+04:34:03 | INFO | stress: raw=0.021948 | score= 85.37% | band=good
+04:34:03 | INFO |   ── Accuracy ──
+04:34:03 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:34:03 | INFO | entity_acc: raw=0.805970 | score= 80.60% | band=good
+04:34:03 | INFO | binary_acc: raw=0.983607 | score= 98.36% | band=good
+04:34:03 | INFO |   ── PNN ──
+04:34:03 | INFO | pnn_open: 5.000000
+04:34:03 | INFO | pnn_unlocks: 2.000000
+04:34:03 | INFO |   ── HPM ──
+04:34:03 | INFO | hpm_gate_mean: raw=0.771635 | score= 22.84% | band=low-medium
+04:34:03 | INFO | hpm_z_abs_mean: raw=0.827183 | score= 83.46% | band=good
+04:34:03 | INFO | hpm_z_abs_max: raw=3.395133 | score= 66.05% | band=medium-high
+04:34:03 | INFO | hpm_err_mean: raw=1.961382 | score= 60.77% | band=medium-high
+04:34:03 | INFO | hpm_write_mag: raw=1.055653 | score= 64.81% | band=medium-high
+04:34:03 | INFO | hpm_open_frac: 1.000000
+04:34:03 | INFO | hpm_closing_frac: 0.000000
+04:34:03 | INFO | hpm_locked_frac: 0.000000
+04:34:03 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:34:03 | INFO | hpm_mu: raw=1.693830 | score= 21.77% | band=low-medium
+04:34:03 | INFO | hpm_sigma: raw=0.498077 | score= 24.90% | band=low-medium
+04:34:03 | INFO | hpm_write_regular_frac: raw=0.992881 | score= 99.29% | band=good
+04:34:03 | INFO | hpm_write_forced_frac: raw=0.007119 | score= 99.29% | band=good
+04:34:11 | INFO | === =================================t1 ep3 s0030 | pnn=O/O/O/C/O/L open=4 (+1 unlocked)================================ ===
+04:34:11 | INFO |   ── Loss ──
+04:34:11 | INFO | total: raw=0.455134 | score= 90.90% | band=good
+04:34:11 | INFO | next_step: raw=0.018740 | score= 96.25% | band=good
+04:34:11 | INFO | aux_latent: raw=0.010020 | score= 99.50% | band=good
+04:34:11 | INFO | q_loss: raw=0.224480 | score= 88.78% | band=good
+04:34:11 | INFO | loss/vision: raw=0.008482 | score= 98.30% | band=good
+04:34:11 | INFO | loss/numeric: raw=0.010258 | score= 97.95% | band=good
+04:34:11 | INFO | stress: raw=0.017480 | score= 88.35% | band=good
+04:34:11 | INFO |   ── Accuracy ──
+04:34:11 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:34:11 | INFO | entity_acc: raw=0.765625 | score= 76.56% | band=medium-high
+04:34:11 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:34:11 | INFO |   ── PNN ──
+04:34:11 | INFO | pnn_open: 4.000000
+04:34:11 | INFO | pnn_unlocks: 1.000000
+04:34:11 | INFO |   ── HPM ──
+04:34:11 | INFO | hpm_gate_mean: raw=0.789963 | score= 21.00% | band=low-medium
+04:34:11 | INFO | hpm_z_abs_mean: raw=0.745156 | score= 85.10% | band=good
+04:34:11 | INFO | hpm_z_abs_max: raw=3.448883 | score= 65.51% | band=medium-high
+04:34:11 | INFO | hpm_err_mean: raw=1.941510 | score= 61.17% | band=medium-high
+04:34:11 | INFO | hpm_write_mag: raw=1.042761 | score= 65.24% | band=medium-high
+04:34:11 | INFO | hpm_open_frac: 1.000000
+04:34:11 | INFO | hpm_closing_frac: 0.000000
+04:34:11 | INFO | hpm_locked_frac: 0.000000
+04:34:11 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:34:11 | INFO | hpm_mu: raw=1.717968 | score= 21.37% | band=low-medium
+04:34:11 | INFO | hpm_sigma: raw=0.492546 | score= 24.63% | band=low-medium
+04:34:11 | INFO | hpm_write_regular_frac: raw=0.993661 | score= 99.37% | band=good
+04:34:11 | INFO | hpm_write_forced_frac: raw=0.006339 | score= 99.37% | band=good
+04:34:20 | INFO | === =================================t1 ep3 s0040 | pnn=L/O/C/L/O/O open=3 (+1 unlocked)================================ ===
+04:34:20 | INFO |   ── Loss ──
+04:34:20 | INFO | total: raw=0.452605 | score= 90.95% | band=good
+04:34:20 | INFO | next_step: raw=0.022781 | score= 95.44% | band=good
+04:34:20 | INFO | aux_latent: raw=0.005157 | score= 99.74% | band=good
+04:34:20 | INFO | q_loss: raw=0.208522 | score= 89.57% | band=good
+04:34:20 | INFO | loss/vision: raw=0.008590 | score= 98.28% | band=good
+04:34:20 | INFO | loss/numeric: raw=0.014192 | score= 97.16% | band=good
+04:34:20 | INFO | stress: raw=0.016317 | score= 89.12% | band=good
+04:34:20 | INFO |   ── Accuracy ──
+04:34:20 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:34:20 | INFO | entity_acc: raw=0.736842 | score= 73.68% | band=medium-high
+04:34:20 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:34:20 | INFO |   ── PNN ──
+04:34:20 | INFO | pnn_open: 3.000000
+04:34:20 | INFO | pnn_unlocks: 1.000000
+04:34:20 | INFO |   ── HPM ──
+04:34:20 | INFO | hpm_gate_mean: raw=0.717100 | score= 28.29% | band=low-medium
+04:34:20 | INFO | hpm_z_abs_mean: raw=0.763497 | score= 84.73% | band=good
+04:34:20 | INFO | hpm_z_abs_max: raw=3.528533 | score= 64.71% | band=medium-high
+04:34:20 | INFO | hpm_err_mean: raw=1.968323 | score= 60.63% | band=medium-high
+04:34:20 | INFO | hpm_write_mag: raw=1.025276 | score= 65.82% | band=medium-high
+04:34:20 | INFO | hpm_open_frac: 1.000000
+04:34:20 | INFO | hpm_closing_frac: 0.000000
+04:34:20 | INFO | hpm_locked_frac: 0.000000
+04:34:20 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:34:20 | INFO | hpm_mu: raw=1.739618 | score= 21.01% | band=low-medium
+04:34:20 | INFO | hpm_sigma: raw=0.487506 | score= 24.38% | band=low-medium
+04:34:20 | INFO | hpm_write_regular_frac: raw=0.991806 | score= 99.18% | band=good
+04:34:20 | INFO | hpm_write_forced_frac: raw=0.008194 | score= 99.18% | band=good
+04:34:28 | INFO | === =================================t1 ep3 s0050 | pnn=O/O/L/O/O/O open=5 (+2 unlocked)================================ ===
+04:34:28 | INFO |   ── Loss ──
+04:34:28 | INFO | total: raw=0.320367 | score= 93.59% | band=good
+04:34:28 | INFO | next_step: raw=0.015366 | score= 96.93% | band=good
+04:34:28 | INFO | aux_latent: raw=0.005432 | score= 99.73% | band=good
+04:34:28 | INFO | q_loss: raw=0.139811 | score= 93.01% | band=good
+04:34:28 | INFO | loss/vision: raw=0.007697 | score= 98.46% | band=good
+04:34:28 | INFO | loss/numeric: raw=0.007670 | score= 98.47% | band=good
+04:34:28 | INFO | stress: raw=0.022476 | score= 85.02% | band=good
+04:34:28 | INFO |   ── Accuracy ──
+04:34:28 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:34:28 | INFO | entity_acc: raw=0.851852 | score= 85.19% | band=good
+04:34:28 | INFO | binary_acc: raw=0.978723 | score= 97.87% | band=good
+04:34:28 | INFO |   ── PNN ──
+04:34:28 | INFO | pnn_open: 5.000000
+04:34:28 | INFO | pnn_unlocks: 2.000000
+04:34:28 | INFO |   ── HPM ──
+04:34:28 | INFO | hpm_gate_mean: raw=0.722221 | score= 27.78% | band=low-medium
+04:34:28 | INFO | hpm_z_abs_mean: raw=0.710879 | score= 85.78% | band=good
+04:34:28 | INFO | hpm_z_abs_max: raw=3.598980 | score= 64.01% | band=medium-high
+04:34:28 | INFO | hpm_err_mean: raw=1.959295 | score= 60.81% | band=medium-high
+04:34:28 | INFO | hpm_write_mag: raw=1.210054 | score= 59.66% | band=medium
+04:34:28 | INFO | hpm_open_frac: 1.000000
+04:34:28 | INFO | hpm_closing_frac: 0.000000
+04:34:28 | INFO | hpm_locked_frac: 0.000000
+04:34:28 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:34:28 | INFO | hpm_mu: raw=1.759769 | score= 20.67% | band=low-medium
+04:34:28 | INFO | hpm_sigma: raw=0.483342 | score= 24.17% | band=low-medium
+04:34:28 | INFO | hpm_write_regular_frac: raw=0.991416 | score= 99.14% | band=good
+04:34:28 | INFO | hpm_write_forced_frac: raw=0.008584 | score= 99.14% | band=good
+04:34:37 | INFO | === =================================t1 ep3 s0060 | pnn=L/O/O/L/O/O open=4 (+1 unlocked)================================ ===
+04:34:37 | INFO |   ── Loss ──
+04:34:37 | INFO | total: raw=0.317133 | score= 93.66% | band=good
+04:34:37 | INFO | next_step: raw=0.018883 | score= 96.22% | band=good
+04:34:37 | INFO | aux_latent: raw=0.004909 | score= 99.75% | band=good
+04:34:37 | INFO | q_loss: raw=0.105414 | score= 94.73% | band=good
+04:34:37 | INFO | loss/vision: raw=0.008344 | score= 98.33% | band=good
+04:34:37 | INFO | loss/numeric: raw=0.010538 | score= 97.89% | band=good
+04:34:37 | INFO | stress: raw=0.024096 | score= 83.94% | band=good
+04:34:37 | INFO |   ── Accuracy ──
+04:34:37 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:34:37 | INFO | entity_acc: raw=0.909091 | score= 90.91% | band=good
+04:34:37 | INFO | binary_acc: raw=0.980392 | score= 98.04% | band=good
+04:34:37 | INFO |   ── PNN ──
+04:34:37 | INFO | pnn_open: 4.000000
+04:34:37 | INFO | pnn_unlocks: 1.000000
+04:34:37 | INFO |   ── HPM ──
+04:34:37 | INFO | hpm_gate_mean: raw=0.758760 | score= 24.12% | band=low-medium
+04:34:37 | INFO | hpm_z_abs_mean: raw=0.743361 | score= 85.13% | band=good
+04:34:37 | INFO | hpm_z_abs_max: raw=3.662252 | score= 63.38% | band=medium-high
+04:34:37 | INFO | hpm_err_mean: raw=1.992951 | score= 60.14% | band=medium-high
+04:34:37 | INFO | hpm_write_mag: raw=1.109817 | score= 63.01% | band=medium-high
+04:34:37 | INFO | hpm_open_frac: 1.000000
+04:34:37 | INFO | hpm_closing_frac: 0.000000
+04:34:37 | INFO | hpm_locked_frac: 0.000000
+04:34:37 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:34:37 | INFO | hpm_mu: raw=1.778797 | score= 20.35% | band=low-medium
+04:34:37 | INFO | hpm_sigma: raw=0.479824 | score= 23.99% | band=low-medium
+04:34:37 | INFO | hpm_write_regular_frac: raw=0.989951 | score= 99.00% | band=good
+04:34:37 | INFO | hpm_write_forced_frac: raw=0.010049 | score= 99.00% | band=good
+04:34:41 | INFO | === [val] t1 ep3 ===
+04:34:41 | INFO |   ── Loss ──
+04:34:41 | INFO | next_step: raw=0.017810 | score= 96.44% | band=good
+04:34:41 | INFO | loss/vision: raw=0.007654 | score= 98.47% | band=good
+04:34:41 | INFO | loss/numeric: raw=0.010155 | score= 97.97% | band=good
+04:34:41 | INFO |   ── Accuracy ──
+04:34:41 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:34:41 | INFO | qacc/who_holds_token: raw=0.591378 | score= 59.14% | band=medium
+04:34:41 | INFO | qacc/who_was_first_tagged: raw=0.646323 | score= 64.63% | band=medium-high
+04:34:41 | INFO | qacc/did_alarm_fire: raw=1.000000 | score=100.00% | band=good
+04:34:41 | INFO | qacc/which_entity_occluded: raw=1.000000 | score=100.00% | band=good
+04:34:41 | INFO | qacc/did_trigger_before_alarm: raw=1.000000 | score=100.00% | band=good
+04:34:41 | INFO | qacc/which_entity_first_occluded: raw=1.000000 | score=100.00% | band=good
+04:34:41 | INFO | qacc/did_chain2_fire: raw=1.000000 | score=100.00% | band=good
+04:34:41 | INFO |   ── Other ──
+04:34:41 | INFO | event_acc: 0.907779
+  -> holding tier 1; unmet gates: qacc/who_holds_token=0.591 < 0.750; qacc/who_was_first_tagged=0.646 < 0.700
+  -> tier 1 did not reach promotion threshold; continuing anyway
+  -> saved checkpoint to checkpoint_tier1.pt
+
+  ===== Diagnostics =====
+  mean_episodic_read_entropy: 3.708
+  who_holds_token by handoffs:
+    handoffs= 0  acc=0.951  n=61
+    handoffs= 1  acc=0.036  n=28
+    handoffs= 2  acc=0.667  n=30
+    handoffs= 3  acc=0.400  n=10
+    handoffs= 4  acc=0.333  n=3
+    handoffs= 5  acc=0.286  n=7
+    handoffs=6+  acc=0.333  n=3
+  who_was_first_tagged by handoffs:
+    handoffs= 0  acc=0.776  n=49
+    handoffs= 1  acc=0.639  n=36
+    handoffs= 2  acc=0.786  n=28
+    handoffs= 3  acc=0.545  n=11
+    handoffs= 4  acc=0.400  n=5
+    handoffs= 5  acc=0.143  n=7
+    handoffs=6+  acc=0.500  n=4
+  what_was_true_rule (belief revision):
+        with_cue  acc=0.135  n=74
+  temporal ordering (trigger<alarm):  acc=0.970  n=132
+  first occluded entity:  acc=1.000  n=136
+  chain2 fire:  acc=1.000  n=131
+  color change (zero-shot, untrained):  acc=0.217  n=221
+  color change by lag (steps since event):
+    lag=  0-5  acc=0.300  n=30
+    lag= 6-15  acc=0.184  n=76
+    lag=16-30  acc=0.217  n=115
+  ===== Emergent Capability Probes (zero-shot) =====
+    HPM slot specialization:  0.006  (n=198, 0=uniform, 1=fully specialized; >0.3 interesting)
+    causal thread separation:  0.048  (n=31, within-between cos_sim; >0.1 interesting)
+    retroactive cause binding:  -0.118  (n=33, correction↔cue - correction↔random; >0.05 interesting)
+    state reactivation (replay):  -0.153  (n=33, post-surprise↔pre max_sim - baseline; >0 suggestive)
+    event boundary chunking:  7.896  (n=54, ||Δh|| event/non-event ratio; >1.5 interesting)
+    surprise-event correlation:  1.243  (n=54, HPM |z| event/non-event ratio; >1.5 interesting)
+
+
+=== Tier 2 | modalities=('vision', 'numeric', 'audio') | T=48 | templates=('trigger_delay', 'occlusion_identity', 'multi_chain', 'handoff', 'handoff', 'handoff', 'false_cue', 'false_cue', 'multi_chain') ===
+04:35:11 | INFO | === =================================t2 ep0 s0010 | pnn=O/C/L/O/O/O open=4 (+2 unlocked)================================ ===
+04:35:11 | INFO |   ── Loss ──
+04:35:11 | INFO | total: raw=1.125445 | score= 77.49% | band=medium-high
+04:35:11 | INFO | next_step: raw=0.044559 | score= 91.09% | band=good
+04:35:11 | INFO | aux_latent: raw=0.152025 | score= 92.40% | band=good
+04:35:11 | INFO | q_loss: raw=0.249576 | score= 87.52% | band=good
+04:35:11 | INFO | holder_loss: raw=1.778277 | score= 11.09% | band=bad
+04:35:11 | INFO | loss/vision: raw=0.010765 | score= 97.85% | band=good
+04:35:11 | INFO | loss/audio: raw=0.045117 | score= 90.98% | band=good
+04:35:11 | INFO | loss/numeric: raw=0.031538 | score= 93.69% | band=good
+04:35:11 | INFO | stress: raw=0.005765 | score= 96.16% | band=good
+04:35:11 | INFO |   ── Accuracy ──
+04:35:11 | INFO | latent_acc: raw=0.937500 | score= 93.75% | band=good
+04:35:11 | INFO | entity_acc: raw=0.717949 | score= 71.79% | band=medium-high
+04:35:11 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:35:11 | INFO | holder_acc: raw=0.418883 | score= 41.89% | band=medium
+04:35:11 | INFO |   ── PNN ──
+04:35:11 | INFO | pnn_open: 4.000000
+04:35:11 | INFO | pnn_unlocks: 2.000000
+04:35:11 | INFO |   ── HPM ──
+04:35:11 | INFO | hpm_gate_mean: raw=0.799216 | score= 20.08% | band=low-medium
+04:35:11 | INFO | hpm_z_abs_mean: raw=0.603562 | score= 87.93% | band=good
+04:35:11 | INFO | hpm_z_abs_max: raw=3.739614 | score= 62.60% | band=medium-high
+04:35:11 | INFO | hpm_err_mean: raw=2.019495 | score= 59.61% | band=medium
+04:35:11 | INFO | hpm_write_mag: raw=1.104665 | score= 63.18% | band=medium-high
+04:35:11 | INFO | hpm_open_frac: 1.000000
+04:35:11 | INFO | hpm_closing_frac: 0.000000
+04:35:11 | INFO | hpm_locked_frac: 0.000000
+04:35:11 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:35:11 | INFO | hpm_mu: raw=1.805712 | score= 19.90% | band=bad
+04:35:11 | INFO | hpm_sigma: raw=0.462515 | score= 23.13% | band=low-medium
+04:35:11 | INFO | hpm_write_regular_frac: raw=0.996997 | score= 99.70% | band=good
+04:35:11 | INFO | hpm_write_forced_frac: raw=0.003003 | score= 99.70% | band=good
+04:35:28 | INFO | === =================================t2 ep0 s0020 | pnn=L/L/O/L/O/O open=3 (+1 unlocked)================================ ===
+04:35:28 | INFO |   ── Loss ──
+04:35:28 | INFO | total: raw=1.081717 | score= 78.37% | band=medium-high
+04:35:28 | INFO | next_step: raw=0.040877 | score= 91.82% | band=good
+04:35:28 | INFO | aux_latent: raw=0.033128 | score= 98.34% | band=good
+04:35:28 | INFO | q_loss: raw=0.279869 | score= 86.01% | band=good
+04:35:28 | INFO | holder_loss: raw=1.768882 | score= 11.56% | band=bad
+04:35:28 | INFO | loss/vision: raw=0.009305 | score= 98.14% | band=good
+04:35:28 | INFO | loss/audio: raw=0.024836 | score= 95.03% | band=good
+04:35:28 | INFO | loss/numeric: raw=0.029088 | score= 94.18% | band=good
+04:35:28 | INFO | stress: raw=0.007735 | score= 94.84% | band=good
+04:35:28 | INFO |   ── Accuracy ──
+04:35:28 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:35:28 | INFO | entity_acc: raw=0.662338 | score= 66.23% | band=medium-high
+04:35:28 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:35:28 | INFO | holder_acc: raw=0.470080 | score= 47.01% | band=medium
+04:35:28 | INFO |   ── PNN ──
+04:35:28 | INFO | pnn_open: 3.000000
+04:35:28 | INFO | pnn_unlocks: 1.000000
+04:35:28 | INFO |   ── HPM ──
+04:35:28 | INFO | hpm_gate_mean: raw=0.749407 | score= 25.06% | band=low-medium
+04:35:28 | INFO | hpm_z_abs_mean: raw=0.510477 | score= 89.79% | band=good
+04:35:28 | INFO | hpm_z_abs_max: raw=3.789880 | score= 62.10% | band=medium-high
+04:35:28 | INFO | hpm_err_mean: raw=1.987989 | score= 60.24% | band=medium-high
+04:35:28 | INFO | hpm_write_mag: raw=1.000807 | score= 66.64% | band=medium-high
+04:35:28 | INFO | hpm_open_frac: 1.000000
+04:35:28 | INFO | hpm_closing_frac: 0.000000
+04:35:28 | INFO | hpm_locked_frac: 0.000000
+04:35:28 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:35:28 | INFO | hpm_mu: raw=1.824628 | score= 19.59% | band=bad
+04:35:28 | INFO | hpm_sigma: raw=0.449870 | score= 22.49% | band=low-medium
+04:35:28 | INFO | hpm_write_regular_frac: raw=0.995186 | score= 99.52% | band=good
+04:35:28 | INFO | hpm_write_forced_frac: raw=0.004814 | score= 99.52% | band=good
+04:35:44 | INFO | === =================================t2 ep0 s0030 | pnn=O/O/O/O/O/O open=6 (+3 unlocked)================================ ===
+04:35:44 | INFO |   ── Loss ──
+04:35:44 | INFO | total: raw=1.057700 | score= 78.85% | band=medium-high
+04:35:44 | INFO | next_step: raw=0.038291 | score= 92.34% | band=good
+04:35:44 | INFO | aux_latent: raw=0.072326 | score= 96.38% | band=good
+04:35:44 | INFO | q_loss: raw=0.302555 | score= 84.87% | band=good
+04:35:44 | INFO | holder_loss: raw=1.608129 | score= 19.59% | band=bad
+04:35:44 | INFO | loss/vision: raw=0.008862 | score= 98.23% | band=good
+04:35:44 | INFO | loss/audio: raw=0.020433 | score= 95.91% | band=good
+04:35:44 | INFO | loss/numeric: raw=0.026364 | score= 94.73% | band=good
+04:35:44 | INFO | stress: raw=0.006775 | score= 95.48% | band=good
+04:35:44 | INFO |   ── Accuracy ──
+04:35:44 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:35:44 | INFO | entity_acc: raw=0.628205 | score= 62.82% | band=medium-high
+04:35:44 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:35:44 | INFO | holder_acc: raw=0.601064 | score= 60.11% | band=medium-high
+04:35:44 | INFO |   ── PNN ──
+04:35:44 | INFO | pnn_open: 6.000000
+04:35:44 | INFO | pnn_unlocks: 3.000000
+04:35:44 | INFO |   ── HPM ──
+04:35:44 | INFO | hpm_gate_mean: raw=0.673554 | score= 32.64% | band=low-medium
+04:35:44 | INFO | hpm_z_abs_mean: raw=0.504087 | score= 89.92% | band=good
+04:35:44 | INFO | hpm_z_abs_max: raw=3.837344 | score= 61.63% | band=medium-high
+04:35:44 | INFO | hpm_err_mean: raw=1.997831 | score= 60.04% | band=medium-high
+04:35:44 | INFO | hpm_write_mag: raw=1.007253 | score= 66.42% | band=medium-high
+04:35:44 | INFO | hpm_open_frac: 1.000000
+04:35:44 | INFO | hpm_closing_frac: 0.000000
+04:35:44 | INFO | hpm_locked_frac: 0.000000
+04:35:44 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:35:44 | INFO | hpm_mu: raw=1.841995 | score= 19.30% | band=bad
+04:35:44 | INFO | hpm_sigma: raw=0.438589 | score= 21.93% | band=low-medium
+04:35:44 | INFO | hpm_write_regular_frac: raw=0.995239 | score= 99.52% | band=good
+04:35:44 | INFO | hpm_write_forced_frac: raw=0.004761 | score= 99.52% | band=good
+04:36:01 | INFO | === =================================t2 ep0 s0040 | pnn=C/L/O/C/O/C open=2================================ ===
+04:36:01 | INFO |   ── Loss ──
+04:36:01 | INFO | total: raw=1.021685 | score= 79.57% | band=medium-high
+04:36:01 | INFO | next_step: raw=0.034230 | score= 93.15% | band=good
+04:36:01 | INFO | aux_latent: raw=0.049803 | score= 97.51% | band=good
+04:36:01 | INFO | q_loss: raw=0.323410 | score= 83.83% | band=good
+04:36:01 | INFO | holder_loss: raw=1.427949 | score= 28.60% | band=low-medium
+04:36:01 | INFO | loss/vision: raw=0.008876 | score= 98.22% | band=good
+04:36:01 | INFO | loss/audio: raw=0.018944 | score= 96.21% | band=good
+04:36:01 | INFO | loss/numeric: raw=0.021565 | score= 95.69% | band=good
+04:36:01 | INFO | stress: raw=0.003445 | score= 97.70% | band=good
+04:36:01 | INFO |   ── Accuracy ──
+04:36:01 | INFO | latent_acc: raw=0.968750 | score= 96.88% | band=good
+04:36:01 | INFO | entity_acc: raw=0.621212 | score= 62.12% | band=medium-high
+04:36:01 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:36:01 | INFO | holder_acc: raw=0.477394 | score= 47.74% | band=medium
+04:36:01 | INFO |   ── PNN ──
+04:36:01 | INFO | pnn_open: 2.000000
+04:36:01 | INFO | pnn_unlocks: 0.000000
+04:36:01 | INFO |   ── HPM ──
+04:36:01 | INFO | hpm_gate_mean: raw=0.727272 | score= 27.27% | band=low-medium
+04:36:01 | INFO | hpm_z_abs_mean: raw=0.436641 | score= 91.27% | band=good
+04:36:01 | INFO | hpm_z_abs_max: raw=3.883131 | score= 61.17% | band=medium-high
+04:36:01 | INFO | hpm_err_mean: raw=1.981941 | score= 60.36% | band=medium-high
+04:36:01 | INFO | hpm_write_mag: raw=0.955917 | score= 68.14% | band=medium-high
+04:36:01 | INFO | hpm_open_frac: 1.000000
+04:36:01 | INFO | hpm_closing_frac: 0.000000
+04:36:01 | INFO | hpm_locked_frac: 0.000000
+04:36:01 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:36:01 | INFO | hpm_mu: raw=1.857164 | score= 19.05% | band=bad
+04:36:01 | INFO | hpm_sigma: raw=0.428151 | score= 21.41% | band=low-medium
+04:36:01 | INFO | hpm_write_regular_frac: raw=0.995793 | score= 99.58% | band=good
+04:36:01 | INFO | hpm_write_forced_frac: raw=0.004207 | score= 99.58% | band=good
+04:36:17 | INFO | === =================================t2 ep0 s0050 | pnn=L/O/O/L/O/L open=3 (+1 unlocked)================================ ===
+04:36:17 | INFO |   ── Loss ──
+04:36:17 | INFO | total: raw=0.892787 | score= 82.14% | band=good
+04:36:17 | INFO | next_step: raw=0.035014 | score= 93.00% | band=good
+04:36:17 | INFO | aux_latent: raw=0.037822 | score= 98.11% | band=good
+04:36:17 | INFO | q_loss: raw=0.215525 | score= 89.22% | band=good
+04:36:17 | INFO | holder_loss: raw=1.359058 | score= 32.05% | band=low-medium
+04:36:17 | INFO | loss/vision: raw=0.008683 | score= 98.26% | band=good
+04:36:17 | INFO | loss/audio: raw=0.019266 | score= 96.15% | band=good
+04:36:17 | INFO | loss/numeric: raw=0.021515 | score= 95.70% | band=good
+04:36:17 | INFO | stress: raw=0.005878 | score= 96.08% | band=good
+04:36:17 | INFO |   ── Accuracy ──
+04:36:17 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:36:17 | INFO | entity_acc: raw=0.759036 | score= 75.90% | band=medium-high
+04:36:17 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:36:17 | INFO | holder_acc: raw=0.480053 | score= 48.01% | band=medium
+04:36:17 | INFO |   ── PNN ──
+04:36:17 | INFO | pnn_open: 3.000000
+04:36:17 | INFO | pnn_unlocks: 1.000000
+04:36:17 | INFO |   ── HPM ──
+04:36:17 | INFO | hpm_gate_mean: raw=0.675108 | score= 32.49% | band=low-medium
+04:36:17 | INFO | hpm_z_abs_mean: raw=0.450822 | score= 90.98% | band=good
+04:36:17 | INFO | hpm_z_abs_max: raw=3.913249 | score= 60.87% | band=medium-high
+04:36:17 | INFO | hpm_err_mean: raw=1.984076 | score= 60.32% | band=medium-high
+04:36:17 | INFO | hpm_write_mag: raw=0.998913 | score= 66.70% | band=medium-high
+04:36:17 | INFO | hpm_open_frac: 1.000000
+04:36:17 | INFO | hpm_closing_frac: 0.000000
+04:36:17 | INFO | hpm_locked_frac: 0.000000
+04:36:17 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:36:17 | INFO | hpm_mu: raw=1.869665 | score= 18.84% | band=bad
+04:36:17 | INFO | hpm_sigma: raw=0.418752 | score= 20.94% | band=low-medium
+04:36:17 | INFO | hpm_write_regular_frac: raw=0.996007 | score= 99.60% | band=good
+04:36:17 | INFO | hpm_write_forced_frac: raw=0.003993 | score= 99.60% | band=good
+04:36:33 | INFO | === =================================t2 ep0 s0060 | pnn=C/L/O/C/O/O open=3 (+3 unlocked)================================ ===
+04:36:33 | INFO |   ── Loss ──
+04:36:33 | INFO | total: raw=0.861038 | score= 82.78% | band=good
+04:36:33 | INFO | next_step: raw=0.038157 | score= 92.37% | band=good
+04:36:33 | INFO | aux_latent: raw=0.086222 | score= 95.69% | band=good
+04:36:33 | INFO | q_loss: raw=0.236070 | score= 88.20% | band=good
+04:36:33 | INFO | holder_loss: raw=1.185000 | score= 40.75% | band=medium
+04:36:33 | INFO | loss/vision: raw=0.008950 | score= 98.21% | band=good
+04:36:33 | INFO | loss/audio: raw=0.017771 | score= 96.45% | band=good
+04:36:33 | INFO | loss/numeric: raw=0.023875 | score= 95.22% | band=good
+04:36:33 | INFO | stress: raw=0.010324 | score= 93.12% | band=good
+04:36:33 | INFO |   ── Accuracy ──
+04:36:33 | INFO | latent_acc: raw=0.968750 | score= 96.88% | band=good
+04:36:33 | INFO | entity_acc: raw=0.756098 | score= 75.61% | band=medium-high
+04:36:33 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:36:33 | INFO | holder_acc: raw=0.553856 | score= 55.39% | band=medium
+04:36:33 | INFO |   ── PNN ──
+04:36:33 | INFO | pnn_open: 3.000000
+04:36:33 | INFO | pnn_unlocks: 3.000000
+04:36:33 | INFO |   ── HPM ──
+04:36:33 | INFO | hpm_gate_mean: raw=0.787746 | score= 21.23% | band=low-medium
+04:36:33 | INFO | hpm_z_abs_mean: raw=0.452940 | score= 90.94% | band=good
+04:36:33 | INFO | hpm_z_abs_max: raw=3.946840 | score= 60.53% | band=medium-high
+04:36:33 | INFO | hpm_err_mean: raw=2.005910 | score= 59.88% | band=medium
+04:36:33 | INFO | hpm_write_mag: raw=1.019270 | score= 66.02% | band=medium-high
+04:36:33 | INFO | hpm_open_frac: 1.000000
+04:36:33 | INFO | hpm_closing_frac: 0.000000
+04:36:33 | INFO | hpm_locked_frac: 0.000000
+04:36:33 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:36:33 | INFO | hpm_mu: raw=1.882110 | score= 18.63% | band=bad
+04:36:33 | INFO | hpm_sigma: raw=0.410257 | score= 20.51% | band=low-medium
+04:36:33 | INFO | hpm_write_regular_frac: raw=0.996748 | score= 99.67% | band=good
+04:36:33 | INFO | hpm_write_forced_frac: raw=0.003252 | score= 99.67% | band=good
+04:36:42 | INFO | === [val] t2 ep0 ===
+04:36:42 | INFO |   ── Loss ──
+04:36:42 | INFO | next_step: raw=0.044246 | score= 91.15% | band=good
+04:36:42 | INFO | loss/vision: raw=0.008994 | score= 98.20% | band=good
+04:36:42 | INFO | loss/audio: raw=0.018310 | score= 96.34% | band=good
+04:36:42 | INFO | loss/numeric: raw=0.016942 | score= 96.61% | band=good
+04:36:42 | INFO |   ── Accuracy ──
+04:36:42 | INFO | latent_acc: raw=0.996094 | score= 99.61% | band=good
+04:36:42 | INFO | holder_acc: raw=0.497839 | score= 49.78% | band=medium
+04:36:42 | INFO | qacc/who_holds_token: raw=0.288593 | score= 28.86% | band=low-medium
+04:36:42 | INFO | qacc/who_was_first_tagged: raw=0.671694 | score= 67.17% | band=medium-high
+04:36:42 | INFO | qacc/did_alarm_fire: raw=0.992188 | score= 99.22% | band=good
+04:36:42 | INFO | qacc/which_entity_occluded: raw=0.819909 | score= 81.99% | band=good
+04:36:42 | INFO | qacc/did_trigger_before_alarm: raw=0.993421 | score= 99.34% | band=good
+04:36:42 | INFO | qacc/which_entity_first_occluded: raw=0.838339 | score= 83.83% | band=good
+04:36:42 | INFO | qacc/did_chain2_fire: raw=0.985294 | score= 98.53% | band=good
+04:36:42 | INFO | qacc/what_was_true_rule: raw=0.502232 | score= 50.22% | band=medium
+04:36:42 | INFO |   ── Other ──
+04:36:42 | INFO | event_acc: 0.909907
+  -> holding tier 2; unmet gates: qacc/who_holds_token=0.289 < 0.650; holder_acc=0.498 < 0.700; qacc/what_was_true_rule=0.502 < 0.750
+04:36:43 | INFO | === =================================t2 ep1 s0000 | pnn=L/L/O/C/O/O open=3================================ ===
+04:36:43 | INFO |   ── Loss ──
+04:36:43 | INFO | total: raw=0.816965 | score= 83.66% | band=good
+04:36:43 | INFO | next_step: raw=0.034727 | score= 93.05% | band=good
+04:36:43 | INFO | aux_latent: raw=0.019398 | score= 99.03% | band=good
+04:36:43 | INFO | q_loss: raw=0.259182 | score= 87.04% | band=good
+04:36:43 | INFO | holder_loss: raw=1.129773 | score= 43.51% | band=medium
+04:36:43 | INFO | loss/vision: raw=0.009500 | score= 98.10% | band=good
+04:36:43 | INFO | loss/audio: raw=0.016559 | score= 96.69% | band=good
+04:36:43 | INFO | loss/numeric: raw=0.019929 | score= 96.01% | band=good
+04:36:43 | INFO | stress: raw=0.010949 | score= 92.70% | band=good
+04:36:43 | INFO |   ── Accuracy ──
+04:36:43 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:36:43 | INFO | entity_acc: raw=0.610390 | score= 61.04% | band=medium-high
+04:36:43 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:36:43 | INFO | holder_acc: raw=0.555186 | score= 55.52% | band=medium
+04:36:43 | INFO |   ── PNN ──
+04:36:43 | INFO | pnn_open: 3.000000
+04:36:43 | INFO | pnn_unlocks: 0.000000
+04:36:43 | INFO |   ── HPM ──
+04:36:43 | INFO | hpm_gate_mean: raw=0.715078 | score= 28.49% | band=low-medium
+04:36:43 | INFO | hpm_z_abs_mean: raw=0.405499 | score= 91.89% | band=good
+04:36:43 | INFO | hpm_z_abs_max: raw=3.956300 | score= 60.44% | band=medium-high
+04:36:43 | INFO | hpm_err_mean: raw=1.980953 | score= 60.38% | band=medium-high
+04:36:43 | INFO | hpm_write_mag: raw=1.035166 | score= 65.49% | band=medium-high
+04:36:43 | INFO | hpm_open_frac: 1.000000
+04:36:43 | INFO | hpm_closing_frac: 0.000000
+04:36:43 | INFO | hpm_locked_frac: 0.000000
+04:36:43 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:36:43 | INFO | hpm_mu: raw=1.886426 | score= 18.56% | band=bad
+04:36:43 | INFO | hpm_sigma: raw=0.407119 | score= 20.36% | band=low-medium
+04:36:43 | INFO | hpm_write_regular_frac: raw=0.996829 | score= 99.68% | band=good
+04:36:43 | INFO | hpm_write_forced_frac: raw=0.003171 | score= 99.68% | band=good
+04:37:00 | INFO | === =================================t2 ep1 s0010 | pnn=O/O/O/O/O/O open=6 (+3 unlocked)================================ ===
+04:37:00 | INFO |   ── Loss ──
+04:37:00 | INFO | total: raw=0.848363 | score= 83.03% | band=good
+04:37:00 | INFO | next_step: raw=0.031692 | score= 93.66% | band=good
+04:37:00 | INFO | aux_latent: raw=0.007116 | score= 99.64% | band=good
+04:37:00 | INFO | q_loss: raw=0.213721 | score= 89.31% | band=good
+04:37:00 | INFO | holder_loss: raw=1.326853 | score= 33.66% | band=low-medium
+04:37:00 | INFO | loss/vision: raw=0.008988 | score= 98.20% | band=good
+04:37:00 | INFO | loss/audio: raw=0.018163 | score= 96.37% | band=good
+04:37:00 | INFO | loss/numeric: raw=0.015984 | score= 96.80% | band=good
+04:37:00 | INFO | stress: raw=0.014678 | score= 90.21% | band=good
+04:37:00 | INFO |   ── Accuracy ──
+04:37:00 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:37:00 | INFO | entity_acc: raw=0.712644 | score= 71.26% | band=medium-high
+04:37:00 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:37:00 | INFO | holder_acc: raw=0.511968 | score= 51.20% | band=medium
+04:37:00 | INFO |   ── PNN ──
+04:37:00 | INFO | pnn_open: 6.000000
+04:37:00 | INFO | pnn_unlocks: 3.000000
+04:37:00 | INFO |   ── HPM ──
+04:37:00 | INFO | hpm_gate_mean: raw=0.750046 | score= 25.00% | band=low-medium
+04:37:00 | INFO | hpm_z_abs_mean: raw=0.452775 | score= 90.94% | band=good
+04:37:00 | INFO | hpm_z_abs_max: raw=3.977996 | score= 60.22% | band=medium-high
+04:37:00 | INFO | hpm_err_mean: raw=2.015805 | score= 59.68% | band=medium
+04:37:00 | INFO | hpm_write_mag: raw=0.990686 | score= 66.98% | band=medium-high
+04:37:00 | INFO | hpm_open_frac: 1.000000
+04:37:00 | INFO | hpm_closing_frac: 0.000000
+04:37:00 | INFO | hpm_locked_frac: 0.000000
+04:37:00 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:37:00 | INFO | hpm_mu: raw=1.897086 | score= 18.38% | band=bad
+04:37:00 | INFO | hpm_sigma: raw=0.399696 | score= 19.98% | band=bad
+04:37:00 | INFO | hpm_write_regular_frac: raw=0.994812 | score= 99.48% | band=good
+04:37:00 | INFO | hpm_write_forced_frac: raw=0.005188 | score= 99.48% | band=good
+04:37:17 | INFO | === =================================t2 ep1 s0020 | pnn=C/L/O/C/O/C open=2================================ ===
+04:37:17 | INFO |   ── Loss ──
+04:37:17 | INFO | total: raw=0.871219 | score= 82.58% | band=good
+04:37:17 | INFO | next_step: raw=0.035330 | score= 92.93% | band=good
+04:37:17 | INFO | aux_latent: raw=0.008844 | score= 99.56% | band=good
+04:37:17 | INFO | q_loss: raw=0.288275 | score= 85.59% | band=good
+04:37:17 | INFO | holder_loss: raw=1.173159 | score= 41.34% | band=medium
+04:37:17 | INFO | loss/vision: raw=0.009689 | score= 98.06% | band=good
+04:37:17 | INFO | loss/audio: raw=0.017765 | score= 96.45% | band=good
+04:37:17 | INFO | loss/numeric: raw=0.018180 | score= 96.36% | band=good
+04:37:17 | INFO | stress: raw=0.013339 | score= 91.11% | band=good
+04:37:17 | INFO |   ── Accuracy ──
+04:37:17 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:37:17 | INFO | entity_acc: raw=0.650602 | score= 65.06% | band=medium-high
+04:37:17 | INFO | binary_acc: raw=0.977778 | score= 97.78% | band=good
+04:37:17 | INFO | holder_acc: raw=0.606383 | score= 60.64% | band=medium-high
+04:37:17 | INFO |   ── PNN ──
+04:37:17 | INFO | pnn_open: 2.000000
+04:37:17 | INFO | pnn_unlocks: 0.000000
+04:37:17 | INFO |   ── HPM ──
+04:37:17 | INFO | hpm_gate_mean: raw=0.736606 | score= 26.34% | band=low-medium
+04:37:17 | INFO | hpm_z_abs_mean: raw=0.395422 | score= 92.09% | band=good
+04:37:17 | INFO | hpm_z_abs_max: raw=3.994406 | score= 60.06% | band=medium-high
+04:37:17 | INFO | hpm_err_mean: raw=1.992720 | score= 60.15% | band=medium-high
+04:37:17 | INFO | hpm_write_mag: raw=0.911125 | score= 69.63% | band=medium-high
+04:37:17 | INFO | hpm_open_frac: 1.000000
+04:37:17 | INFO | hpm_closing_frac: 0.000000
+04:37:17 | INFO | hpm_locked_frac: 0.000000
+04:37:17 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:37:17 | INFO | hpm_mu: raw=1.906359 | score= 18.23% | band=bad
+04:37:17 | INFO | hpm_sigma: raw=0.392912 | score= 19.65% | band=bad
+04:37:17 | INFO | hpm_write_regular_frac: raw=0.996006 | score= 99.60% | band=good
+04:37:17 | INFO | hpm_write_forced_frac: raw=0.003994 | score= 99.60% | band=good
+04:37:33 | INFO | === =================================t2 ep1 s0030 | pnn=L/O/O/L/O/L open=3 (+1 unlocked)================================ ===
+04:37:33 | INFO |   ── Loss ──
+04:37:33 | INFO | total: raw=0.907126 | score= 81.86% | band=good
+04:37:33 | INFO | next_step: raw=0.027791 | score= 94.44% | band=good
+04:37:33 | INFO | aux_latent: raw=0.004686 | score= 99.77% | band=good
+04:37:33 | INFO | q_loss: raw=0.238204 | score= 88.09% | band=good
+04:37:33 | INFO | holder_loss: raw=1.415531 | score= 29.22% | band=low-medium
+04:37:33 | INFO | loss/vision: raw=0.008770 | score= 98.25% | band=good
+04:37:33 | INFO | loss/audio: raw=0.016008 | score= 96.80% | band=good
+04:37:33 | INFO | loss/numeric: raw=0.011497 | score= 97.70% | band=good
+04:37:33 | INFO | stress: raw=0.011410 | score= 92.39% | band=good
+04:37:33 | INFO |   ── Accuracy ──
+04:37:33 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:37:33 | INFO | entity_acc: raw=0.628571 | score= 62.86% | band=medium-high
+04:37:33 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:37:33 | INFO | holder_acc: raw=0.482048 | score= 48.20% | band=medium
+04:37:33 | INFO |   ── PNN ──
+04:37:33 | INFO | pnn_open: 3.000000
+04:37:33 | INFO | pnn_unlocks: 1.000000
+04:37:33 | INFO |   ── HPM ──
+04:37:33 | INFO | hpm_gate_mean: raw=0.756602 | score= 24.34% | band=low-medium
+04:37:33 | INFO | hpm_z_abs_mean: raw=0.343000 | score= 93.14% | band=good
+04:37:33 | INFO | hpm_z_abs_max: raw=4.001161 | score= 59.99% | band=medium
+04:37:33 | INFO | hpm_err_mean: raw=1.963424 | score= 60.73% | band=medium-high
+04:37:33 | INFO | hpm_write_mag: raw=0.891136 | score= 70.30% | band=medium-high
+04:37:33 | INFO | hpm_open_frac: 1.000000
+04:37:33 | INFO | hpm_closing_frac: 0.000000
+04:37:33 | INFO | hpm_locked_frac: 0.000000
+04:37:33 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:37:33 | INFO | hpm_mu: raw=1.914337 | score= 18.09% | band=bad
+04:37:33 | INFO | hpm_sigma: raw=0.386609 | score= 19.33% | band=bad
+04:37:33 | INFO | hpm_write_regular_frac: raw=0.996373 | score= 99.64% | band=good
+04:37:33 | INFO | hpm_write_forced_frac: raw=0.003627 | score= 99.64% | band=good
+04:37:49 | INFO | === =================================t2 ep1 s0040 | pnn=C/C/O/O/O/O open=4 (+3 unlocked)================================ ===
+04:37:49 | INFO |   ── Loss ──
+04:37:49 | INFO | total: raw=0.906006 | score= 81.88% | band=good
+04:37:49 | INFO | next_step: raw=0.033992 | score= 93.20% | band=good
+04:37:49 | INFO | aux_latent: raw=0.003506 | score= 99.82% | band=good
+04:37:49 | INFO | q_loss: raw=0.250705 | score= 87.46% | band=good
+04:37:49 | INFO | holder_loss: raw=1.382564 | score= 30.87% | band=low-medium
+04:37:49 | INFO | loss/vision: raw=0.009234 | score= 98.15% | band=good
+04:37:49 | INFO | loss/audio: raw=0.017004 | score= 96.60% | band=good
+04:37:49 | INFO | loss/numeric: raw=0.015915 | score= 96.82% | band=good
+04:37:49 | INFO | stress: raw=0.012076 | score= 91.95% | band=good
+04:37:49 | INFO |   ── Accuracy ──
+04:37:49 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:37:49 | INFO | entity_acc: raw=0.688312 | score= 68.83% | band=medium-high
+04:37:49 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:37:49 | INFO | holder_acc: raw=0.529255 | score= 52.93% | band=medium
+04:37:49 | INFO |   ── PNN ──
+04:37:49 | INFO | pnn_open: 4.000000
+04:37:49 | INFO | pnn_unlocks: 3.000000
+04:37:49 | INFO |   ── HPM ──
+04:37:49 | INFO | hpm_gate_mean: raw=0.781152 | score= 21.88% | band=low-medium
+04:37:49 | INFO | hpm_z_abs_mean: raw=0.352886 | score= 92.94% | band=good
+04:37:49 | INFO | hpm_z_abs_max: raw=4.006077 | score= 59.94% | band=medium
+04:37:49 | INFO | hpm_err_mean: raw=1.948912 | score= 61.02% | band=medium-high
+04:37:49 | INFO | hpm_write_mag: raw=0.935426 | score= 68.82% | band=medium-high
+04:37:49 | INFO | hpm_open_frac: 1.000000
+04:37:49 | INFO | hpm_closing_frac: 0.000000
+04:37:49 | INFO | hpm_locked_frac: 0.000000
+04:37:49 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:37:49 | INFO | hpm_mu: raw=1.921117 | score= 17.98% | band=bad
+04:37:49 | INFO | hpm_sigma: raw=0.380995 | score= 19.05% | band=bad
+04:37:49 | INFO | hpm_write_regular_frac: raw=0.997647 | score= 99.76% | band=good
+04:37:49 | INFO | hpm_write_forced_frac: raw=0.002353 | score= 99.76% | band=good
+04:38:06 | INFO | === =================================t2 ep1 s0050 | pnn=L/L/C/L/O/L open=1================================ ===
+04:38:06 | INFO |   ── Loss ──
+04:38:06 | INFO | total: raw=0.853562 | score= 82.93% | band=good
+04:38:06 | INFO | next_step: raw=0.031861 | score= 93.63% | band=good
+04:38:06 | INFO | aux_latent: raw=0.012368 | score= 99.38% | band=good
+04:38:06 | INFO | q_loss: raw=0.211372 | score= 89.43% | band=good
+04:38:06 | INFO | holder_loss: raw=1.317378 | score= 34.13% | band=low-medium
+04:38:06 | INFO | loss/vision: raw=0.008461 | score= 98.31% | band=good
+04:38:06 | INFO | loss/audio: raw=0.018463 | score= 96.31% | band=good
+04:38:06 | INFO | loss/numeric: raw=0.012876 | score= 97.42% | band=good
+04:38:06 | INFO | stress: raw=0.012260 | score= 91.83% | band=good
+04:38:06 | INFO |   ── Accuracy ──
+04:38:06 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:38:06 | INFO | entity_acc: raw=0.722222 | score= 72.22% | band=medium-high
+04:38:06 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:38:06 | INFO | holder_acc: raw=0.490027 | score= 49.00% | band=medium
+04:38:06 | INFO |   ── PNN ──
+04:38:06 | INFO | pnn_open: 1.000000
+04:38:06 | INFO | pnn_unlocks: 0.000000
+04:38:06 | INFO |   ── HPM ──
+04:38:06 | INFO | hpm_gate_mean: raw=0.784000 | score= 21.60% | band=low-medium
+04:38:06 | INFO | hpm_z_abs_mean: raw=0.335659 | score= 93.29% | band=good
+04:38:06 | INFO | hpm_z_abs_max: raw=4.010191 | score= 59.90% | band=medium
+04:38:06 | INFO | hpm_err_mean: raw=1.981755 | score= 60.36% | band=medium-high
+04:38:06 | INFO | hpm_write_mag: raw=0.903315 | score= 69.89% | band=medium-high
+04:38:06 | INFO | hpm_open_frac: 1.000000
+04:38:06 | INFO | hpm_closing_frac: 0.000000
+04:38:06 | INFO | hpm_locked_frac: 0.000000
+04:38:06 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:38:06 | INFO | hpm_mu: raw=1.927254 | score= 17.88% | band=bad
+04:38:06 | INFO | hpm_sigma: raw=0.375557 | score= 18.78% | band=bad
+04:38:06 | INFO | hpm_write_regular_frac: raw=0.996175 | score= 99.62% | band=good
+04:38:06 | INFO | hpm_write_forced_frac: raw=0.003825 | score= 99.62% | band=good
+04:38:22 | INFO | === =================================t2 ep1 s0060 | pnn=O/O/L/O/O/O open=5 (+4 unlocked)================================ ===
+04:38:22 | INFO |   ── Loss ──
+04:38:22 | INFO | total: raw=0.836330 | score= 83.27% | band=good
+04:38:22 | INFO | next_step: raw=0.032338 | score= 93.53% | band=good
+04:38:22 | INFO | aux_latent: raw=0.075882 | score= 96.21% | band=good
+04:38:22 | INFO | q_loss: raw=0.256422 | score= 87.18% | band=good
+04:38:22 | INFO | holder_loss: raw=1.099929 | score= 45.00% | band=medium
+04:38:22 | INFO | loss/vision: raw=0.008736 | score= 98.25% | band=good
+04:38:22 | INFO | loss/audio: raw=0.015767 | score= 96.85% | band=good
+04:38:22 | INFO | loss/numeric: raw=0.013826 | score= 97.23% | band=good
+04:38:22 | INFO | stress: raw=0.012885 | score= 91.41% | band=good
+04:38:22 | INFO |   ── Accuracy ──
+04:38:22 | INFO | latent_acc: raw=0.968750 | score= 96.88% | band=good
+04:38:22 | INFO | entity_acc: raw=0.615385 | score= 61.54% | band=medium-high
+04:38:22 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:38:22 | INFO | holder_acc: raw=0.609707 | score= 60.97% | band=medium-high
+04:38:22 | INFO |   ── PNN ──
+04:38:22 | INFO | pnn_open: 5.000000
+04:38:22 | INFO | pnn_unlocks: 4.000000
+04:38:22 | INFO |   ── HPM ──
+04:38:22 | INFO | hpm_gate_mean: raw=0.806101 | score= 19.39% | band=bad
+04:38:22 | INFO | hpm_z_abs_mean: raw=0.382334 | score= 92.35% | band=good
+04:38:22 | INFO | hpm_z_abs_max: raw=4.013771 | score= 59.86% | band=medium
+04:38:22 | INFO | hpm_err_mean: raw=1.992038 | score= 60.16% | band=medium-high
+04:38:22 | INFO | hpm_write_mag: raw=0.914327 | score= 69.52% | band=medium-high
+04:38:22 | INFO | hpm_open_frac: 1.000000
+04:38:22 | INFO | hpm_closing_frac: 0.000000
+04:38:22 | INFO | hpm_locked_frac: 0.000000
+04:38:22 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:38:22 | INFO | hpm_mu: raw=1.932876 | score= 17.79% | band=bad
+04:38:22 | INFO | hpm_sigma: raw=0.370863 | score= 18.54% | band=bad
+04:38:22 | INFO | hpm_write_regular_frac: raw=0.997585 | score= 99.76% | band=good
+04:38:22 | INFO | hpm_write_forced_frac: raw=0.002415 | score= 99.76% | band=good
+04:38:31 | INFO | === [val] t2 ep1 ===
+04:38:31 | INFO |   ── Loss ──
+04:38:31 | INFO | next_step: raw=0.036156 | score= 92.77% | band=good
+04:38:31 | INFO | loss/vision: raw=0.008293 | score= 98.34% | band=good
+04:38:31 | INFO | loss/audio: raw=0.016058 | score= 96.79% | band=good
+04:38:31 | INFO | loss/numeric: raw=0.011805 | score= 97.64% | band=good
+04:38:31 | INFO |   ── Accuracy ──
+04:38:31 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:38:31 | INFO | holder_acc: raw=0.509059 | score= 50.91% | band=medium
+04:38:31 | INFO | qacc/who_holds_token: raw=0.359386 | score= 35.94% | band=low-medium
+04:38:31 | INFO | qacc/who_was_first_tagged: raw=0.674698 | score= 67.47% | band=medium-high
+04:38:31 | INFO | qacc/did_alarm_fire: raw=0.968287 | score= 96.83% | band=good
+04:38:31 | INFO | qacc/which_entity_occluded: raw=0.836707 | score= 83.67% | band=good
+04:38:31 | INFO | qacc/did_trigger_before_alarm: raw=0.980921 | score= 98.09% | band=good
+04:38:31 | INFO | qacc/which_entity_first_occluded: raw=0.844712 | score= 84.47% | band=good
+04:38:31 | INFO | qacc/did_chain2_fire: raw=1.000000 | score=100.00% | band=good
+04:38:31 | INFO | qacc/what_was_true_rule: raw=0.733631 | score= 73.36% | band=medium-high
+04:38:31 | INFO |   ── Other ──
+04:38:31 | INFO | event_acc: 0.912400
+  -> holding tier 2; unmet gates: qacc/who_holds_token=0.359 < 0.650; holder_acc=0.509 < 0.700; qacc/what_was_true_rule=0.734 < 0.750
+04:38:32 | INFO | === =================================t2 ep2 s0000 | pnn=C/O/O/C/O/O open=4================================ ===
+04:38:32 | INFO |   ── Loss ──
+04:38:32 | INFO | total: raw=0.842916 | score= 83.14% | band=good
+04:38:32 | INFO | next_step: raw=0.033963 | score= 93.21% | band=good
+04:38:32 | INFO | aux_latent: raw=0.007854 | score= 99.61% | band=good
+04:38:32 | INFO | q_loss: raw=0.241416 | score= 87.93% | band=good
+04:38:32 | INFO | holder_loss: raw=1.207369 | score= 39.63% | band=low-medium
+04:38:32 | INFO | loss/vision: raw=0.008760 | score= 98.25% | band=good
+04:38:32 | INFO | loss/audio: raw=0.019419 | score= 96.12% | band=good
+04:38:32 | INFO | loss/numeric: raw=0.012775 | score= 97.44% | band=good
+04:38:32 | INFO | stress: raw=0.014003 | score= 90.66% | band=good
+04:38:32 | INFO |   ── Accuracy ──
+04:38:32 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:38:32 | INFO | entity_acc: raw=0.712329 | score= 71.23% | band=medium-high
+04:38:32 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:38:32 | INFO | holder_acc: raw=0.513963 | score= 51.40% | band=medium
+04:38:32 | INFO |   ── PNN ──
+04:38:32 | INFO | pnn_open: 4.000000
+04:38:32 | INFO | pnn_unlocks: 0.000000
+04:38:32 | INFO |   ── HPM ──
+04:38:32 | INFO | hpm_gate_mean: raw=0.786712 | score= 21.33% | band=low-medium
+04:38:32 | INFO | hpm_z_abs_mean: raw=0.368097 | score= 92.64% | band=good
+04:38:32 | INFO | hpm_z_abs_max: raw=4.017075 | score= 59.83% | band=medium
+04:38:32 | INFO | hpm_err_mean: raw=1.988730 | score= 60.23% | band=medium-high
+04:38:32 | INFO | hpm_write_mag: raw=0.878916 | score= 70.70% | band=medium-high
+04:38:32 | INFO | hpm_open_frac: 1.000000
+04:38:32 | INFO | hpm_closing_frac: 0.000000
+04:38:32 | INFO | hpm_locked_frac: 0.000000
+04:38:32 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:38:32 | INFO | hpm_mu: raw=1.934993 | score= 17.75% | band=bad
+04:38:32 | INFO | hpm_sigma: raw=0.368953 | score= 18.45% | band=bad
+04:38:32 | INFO | hpm_write_regular_frac: raw=0.997168 | score= 99.72% | band=good
+04:38:32 | INFO | hpm_write_forced_frac: raw=0.002832 | score= 99.72% | band=good
+04:38:49 | INFO | === =================================t2 ep2 s0010 | pnn=L/O/L/L/O/L open=2================================ ===
+04:38:49 | INFO |   ── Loss ──
+04:38:49 | INFO | total: raw=0.922200 | score= 81.56% | band=good
+04:38:49 | INFO | next_step: raw=0.034921 | score= 93.02% | band=good
+04:38:49 | INFO | aux_latent: raw=0.003861 | score= 99.81% | band=good
+04:38:49 | INFO | q_loss: raw=0.257977 | score= 87.10% | band=good
+04:38:49 | INFO | holder_loss: raw=1.363381 | score= 31.83% | band=low-medium
+04:38:49 | INFO | loss/vision: raw=0.008898 | score= 98.22% | band=good
+04:38:49 | INFO | loss/audio: raw=0.019577 | score= 96.08% | band=good
+04:38:49 | INFO | loss/numeric: raw=0.012514 | score= 97.50% | band=good
+04:38:49 | INFO | stress: raw=0.014219 | score= 90.52% | band=good
+04:38:49 | INFO |   ── Accuracy ──
+04:38:49 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:38:49 | INFO | entity_acc: raw=0.653846 | score= 65.38% | band=medium-high
+04:38:49 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:38:49 | INFO | holder_acc: raw=0.444149 | score= 44.41% | band=medium
+04:38:49 | INFO |   ── PNN ──
+04:38:49 | INFO | pnn_open: 2.000000
+04:38:49 | INFO | pnn_unlocks: 0.000000
+04:38:49 | INFO |   ── HPM ──
+04:38:49 | INFO | hpm_gate_mean: raw=0.726234 | score= 27.38% | band=low-medium
+04:38:49 | INFO | hpm_z_abs_mean: raw=0.345516 | score= 93.09% | band=good
+04:38:49 | INFO | hpm_z_abs_max: raw=4.018752 | score= 59.81% | band=medium
+04:38:49 | INFO | hpm_err_mean: raw=1.980726 | score= 60.39% | band=medium-high
+04:38:49 | INFO | hpm_write_mag: raw=0.876655 | score= 70.78% | band=medium-high
+04:38:49 | INFO | hpm_open_frac: 1.000000
+04:38:49 | INFO | hpm_closing_frac: 0.000000
+04:38:49 | INFO | hpm_locked_frac: 0.000000
+04:38:49 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:38:49 | INFO | hpm_mu: raw=1.939959 | score= 17.67% | band=bad
+04:38:49 | INFO | hpm_sigma: raw=0.364879 | score= 18.24% | band=bad
+04:38:49 | INFO | hpm_write_regular_frac: raw=0.995237 | score= 99.52% | band=good
+04:38:49 | INFO | hpm_write_forced_frac: raw=0.004763 | score= 99.52% | band=good
+04:39:06 | INFO | === =================================t2 ep2 s0020 | pnn=O/O/O/O/O/O open=6 (+4 unlocked)================================ ===
+04:39:06 | INFO |   ── Loss ──
+04:39:06 | INFO | total: raw=0.824415 | score= 83.51% | band=good
+04:39:06 | INFO | next_step: raw=0.038306 | score= 92.34% | band=good
+04:39:06 | INFO | aux_latent: raw=0.009235 | score= 99.54% | band=good
+04:39:06 | INFO | q_loss: raw=0.246320 | score= 87.68% | band=good
+04:39:06 | INFO | holder_loss: raw=1.137949 | score= 43.10% | band=medium
+04:39:06 | INFO | loss/vision: raw=0.008222 | score= 98.36% | band=good
+04:39:06 | INFO | loss/audio: raw=0.018284 | score= 96.34% | band=good
+04:39:06 | INFO | loss/numeric: raw=0.016553 | score= 96.69% | band=good
+04:39:06 | INFO | stress: raw=0.015301 | score= 89.80% | band=good
+04:39:06 | INFO |   ── Accuracy ──
+04:39:06 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:39:06 | INFO | entity_acc: raw=0.684932 | score= 68.49% | band=medium-high
+04:39:06 | INFO | binary_acc: raw=0.981818 | score= 98.18% | band=good
+04:39:06 | INFO | holder_acc: raw=0.619016 | score= 61.90% | band=medium-high
+04:39:06 | INFO |   ── PNN ──
+04:39:06 | INFO | pnn_open: 6.000000
+04:39:06 | INFO | pnn_unlocks: 4.000000
+04:39:06 | INFO |   ── HPM ──
+04:39:06 | INFO | hpm_gate_mean: raw=0.739511 | score= 26.05% | band=low-medium
+04:39:06 | INFO | hpm_z_abs_mean: raw=0.336482 | score= 93.27% | band=good
+04:39:06 | INFO | hpm_z_abs_max: raw=4.024589 | score= 59.75% | band=medium
+04:39:06 | INFO | hpm_err_mean: raw=1.996658 | score= 60.07% | band=medium-high
+04:39:06 | INFO | hpm_write_mag: raw=0.906748 | score= 69.78% | band=medium-high
+04:39:06 | INFO | hpm_open_frac: 1.000000
+04:39:06 | INFO | hpm_closing_frac: 0.000000
+04:39:06 | INFO | hpm_locked_frac: 0.000000
+04:39:06 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:39:06 | INFO | hpm_mu: raw=1.944780 | score= 17.59% | band=bad
+04:39:06 | INFO | hpm_sigma: raw=0.361071 | score= 18.05% | band=bad
+04:39:06 | INFO | hpm_write_regular_frac: raw=0.995487 | score= 99.55% | band=good
+04:39:06 | INFO | hpm_write_forced_frac: raw=0.004513 | score= 99.55% | band=good
+04:39:22 | INFO | === =================================t2 ep2 s0030 | pnn=L/O/C/L/O/O open=3================================ ===
+04:39:22 | INFO |   ── Loss ──
+04:39:22 | INFO | total: raw=0.803313 | score= 83.93% | band=good
+04:39:22 | INFO | next_step: raw=0.034614 | score= 93.08% | band=good
+04:39:22 | INFO | aux_latent: raw=0.083492 | score= 95.83% | band=good
+04:39:22 | INFO | q_loss: raw=0.236309 | score= 88.18% | band=good
+04:39:22 | INFO | holder_loss: raw=1.070214 | score= 46.49% | band=medium
+04:39:22 | INFO | loss/vision: raw=0.008930 | score= 98.21% | band=good
+04:39:22 | INFO | loss/audio: raw=0.015627 | score= 96.87% | band=good
+04:39:22 | INFO | loss/numeric: raw=0.013339 | score= 97.33% | band=good
+04:39:22 | INFO | stress: raw=0.012847 | score= 91.44% | band=good
+04:39:22 | INFO |   ── Accuracy ──
+04:39:22 | INFO | latent_acc: raw=0.968750 | score= 96.88% | band=good
+04:39:22 | INFO | entity_acc: raw=0.657534 | score= 65.75% | band=medium-high
+04:39:22 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:39:22 | INFO | holder_acc: raw=0.494681 | score= 49.47% | band=medium
+04:39:22 | INFO |   ── PNN ──
+04:39:22 | INFO | pnn_open: 3.000000
+04:39:22 | INFO | pnn_unlocks: 0.000000
+04:39:22 | INFO |   ── HPM ──
+04:39:22 | INFO | hpm_gate_mean: raw=0.789993 | score= 21.00% | band=low-medium
+04:39:22 | INFO | hpm_z_abs_mean: raw=0.308709 | score= 93.83% | band=good
+04:39:22 | INFO | hpm_z_abs_max: raw=4.028347 | score= 59.72% | band=medium
+04:39:22 | INFO | hpm_err_mean: raw=1.968514 | score= 60.63% | band=medium-high
+04:39:22 | INFO | hpm_write_mag: raw=0.874794 | score= 70.84% | band=medium-high
+04:39:22 | INFO | hpm_open_frac: 1.000000
+04:39:22 | INFO | hpm_closing_frac: 0.000000
+04:39:22 | INFO | hpm_locked_frac: 0.000000
+04:39:22 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:39:22 | INFO | hpm_mu: raw=1.947893 | score= 17.54% | band=bad
+04:39:22 | INFO | hpm_sigma: raw=0.357102 | score= 17.86% | band=bad
+04:39:22 | INFO | hpm_write_regular_frac: raw=0.996508 | score= 99.65% | band=good
+04:39:22 | INFO | hpm_write_forced_frac: raw=0.003492 | score= 99.65% | band=good
+04:39:38 | INFO | === =================================t2 ep2 s0040 | pnn=O/O/L/O/O/O open=5 (+2 unlocked)================================ ===
+04:39:38 | INFO |   ── Loss ──
+04:39:38 | INFO | total: raw=0.804038 | score= 83.92% | band=good
+04:39:38 | INFO | next_step: raw=0.043690 | score= 91.26% | band=good
+04:39:38 | INFO | aux_latent: raw=0.108082 | score= 94.60% | band=good
+04:39:38 | INFO | q_loss: raw=0.236141 | score= 88.19% | band=good
+04:39:38 | INFO | holder_loss: raw=1.010164 | score= 49.49% | band=medium
+04:39:38 | INFO | loss/vision: raw=0.009066 | score= 98.19% | band=good
+04:39:38 | INFO | loss/audio: raw=0.015947 | score= 96.81% | band=good
+04:39:38 | INFO | loss/numeric: raw=0.021229 | score= 95.75% | band=good
+04:39:38 | INFO | stress: raw=0.011847 | score= 92.10% | band=good
+04:39:38 | INFO |   ── Accuracy ──
+04:39:38 | INFO | latent_acc: raw=0.968750 | score= 96.88% | band=good
+04:39:38 | INFO | entity_acc: raw=0.666667 | score= 66.67% | band=medium-high
+04:39:38 | INFO | binary_acc: raw=0.964286 | score= 96.43% | band=good
+04:39:38 | INFO | holder_acc: raw=0.523271 | score= 52.33% | band=medium
+04:39:38 | INFO |   ── PNN ──
+04:39:38 | INFO | pnn_open: 5.000000
+04:39:38 | INFO | pnn_unlocks: 2.000000
+04:39:38 | INFO |   ── HPM ──
+04:39:38 | INFO | hpm_gate_mean: raw=0.800617 | score= 19.94% | band=bad
+04:39:38 | INFO | hpm_z_abs_mean: raw=0.330554 | score= 93.39% | band=good
+04:39:38 | INFO | hpm_z_abs_max: raw=4.033519 | score= 59.66% | band=medium
+04:39:38 | INFO | hpm_err_mean: raw=1.982214 | score= 60.36% | band=medium-high
+04:39:38 | INFO | hpm_write_mag: raw=0.918368 | score= 69.39% | band=medium-high
+04:39:38 | INFO | hpm_open_frac: 1.000000
+04:39:38 | INFO | hpm_closing_frac: 0.000000
+04:39:38 | INFO | hpm_locked_frac: 0.000000
+04:39:38 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:39:38 | INFO | hpm_mu: raw=1.950613 | score= 17.49% | band=bad
+04:39:38 | INFO | hpm_sigma: raw=0.353719 | score= 17.69% | band=bad
+04:39:38 | INFO | hpm_write_regular_frac: raw=0.996435 | score= 99.64% | band=good
+04:39:38 | INFO | hpm_write_forced_frac: raw=0.003565 | score= 99.64% | band=good
+04:39:55 | INFO | === =================================t2 ep2 s0050 | pnn=L/O/O/C/O/O open=4 (+1 unlocked)================================ ===
+04:39:55 | INFO |   ── Loss ──
+04:39:55 | INFO | total: raw=0.637619 | score= 87.25% | band=good
+04:39:55 | INFO | next_step: raw=0.032802 | score= 93.44% | band=good
+04:39:55 | INFO | aux_latent: raw=0.018617 | score= 99.07% | band=good
+04:39:55 | INFO | q_loss: raw=0.169156 | score= 91.54% | band=good
+04:39:55 | INFO | holder_loss: raw=0.910205 | score= 54.49% | band=medium
+04:39:55 | INFO | loss/vision: raw=0.008648 | score= 98.27% | band=good
+04:39:55 | INFO | loss/audio: raw=0.014487 | score= 97.10% | band=good
+04:39:55 | INFO | loss/numeric: raw=0.011261 | score= 97.75% | band=good
+04:39:55 | INFO | stress: raw=0.017471 | score= 88.35% | band=good
+04:39:55 | INFO |   ── Accuracy ──
+04:39:55 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:39:55 | INFO | entity_acc: raw=0.763889 | score= 76.39% | band=medium-high
+04:39:55 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:39:55 | INFO | holder_acc: raw=0.634309 | score= 63.43% | band=medium-high
+04:39:55 | INFO |   ── PNN ──
+04:39:55 | INFO | pnn_open: 4.000000
+04:39:55 | INFO | pnn_unlocks: 1.000000
+04:39:55 | INFO |   ── HPM ──
+04:39:55 | INFO | hpm_gate_mean: raw=0.778122 | score= 22.19% | band=low-medium
+04:39:55 | INFO | hpm_z_abs_mean: raw=0.339800 | score= 93.20% | band=good
+04:39:55 | INFO | hpm_z_abs_max: raw=4.038052 | score= 59.62% | band=medium
+04:39:55 | INFO | hpm_err_mean: raw=1.987119 | score= 60.26% | band=medium-high
+04:39:55 | INFO | hpm_write_mag: raw=0.901067 | score= 69.96% | band=medium-high
+04:39:55 | INFO | hpm_open_frac: 1.000000
+04:39:55 | INFO | hpm_closing_frac: 0.000000
+04:39:55 | INFO | hpm_locked_frac: 0.000000
+04:39:55 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:39:55 | INFO | hpm_mu: raw=1.954854 | score= 17.42% | band=bad
+04:39:55 | INFO | hpm_sigma: raw=0.350708 | score= 17.54% | band=bad
+04:39:55 | INFO | hpm_write_regular_frac: raw=0.995880 | score= 99.59% | band=good
+04:39:55 | INFO | hpm_write_forced_frac: raw=0.004120 | score= 99.59% | band=good
+04:40:11 | INFO | === =================================t2 ep2 s0060 | pnn=O/O/L/L/O/O open=4 (+1 unlocked)================================ ===
+04:40:11 | INFO |   ── Loss ──
+04:40:11 | INFO | total: raw=0.568755 | score= 88.62% | band=good
+04:40:11 | INFO | next_step: raw=0.041015 | score= 91.80% | band=good
+04:40:11 | INFO | aux_latent: raw=0.027929 | score= 98.60% | band=good
+04:40:11 | INFO | q_loss: raw=0.190118 | score= 90.49% | band=good
+04:40:11 | INFO | holder_loss: raw=0.631540 | score= 68.42% | band=medium-high
+04:40:11 | INFO | loss/vision: raw=0.008611 | score= 98.28% | band=good
+04:40:11 | INFO | loss/audio: raw=0.014466 | score= 97.11% | band=good
+04:40:11 | INFO | loss/numeric: raw=0.018806 | score= 96.24% | band=good
+04:40:11 | INFO | stress: raw=0.020907 | score= 86.06% | band=good
+04:40:11 | INFO |   ── Accuracy ──
+04:40:11 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:40:11 | INFO | entity_acc: raw=0.766667 | score= 76.67% | band=medium-high
+04:40:11 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:40:11 | INFO | holder_acc: raw=0.769947 | score= 76.99% | band=medium-high
+04:40:11 | INFO |   ── PNN ──
+04:40:11 | INFO | pnn_open: 4.000000
+04:40:11 | INFO | pnn_unlocks: 1.000000
+04:40:11 | INFO |   ── HPM ──
+04:40:11 | INFO | hpm_gate_mean: raw=0.750476 | score= 24.95% | band=low-medium
+04:40:11 | INFO | hpm_z_abs_mean: raw=0.330416 | score= 93.39% | band=good
+04:40:11 | INFO | hpm_z_abs_max: raw=4.037613 | score= 59.62% | band=medium
+04:40:11 | INFO | hpm_err_mean: raw=1.985462 | score= 60.29% | band=medium-high
+04:40:11 | INFO | hpm_write_mag: raw=0.979644 | score= 67.35% | band=medium-high
+04:40:11 | INFO | hpm_open_frac: 1.000000
+04:40:11 | INFO | hpm_closing_frac: 0.000000
+04:40:11 | INFO | hpm_locked_frac: 0.000000
+04:40:11 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:40:11 | INFO | hpm_mu: raw=1.957174 | score= 17.38% | band=bad
+04:40:11 | INFO | hpm_sigma: raw=0.347822 | score= 17.39% | band=bad
+04:40:11 | INFO | hpm_write_regular_frac: raw=0.994429 | score= 99.44% | band=good
+04:40:11 | INFO | hpm_write_forced_frac: raw=0.005571 | score= 99.44% | band=good
+04:40:20 | INFO | === [val] t2 ep2 ===
+04:40:20 | INFO |   ── Loss ──
+04:40:20 | INFO | next_step: raw=0.034592 | score= 93.08% | band=good
+04:40:20 | INFO | loss/vision: raw=0.008177 | score= 98.36% | band=good
+04:40:20 | INFO | loss/audio: raw=0.014463 | score= 97.11% | band=good
+04:40:20 | INFO | loss/numeric: raw=0.011952 | score= 97.61% | band=good
+04:40:20 | INFO |   ── Accuracy ──
+04:40:20 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:40:20 | INFO | holder_acc: raw=0.709109 | score= 70.91% | band=medium-high
+04:40:20 | INFO | qacc/who_holds_token: raw=0.658156 | score= 65.82% | band=medium-high
+04:40:20 | INFO | qacc/who_was_first_tagged: raw=0.747022 | score= 74.70% | band=medium-high
+04:40:20 | INFO | qacc/did_alarm_fire: raw=1.000000 | score=100.00% | band=good
+04:40:20 | INFO | qacc/which_entity_occluded: raw=0.812096 | score= 81.21% | band=good
+04:40:20 | INFO | qacc/did_trigger_before_alarm: raw=1.000000 | score=100.00% | band=good
+04:40:20 | INFO | qacc/which_entity_first_occluded: raw=0.838339 | score= 83.83% | band=good
+04:40:20 | INFO | qacc/did_chain2_fire: raw=0.994048 | score= 99.40% | band=good
+04:40:20 | INFO | qacc/what_was_true_rule: raw=0.834077 | score= 83.41% | band=good
+04:40:20 | INFO |   ── Other ──
+04:40:20 | INFO | event_acc: 0.913398
+  -> promotion gate passed for tier 2 (1/2)
+04:40:22 | INFO | === =================================t2 ep3 s0000 | pnn=O/O/L/O/O/O open=5================================ ===
+04:40:22 | INFO |   ── Loss ──
+04:40:22 | INFO | total: raw=0.528503 | score= 89.43% | band=good
+04:40:22 | INFO | next_step: raw=0.037253 | score= 92.55% | band=good
+04:40:22 | INFO | aux_latent: raw=0.013509 | score= 99.32% | band=good
+04:40:22 | INFO | q_loss: raw=0.130830 | score= 93.46% | band=good
+04:40:22 | INFO | holder_loss: raw=0.692701 | score= 65.36% | band=medium-high
+04:40:22 | INFO | loss/vision: raw=0.008877 | score= 98.22% | band=good
+04:40:22 | INFO | loss/audio: raw=0.015508 | score= 96.90% | band=good
+04:40:22 | INFO | loss/numeric: raw=0.013488 | score= 97.30% | band=good
+04:40:22 | INFO | stress: raw=0.022671 | score= 84.89% | band=good
+04:40:22 | INFO |   ── Accuracy ──
+04:40:22 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:40:22 | INFO | entity_acc: raw=0.785714 | score= 78.57% | band=medium-high
+04:40:22 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:40:22 | INFO | holder_acc: raw=0.732713 | score= 73.27% | band=medium-high
+04:40:22 | INFO |   ── PNN ──
+04:40:22 | INFO | pnn_open: 5.000000
+04:40:22 | INFO | pnn_unlocks: 0.000000
+04:40:22 | INFO |   ── HPM ──
+04:40:22 | INFO | hpm_gate_mean: raw=0.748981 | score= 25.10% | band=low-medium
+04:40:22 | INFO | hpm_z_abs_mean: raw=0.324005 | score= 93.52% | band=good
+04:40:22 | INFO | hpm_z_abs_max: raw=4.036742 | score= 59.63% | band=medium
+04:40:22 | INFO | hpm_err_mean: raw=1.985663 | score= 60.29% | band=medium-high
+04:40:22 | INFO | hpm_write_mag: raw=0.957755 | score= 68.07% | band=medium-high
+04:40:22 | INFO | hpm_open_frac: 1.000000
+04:40:22 | INFO | hpm_closing_frac: 0.000000
+04:40:22 | INFO | hpm_locked_frac: 0.000000
+04:40:22 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:40:22 | INFO | hpm_mu: raw=1.958028 | score= 17.37% | band=bad
+04:40:22 | INFO | hpm_sigma: raw=0.346717 | score= 17.34% | band=bad
+04:40:22 | INFO | hpm_write_regular_frac: raw=0.993897 | score= 99.39% | band=good
+04:40:22 | INFO | hpm_write_forced_frac: raw=0.006103 | score= 99.39% | band=good
+04:40:38 | INFO | === =================================t2 ep3 s0010 | pnn=C/O/O/C/O/O open=4 (+1 unlocked)================================ ===
+04:40:38 | INFO |   ── Loss ──
+04:40:38 | INFO | total: raw=0.498641 | score= 90.03% | band=good
+04:40:38 | INFO | next_step: raw=0.033606 | score= 93.28% | band=good
+04:40:38 | INFO | aux_latent: raw=0.032509 | score= 98.37% | band=good
+04:40:38 | INFO | q_loss: raw=0.150814 | score= 92.46% | band=good
+04:40:38 | INFO | holder_loss: raw=0.566077 | score= 71.70% | band=medium-high
+04:40:38 | INFO | loss/vision: raw=0.008384 | score= 98.32% | band=good
+04:40:38 | INFO | loss/audio: raw=0.013211 | score= 97.36% | band=good
+04:40:38 | INFO | loss/numeric: raw=0.012011 | score= 97.60% | band=good
+04:40:38 | INFO | stress: raw=0.026308 | score= 82.46% | band=good
+04:40:38 | INFO |   ── Accuracy ──
+04:40:38 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:40:38 | INFO | entity_acc: raw=0.764706 | score= 76.47% | band=medium-high
+04:40:38 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:40:38 | INFO | holder_acc: raw=0.769282 | score= 76.93% | band=medium-high
+04:40:38 | INFO |   ── PNN ──
+04:40:38 | INFO | pnn_open: 4.000000
+04:40:38 | INFO | pnn_unlocks: 1.000000
+04:40:38 | INFO |   ── HPM ──
+04:40:38 | INFO | hpm_gate_mean: raw=0.697893 | score= 30.21% | band=low-medium
+04:40:38 | INFO | hpm_z_abs_mean: raw=0.270912 | score= 94.58% | band=good
+04:40:38 | INFO | hpm_z_abs_max: raw=4.035431 | score= 59.65% | band=medium
+04:40:38 | INFO | hpm_err_mean: raw=1.972201 | score= 60.56% | band=medium-high
+04:40:38 | INFO | hpm_write_mag: raw=0.934680 | score= 68.84% | band=medium-high
+04:40:38 | INFO | hpm_open_frac: 1.000000
+04:40:38 | INFO | hpm_closing_frac: 0.000000
+04:40:38 | INFO | hpm_locked_frac: 0.000000
+04:40:38 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:40:38 | INFO | hpm_mu: raw=1.959861 | score= 17.34% | band=bad
+04:40:38 | INFO | hpm_sigma: raw=0.344148 | score= 17.21% | band=bad
+04:40:38 | INFO | hpm_write_regular_frac: raw=0.992758 | score= 99.28% | band=good
+04:40:38 | INFO | hpm_write_forced_frac: raw=0.007242 | score= 99.28% | band=good
+04:40:54 | INFO | === =================================t2 ep3 s0020 | pnn=L/O/C/L/O/O open=3================================ ===
+04:40:54 | INFO |   ── Loss ──
+04:40:54 | INFO | total: raw=0.572089 | score= 88.56% | band=good
+04:40:54 | INFO | next_step: raw=0.038143 | score= 92.37% | band=good
+04:40:54 | INFO | aux_latent: raw=0.005932 | score= 99.70% | band=good
+04:40:54 | INFO | q_loss: raw=0.190277 | score= 90.49% | band=good
+04:40:54 | INFO | holder_loss: raw=0.637888 | score= 68.11% | band=medium-high
+04:40:54 | INFO | loss/vision: raw=0.009207 | score= 98.16% | band=good
+04:40:54 | INFO | loss/audio: raw=0.015618 | score= 96.88% | band=good
+04:40:54 | INFO | loss/numeric: raw=0.013317 | score= 97.34% | band=good
+04:40:54 | INFO | stress: raw=0.020849 | score= 86.10% | band=good
+04:40:54 | INFO |   ── Accuracy ──
+04:40:54 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:40:54 | INFO | entity_acc: raw=0.772152 | score= 77.22% | band=medium-high
+04:40:54 | INFO | binary_acc: raw=0.979592 | score= 97.96% | band=good
+04:40:54 | INFO | holder_acc: raw=0.759973 | score= 76.00% | band=medium-high
+04:40:54 | INFO |   ── PNN ──
+04:40:54 | INFO | pnn_open: 3.000000
+04:40:54 | INFO | pnn_unlocks: 0.000000
+04:40:54 | INFO |   ── HPM ──
+04:40:54 | INFO | hpm_gate_mean: raw=0.684213 | score= 31.58% | band=low-medium
+04:40:54 | INFO | hpm_z_abs_mean: raw=0.370472 | score= 92.59% | band=good
+04:40:54 | INFO | hpm_z_abs_max: raw=4.037681 | score= 59.62% | band=medium
+04:40:54 | INFO | hpm_err_mean: raw=2.017376 | score= 59.65% | band=medium
+04:40:54 | INFO | hpm_write_mag: raw=0.959854 | score= 68.00% | band=medium-high
+04:40:54 | INFO | hpm_open_frac: 1.000000
+04:40:54 | INFO | hpm_closing_frac: 0.000000
+04:40:54 | INFO | hpm_locked_frac: 0.000000
+04:40:54 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:40:54 | INFO | hpm_mu: raw=1.963036 | score= 17.28% | band=bad
+04:40:54 | INFO | hpm_sigma: raw=0.342377 | score= 17.12% | band=bad
+04:40:54 | INFO | hpm_write_regular_frac: raw=0.991965 | score= 99.20% | band=good
+04:40:54 | INFO | hpm_write_forced_frac: raw=0.008035 | score= 99.20% | band=good
+04:41:10 | INFO | === =================================t2 ep3 s0030 | pnn=O/O/L/O/O/O open=5 (+2 unlocked)================================ ===
+04:41:10 | INFO |   ── Loss ──
+04:41:10 | INFO | total: raw=0.565369 | score= 88.69% | band=good
+04:41:10 | INFO | next_step: raw=0.039211 | score= 92.16% | band=good
+04:41:10 | INFO | aux_latent: raw=0.033726 | score= 98.31% | band=good
+04:41:10 | INFO | q_loss: raw=0.210284 | score= 89.49% | band=good
+04:41:10 | INFO | holder_loss: raw=0.534730 | score= 73.26% | band=medium-high
+04:41:10 | INFO | loss/vision: raw=0.009408 | score= 98.12% | band=good
+04:41:10 | INFO | loss/audio: raw=0.015743 | score= 96.85% | band=good
+04:41:10 | INFO | loss/numeric: raw=0.014060 | score= 97.19% | band=good
+04:41:10 | INFO | stress: raw=0.019475 | score= 87.02% | band=good
+04:41:10 | INFO |   ── Accuracy ──
+04:41:10 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:41:10 | INFO | entity_acc: raw=0.671053 | score= 67.11% | band=medium-high
+04:41:10 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:41:10 | INFO | holder_acc: raw=0.734707 | score= 73.47% | band=medium-high
+04:41:10 | INFO |   ── PNN ──
+04:41:10 | INFO | pnn_open: 5.000000
+04:41:10 | INFO | pnn_unlocks: 2.000000
+04:41:10 | INFO |   ── HPM ──
+04:41:10 | INFO | hpm_gate_mean: raw=0.661443 | score= 33.86% | band=low-medium
+04:41:10 | INFO | hpm_z_abs_mean: raw=0.343482 | score= 93.13% | band=good
+04:41:10 | INFO | hpm_z_abs_max: raw=4.042300 | score= 59.58% | band=medium
+04:41:10 | INFO | hpm_err_mean: raw=2.013813 | score= 59.72% | band=medium
+04:41:10 | INFO | hpm_write_mag: raw=0.940688 | score= 68.64% | band=medium-high
+04:41:10 | INFO | hpm_open_frac: 1.000000
+04:41:10 | INFO | hpm_closing_frac: 0.000000
+04:41:10 | INFO | hpm_locked_frac: 0.000000
+04:41:10 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:41:10 | INFO | hpm_mu: raw=1.967586 | score= 17.21% | band=bad
+04:41:10 | INFO | hpm_sigma: raw=0.340693 | score= 17.03% | band=bad
+04:41:10 | INFO | hpm_write_regular_frac: raw=0.991635 | score= 99.16% | band=good
+04:41:10 | INFO | hpm_write_forced_frac: raw=0.008365 | score= 99.16% | band=good
+04:41:26 | INFO | === =================================t2 ep3 s0040 | pnn=L/O/C/C/O/O open=3 (+1 unlocked)================================ ===
+04:41:26 | INFO |   ── Loss ──
+04:41:26 | INFO | total: raw=0.441666 | score= 91.17% | band=good
+04:41:26 | INFO | next_step: raw=0.040428 | score= 91.91% | band=good
+04:41:26 | INFO | aux_latent: raw=0.012888 | score= 99.36% | band=good
+04:41:26 | INFO | q_loss: raw=0.113276 | score= 94.34% | band=good
+04:41:26 | INFO | holder_loss: raw=0.435611 | score= 78.22% | band=medium-high
+04:41:26 | INFO | loss/vision: raw=0.009075 | score= 98.19% | band=good
+04:41:26 | INFO | loss/audio: raw=0.018723 | score= 96.26% | band=good
+04:41:26 | INFO | loss/numeric: raw=0.012629 | score= 97.47% | band=good
+04:41:26 | INFO | stress: raw=0.022932 | score= 84.71% | band=good
+04:41:26 | INFO |   ── Accuracy ──
+04:41:26 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:41:26 | INFO | entity_acc: raw=0.797101 | score= 79.71% | band=medium-high
+04:41:26 | INFO | binary_acc: raw=0.983051 | score= 98.31% | band=good
+04:41:26 | INFO | holder_acc: raw=0.789229 | score= 78.92% | band=medium-high
+04:41:26 | INFO |   ── PNN ──
+04:41:26 | INFO | pnn_open: 3.000000
+04:41:26 | INFO | pnn_unlocks: 1.000000
+04:41:26 | INFO |   ── HPM ──
+04:41:26 | INFO | hpm_gate_mean: raw=0.687837 | score= 31.22% | band=low-medium
+04:41:26 | INFO | hpm_z_abs_mean: raw=0.323761 | score= 93.52% | band=good
+04:41:26 | INFO | hpm_z_abs_max: raw=4.045494 | score= 59.55% | band=medium
+04:41:26 | INFO | hpm_err_mean: raw=2.014338 | score= 59.71% | band=medium
+04:41:26 | INFO | hpm_write_mag: raw=0.923187 | score= 69.23% | band=medium-high
+04:41:26 | INFO | hpm_open_frac: 1.000000
+04:41:26 | INFO | hpm_closing_frac: 0.000000
+04:41:26 | INFO | hpm_locked_frac: 0.000000
+04:41:26 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:41:26 | INFO | hpm_mu: raw=1.972006 | score= 17.13% | band=bad
+04:41:26 | INFO | hpm_sigma: raw=0.339177 | score= 16.96% | band=bad
+04:41:26 | INFO | hpm_write_regular_frac: raw=0.991096 | score= 99.11% | band=good
+04:41:26 | INFO | hpm_write_forced_frac: raw=0.008904 | score= 99.11% | band=good
+04:41:43 | INFO | === =================================t2 ep3 s0050 | pnn=O/O/L/L/O/O open=4 (+1 unlocked)================================ ===
+04:41:43 | INFO |   ── Loss ──
+04:41:43 | INFO | total: raw=0.388392 | score= 92.23% | band=good
+04:41:43 | INFO | next_step: raw=0.032675 | score= 93.47% | band=good
+04:41:43 | INFO | aux_latent: raw=0.010272 | score= 99.49% | band=good
+04:41:43 | INFO | q_loss: raw=0.114652 | score= 94.27% | band=good
+04:41:43 | INFO | holder_loss: raw=0.383944 | score= 80.80% | band=good
+04:41:43 | INFO | loss/vision: raw=0.008340 | score= 98.33% | band=good
+04:41:43 | INFO | loss/audio: raw=0.013653 | score= 97.27% | band=good
+04:41:43 | INFO | loss/numeric: raw=0.010682 | score= 97.86% | band=good
+04:41:43 | INFO | stress: raw=0.022954 | score= 84.70% | band=good
+04:41:43 | INFO |   ── Accuracy ──
+04:41:43 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:41:43 | INFO | entity_acc: raw=0.814286 | score= 81.43% | band=good
+04:41:43 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:41:43 | INFO | holder_acc: raw=0.844415 | score= 84.44% | band=good
+04:41:43 | INFO |   ── PNN ──
+04:41:43 | INFO | pnn_open: 4.000000
+04:41:43 | INFO | pnn_unlocks: 1.000000
+04:41:43 | INFO |   ── HPM ──
+04:41:43 | INFO | hpm_gate_mean: raw=0.672954 | score= 32.70% | band=low-medium
+04:41:43 | INFO | hpm_z_abs_mean: raw=0.349758 | score= 93.00% | band=good
+04:41:43 | INFO | hpm_z_abs_max: raw=4.046391 | score= 59.54% | band=medium
+04:41:43 | INFO | hpm_err_mean: raw=2.018934 | score= 59.62% | band=medium
+04:41:43 | INFO | hpm_write_mag: raw=0.916431 | score= 69.45% | band=medium-high
+04:41:43 | INFO | hpm_open_frac: 1.000000
+04:41:43 | INFO | hpm_closing_frac: 0.000000
+04:41:43 | INFO | hpm_locked_frac: 0.000000
+04:41:43 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:41:43 | INFO | hpm_mu: raw=1.976011 | score= 17.07% | band=bad
+04:41:43 | INFO | hpm_sigma: raw=0.338095 | score= 16.90% | band=bad
+04:41:43 | INFO | hpm_write_regular_frac: raw=0.991879 | score= 99.19% | band=good
+04:41:43 | INFO | hpm_write_forced_frac: raw=0.008121 | score= 99.19% | band=good
+04:41:59 | INFO | === =================================t2 ep3 s0060 | pnn=L/O/O/O/O/O open=5 (+2 unlocked)================================ ===
+04:41:59 | INFO |   ── Loss ──
+04:41:59 | INFO | total: raw=0.274608 | score= 94.51% | band=good
+04:41:59 | INFO | next_step: raw=0.032108 | score= 93.58% | band=good
+04:41:59 | INFO | aux_latent: raw=0.007747 | score= 99.61% | band=good
+04:41:59 | INFO | q_loss: raw=0.049837 | score= 97.51% | band=good
+04:41:59 | INFO | holder_loss: raw=0.248834 | score= 87.56% | band=good
+04:41:59 | INFO | loss/vision: raw=0.008005 | score= 98.40% | band=good
+04:41:59 | INFO | loss/audio: raw=0.013936 | score= 97.21% | band=good
+04:41:59 | INFO | loss/numeric: raw=0.010167 | score= 97.97% | band=good
+04:41:59 | INFO | stress: raw=0.029655 | score= 80.23% | band=good
+04:41:59 | INFO |   ── Accuracy ──
+04:41:59 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:41:59 | INFO | entity_acc: raw=0.881579 | score= 88.16% | band=good
+04:41:59 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:41:59 | INFO | holder_acc: raw=0.888963 | score= 88.90% | band=good
+04:41:59 | INFO |   ── PNN ──
+04:41:59 | INFO | pnn_open: 5.000000
+04:41:59 | INFO | pnn_unlocks: 2.000000
+04:41:59 | INFO |   ── HPM ──
+04:41:59 | INFO | hpm_gate_mean: raw=0.698384 | score= 30.16% | band=low-medium
+04:41:59 | INFO | hpm_z_abs_mean: raw=0.329621 | score= 93.41% | band=good
+04:41:59 | INFO | hpm_z_abs_max: raw=4.048223 | score= 59.52% | band=medium
+04:41:59 | INFO | hpm_err_mean: raw=2.008694 | score= 59.83% | band=medium
+04:41:59 | INFO | hpm_write_mag: raw=0.897466 | score= 70.08% | band=medium-high
+04:41:59 | INFO | hpm_open_frac: 1.000000
+04:41:59 | INFO | hpm_closing_frac: 0.000000
+04:41:59 | INFO | hpm_locked_frac: 0.000000
+04:41:59 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:41:59 | INFO | hpm_mu: raw=1.979023 | score= 17.02% | band=bad
+04:41:59 | INFO | hpm_sigma: raw=0.337071 | score= 16.85% | band=bad
+04:41:59 | INFO | hpm_write_regular_frac: raw=0.991639 | score= 99.16% | band=good
+04:41:59 | INFO | hpm_write_forced_frac: raw=0.008361 | score= 99.16% | band=good
+04:42:08 | INFO | === [val] t2 ep3 ===
+04:42:08 | INFO |   ── Loss ──
+04:42:08 | INFO | next_step: raw=0.030752 | score= 93.85% | band=good
+04:42:08 | INFO | loss/vision: raw=0.007716 | score= 98.46% | band=good
+04:42:08 | INFO | loss/audio: raw=0.013474 | score= 97.31% | band=good
+04:42:08 | INFO | loss/numeric: raw=0.009562 | score= 98.09% | band=good
+04:42:08 | INFO |   ── Accuracy ──
+04:42:08 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:42:08 | INFO | holder_acc: raw=0.867935 | score= 86.79% | band=good
+04:42:08 | INFO | qacc/who_holds_token: raw=0.865036 | score= 86.50% | band=good
+04:42:08 | INFO | qacc/who_was_first_tagged: raw=0.707044 | score= 70.70% | band=medium-high
+04:42:08 | INFO | qacc/did_alarm_fire: raw=1.000000 | score=100.00% | band=good
+04:42:08 | INFO | qacc/which_entity_occluded: raw=0.814474 | score= 81.45% | band=good
+04:42:08 | INFO | qacc/did_trigger_before_alarm: raw=1.000000 | score=100.00% | band=good
+04:42:08 | INFO | qacc/which_entity_first_occluded: raw=0.838339 | score= 83.83% | band=good
+04:42:08 | INFO | qacc/did_chain2_fire: raw=1.000000 | score=100.00% | band=good
+04:42:08 | INFO | qacc/what_was_true_rule: raw=0.966518 | score= 96.65% | band=good
+04:42:08 | INFO |   ── Other ──
+04:42:08 | INFO | event_acc: 0.915143
+  -> promotion gate passed for tier 2 (2/2)
+  -> promoting from tier 2
+  -> saved checkpoint to checkpoint_tier2.pt
+
+  ===== Diagnostics =====
+  mean_episodic_read_entropy: 3.587
+  who_holds_token by handoffs:
+    handoffs= 0  acc=1.000  n=27
+    handoffs= 1  acc=0.846  n=39
+    handoffs= 2  acc=0.839  n=31
+    handoffs= 3  acc=0.762  n=21
+    handoffs= 4  acc=0.500  n=8
+    handoffs= 5  acc=0.900  n=10
+    handoffs=6+  acc=0.692  n=13
+  who_was_first_tagged by handoffs:
+    handoffs= 0  acc=0.682  n=22
+    handoffs= 1  acc=0.647  n=34
+    handoffs= 2  acc=0.652  n=23
+    handoffs= 3  acc=0.273  n=11
+    handoffs= 4  acc=0.333  n=18
+    handoffs= 5  acc=0.625  n=8
+    handoffs=6+  acc=0.593  n=27
+  what_was_true_rule (belief revision):
+        with_cue  acc=0.914  n=35
+  temporal ordering (trigger<alarm):  acc=1.000  n=136
+  first occluded entity:  acc=0.885  n=139
+  chain2 fire:  acc=1.000  n=132
+  color change (zero-shot, untrained):  acc=0.217  n=253
+  color change by lag (steps since event):
+    lag=  0-5  acc=0.000  n=3
+    lag= 6-15  acc=0.385  n=13
+    lag=16-30  acc=0.294  n=51
+    lag=  31+  acc=0.188  n=186
+  ===== Emergent Capability Probes (zero-shot) =====
+    HPM slot specialization:  0.007  (n=204, 0=uniform, 1=fully specialized; >0.3 interesting)
+    causal thread separation:  0.019  (n=38, within-between cos_sim; >0.1 interesting)
+    retroactive cause binding:  -0.099  (n=10, correction↔cue - correction↔random; >0.05 interesting)
+    state reactivation (replay):  -0.091  (n=10, post-surprise↔pre max_sim - baseline; >0 suggestive)
+    event boundary chunking:  18.278  (n=62, ||Δh|| event/non-event ratio; >1.5 interesting)
+    surprise-event correlation:  1.735  (n=62, HPM |z| event/non-event ratio; >1.5 interesting)
+
+
+=== Tier 3 | modalities=('vision', 'numeric', 'audio', 'text') | T=64 | templates=('trigger_delay', 'occlusion_identity', 'multi_chain', 'handoff', 'handoff', 'handoff', 'false_cue', 'false_cue', 'multi_chain') ===
+04:42:53 | INFO | === =================================t3 ep0 s0010 | pnn=O/O/O/O/O/O open=6 (+1 unlocked)================================ ===
+04:42:53 | INFO |   ── Loss ──
+04:42:53 | INFO | total: raw=0.724087 | score= 85.52% | band=good
+04:42:53 | INFO | next_step: raw=0.111952 | score= 77.61% | band=medium-high
+04:42:53 | INFO | aux_latent: raw=0.440665 | score= 77.97% | band=medium-high
+04:42:53 | INFO | q_loss: raw=0.159316 | score= 92.03% | band=good
+04:42:53 | INFO | holder_loss: raw=0.395524 | score= 80.22% | band=good
+04:42:53 | INFO | loss/text: raw=3.621655 | score=  0.00% | band=bad
+04:42:53 | INFO | loss/vision: raw=0.012794 | score= 97.44% | band=good
+04:42:53 | INFO | loss/audio: raw=0.017870 | score= 96.43% | band=good
+04:42:53 | INFO | loss/numeric: raw=0.026963 | score= 94.61% | band=good
+04:42:53 | INFO | stress: raw=0.014716 | score= 90.19% | band=good
+04:42:53 | INFO |   ── Accuracy ──
+04:42:53 | INFO | latent_acc: raw=0.906250 | score= 90.62% | band=good
+04:42:53 | INFO | entity_acc: raw=0.742424 | score= 74.24% | band=medium-high
+04:42:53 | INFO | binary_acc: raw=0.983871 | score= 98.39% | band=good
+04:42:53 | INFO | holder_acc: raw=0.834325 | score= 83.43% | band=good
+04:42:53 | INFO |   ── PNN ──
+04:42:53 | INFO | pnn_open: 6.000000
+04:42:53 | INFO | pnn_unlocks: 1.000000
+04:42:53 | INFO |   ── HPM ──
+04:42:53 | INFO | hpm_gate_mean: raw=0.663746 | score= 33.63% | band=low-medium
+04:42:53 | INFO | hpm_z_abs_mean: raw=0.329271 | score= 93.41% | band=good
+04:42:53 | INFO | hpm_z_abs_max: raw=4.059221 | score= 59.41% | band=medium
+04:42:53 | INFO | hpm_err_mean: raw=2.043429 | score= 59.13% | band=medium
+04:42:53 | INFO | hpm_write_mag: raw=0.923361 | score= 69.22% | band=medium-high
+04:42:53 | INFO | hpm_open_frac: 1.000000
+04:42:53 | INFO | hpm_closing_frac: 0.000000
+04:42:53 | INFO | hpm_locked_frac: 0.000000
+04:42:53 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:42:53 | INFO | hpm_mu: raw=1.989383 | score= 16.84% | band=bad
+04:42:53 | INFO | hpm_sigma: raw=0.332260 | score= 16.61% | band=bad
+04:42:53 | INFO | hpm_write_regular_frac: raw=0.992470 | score= 99.25% | band=good
+04:42:53 | INFO | hpm_write_forced_frac: raw=0.007530 | score= 99.25% | band=good
+04:43:15 | INFO | === =================================t3 ep0 s0020 | pnn=O/C/C/C/O/O open=3================================ ===
+04:43:15 | INFO |   ── Loss ──
+04:43:15 | INFO | total: raw=0.489913 | score= 90.20% | band=good
+04:43:15 | INFO | next_step: raw=0.134432 | score= 73.11% | band=medium-high
+04:43:15 | INFO | aux_latent: raw=0.087946 | score= 95.60% | band=good
+04:43:15 | INFO | q_loss: raw=0.117946 | score= 94.10% | band=good
+04:43:15 | INFO | holder_loss: raw=0.272931 | score= 86.35% | band=good
+04:43:15 | INFO | loss/text: raw=3.097268 | score=  0.00% | band=bad
+04:43:15 | INFO | loss/vision: raw=0.010246 | score= 97.95% | band=good
+04:43:15 | INFO | loss/audio: raw=0.014680 | score= 97.06% | band=good
+04:43:15 | INFO | loss/numeric: raw=0.016588 | score= 96.68% | band=good
+04:43:15 | INFO | stress: raw=0.018653 | score= 87.56% | band=good
+04:43:15 | INFO |   ── Accuracy ──
+04:43:15 | INFO | latent_acc: raw=0.937500 | score= 93.75% | band=good
+04:43:15 | INFO | entity_acc: raw=0.791045 | score= 79.10% | band=medium-high
+04:43:15 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:43:15 | INFO | holder_acc: raw=0.881448 | score= 88.14% | band=good
+04:43:15 | INFO |   ── PNN ──
+04:43:15 | INFO | pnn_open: 3.000000
+04:43:15 | INFO | pnn_unlocks: 0.000000
+04:43:15 | INFO |   ── HPM ──
+04:43:15 | INFO | hpm_gate_mean: raw=0.696488 | score= 30.35% | band=low-medium
+04:43:15 | INFO | hpm_z_abs_mean: raw=0.315312 | score= 93.69% | band=good
+04:43:15 | INFO | hpm_z_abs_max: raw=4.065752 | score= 59.34% | band=medium
+04:43:15 | INFO | hpm_err_mean: raw=2.039778 | score= 59.20% | band=medium
+04:43:15 | INFO | hpm_write_mag: raw=0.878302 | score= 70.72% | band=medium-high
+04:43:15 | INFO | hpm_open_frac: 1.000000
+04:43:15 | INFO | hpm_closing_frac: 0.000000
+04:43:15 | INFO | hpm_locked_frac: 0.000000
+04:43:15 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:43:15 | INFO | hpm_mu: raw=1.994160 | score= 16.76% | band=bad
+04:43:15 | INFO | hpm_sigma: raw=0.328510 | score= 16.43% | band=bad
+04:43:15 | INFO | hpm_write_regular_frac: raw=0.992543 | score= 99.25% | band=good
+04:43:15 | INFO | hpm_write_forced_frac: raw=0.007457 | score= 99.25% | band=good
+04:43:37 | INFO | === =================================t3 ep0 s0030 | pnn=C/L/O/L/O/O open=3 (+1 unlocked)================================ ===
+04:43:37 | INFO |   ── Loss ──
+04:43:37 | INFO | total: raw=0.506905 | score= 89.86% | band=good
+04:43:37 | INFO | next_step: raw=0.147211 | score= 70.56% | band=medium-high
+04:43:37 | INFO | aux_latent: raw=0.004600 | score= 99.77% | band=good
+04:43:37 | INFO | q_loss: raw=0.124829 | score= 93.76% | band=good
+04:43:37 | INFO | holder_loss: raw=0.365284 | score= 81.74% | band=good
+04:43:37 | INFO | loss/text: raw=2.444675 | score=  0.00% | band=bad
+04:43:37 | INFO | loss/vision: raw=0.009407 | score= 98.12% | band=good
+04:43:37 | INFO | loss/audio: raw=0.014669 | score= 97.07% | band=good
+04:43:37 | INFO | loss/numeric: raw=0.013124 | score= 97.38% | band=good
+04:43:37 | INFO | stress: raw=0.024682 | score= 83.55% | band=good
+04:43:37 | INFO |   ── Accuracy ──
+04:43:37 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:43:37 | INFO | entity_acc: raw=0.771084 | score= 77.11% | band=medium-high
+04:43:37 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:43:37 | INFO | holder_acc: raw=0.847222 | score= 84.72% | band=good
+04:43:37 | INFO |   ── PNN ──
+04:43:37 | INFO | pnn_open: 3.000000
+04:43:37 | INFO | pnn_unlocks: 1.000000
+04:43:37 | INFO |   ── HPM ──
+04:43:37 | INFO | hpm_gate_mean: raw=0.629379 | score= 37.06% | band=low-medium
+04:43:37 | INFO | hpm_z_abs_mean: raw=0.316531 | score= 93.67% | band=good
+04:43:37 | INFO | hpm_z_abs_max: raw=4.069103 | score= 59.31% | band=medium
+04:43:37 | INFO | hpm_err_mean: raw=2.045764 | score= 59.08% | band=medium
+04:43:37 | INFO | hpm_write_mag: raw=0.907511 | score= 69.75% | band=medium-high
+04:43:37 | INFO | hpm_open_frac: 1.000000
+04:43:37 | INFO | hpm_closing_frac: 0.000000
+04:43:37 | INFO | hpm_locked_frac: 0.000000
+04:43:37 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:43:37 | INFO | hpm_mu: raw=1.998591 | score= 16.69% | band=bad
+04:43:37 | INFO | hpm_sigma: raw=0.324958 | score= 16.25% | band=bad
+04:43:37 | INFO | hpm_write_regular_frac: raw=0.991766 | score= 99.18% | band=good
+04:43:37 | INFO | hpm_write_forced_frac: raw=0.008234 | score= 99.18% | band=good
+04:43:58 | INFO | === =================================t3 ep0 s0040 | pnn=L/C/O/O/O/O open=4 (+2 unlocked)================================ ===
+04:43:58 | INFO |   ── Loss ──
+04:43:58 | INFO | total: raw=0.464055 | score= 90.72% | band=good
+04:43:58 | INFO | next_step: raw=0.133514 | score= 73.30% | band=medium-high
+04:43:58 | INFO | aux_latent: raw=0.010455 | score= 99.48% | band=good
+04:43:58 | INFO | q_loss: raw=0.124136 | score= 93.79% | band=good
+04:43:58 | INFO | holder_loss: raw=0.270275 | score= 86.49% | band=good
+04:43:58 | INFO | loss/text: raw=1.617236 | score= 19.14% | band=bad
+04:43:58 | INFO | loss/vision: raw=0.008764 | score= 98.25% | band=good
+04:43:58 | INFO | loss/audio: raw=0.015205 | score= 96.96% | band=good
+04:43:58 | INFO | loss/numeric: raw=0.012511 | score= 97.50% | band=good
+04:43:58 | INFO | stress: raw=0.023131 | score= 84.58% | band=good
+04:43:58 | INFO |   ── Accuracy ──
+04:43:58 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:43:58 | INFO | entity_acc: raw=0.797297 | score= 79.73% | band=medium-high
+04:43:58 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:43:58 | INFO | holder_acc: raw=0.888889 | score= 88.89% | band=good
+04:43:58 | INFO |   ── PNN ──
+04:43:58 | INFO | pnn_open: 4.000000
+04:43:58 | INFO | pnn_unlocks: 2.000000
+04:43:58 | INFO |   ── HPM ──
+04:43:58 | INFO | hpm_gate_mean: raw=0.681366 | score= 31.86% | band=low-medium
+04:43:58 | INFO | hpm_z_abs_mean: raw=0.325785 | score= 93.48% | band=good
+04:43:58 | INFO | hpm_z_abs_max: raw=4.076301 | score= 59.24% | band=medium
+04:43:58 | INFO | hpm_err_mean: raw=2.080142 | score= 58.40% | band=medium
+04:43:58 | INFO | hpm_write_mag: raw=0.873085 | score= 70.90% | band=medium-high
+04:43:58 | INFO | hpm_open_frac: 1.000000
+04:43:58 | INFO | hpm_closing_frac: 0.000000
+04:43:58 | INFO | hpm_locked_frac: 0.000000
+04:43:58 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:43:58 | INFO | hpm_mu: raw=2.004717 | score= 16.59% | band=bad
+04:43:58 | INFO | hpm_sigma: raw=0.321749 | score= 16.09% | band=bad
+04:43:58 | INFO | hpm_write_regular_frac: raw=0.992351 | score= 99.24% | band=good
+04:43:58 | INFO | hpm_write_forced_frac: raw=0.007649 | score= 99.24% | band=good
+04:44:20 | INFO | === =================================t3 ep0 s0050 | pnn=C/L/O/L/O/O open=3 (+1 unlocked)================================ ===
+04:44:20 | INFO |   ── Loss ──
+04:44:20 | INFO | total: raw=0.450590 | score= 90.99% | band=good
+04:44:20 | INFO | next_step: raw=0.112810 | score= 77.44% | band=medium-high
+04:44:20 | INFO | aux_latent: raw=0.012859 | score= 99.36% | band=good
+04:44:20 | INFO | q_loss: raw=0.156301 | score= 92.18% | band=good
+04:44:20 | INFO | holder_loss: raw=0.256746 | score= 87.16% | band=good
+04:44:20 | INFO | loss/text: raw=1.086625 | score= 45.67% | band=medium
+04:44:20 | INFO | loss/vision: raw=0.008343 | score= 98.33% | band=good
+04:44:20 | INFO | loss/audio: raw=0.012148 | score= 97.57% | band=good
+04:44:20 | INFO | loss/numeric: raw=0.010823 | score= 97.84% | band=good
+04:44:20 | INFO | stress: raw=0.026252 | score= 82.50% | band=good
+04:44:20 | INFO |   ── Accuracy ──
+04:44:20 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:44:20 | INFO | entity_acc: raw=0.848485 | score= 84.85% | band=good
+04:44:20 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:44:20 | INFO | holder_acc: raw=0.914187 | score= 91.42% | band=good
+04:44:20 | INFO |   ── PNN ──
+04:44:20 | INFO | pnn_open: 3.000000
+04:44:20 | INFO | pnn_unlocks: 1.000000
+04:44:20 | INFO |   ── HPM ──
+04:44:20 | INFO | hpm_gate_mean: raw=0.687060 | score= 31.29% | band=low-medium
+04:44:20 | INFO | hpm_z_abs_mean: raw=0.361255 | score= 92.77% | band=good
+04:44:20 | INFO | hpm_z_abs_max: raw=4.086327 | score= 59.14% | band=medium
+04:44:20 | INFO | hpm_err_mean: raw=2.099509 | score= 58.01% | band=medium
+04:44:20 | INFO | hpm_write_mag: raw=0.863628 | score= 71.21% | band=medium-high
+04:44:20 | INFO | hpm_open_frac: 1.000000
+04:44:20 | INFO | hpm_closing_frac: 0.000000
+04:44:20 | INFO | hpm_locked_frac: 0.000000
+04:44:20 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:44:20 | INFO | hpm_mu: raw=2.012491 | score= 16.46% | band=bad
+04:44:20 | INFO | hpm_sigma: raw=0.319431 | score= 15.97% | band=bad
+04:44:20 | INFO | hpm_write_regular_frac: raw=0.992270 | score= 99.23% | band=good
+04:44:20 | INFO | hpm_write_forced_frac: raw=0.007730 | score= 99.23% | band=good
+04:44:42 | INFO | === =================================t3 ep0 s0060 | pnn=L/O/O/O/O/O open=5 (+2 unlocked)================================ ===
+04:44:42 | INFO |   ── Loss ──
+04:44:42 | INFO | total: raw=0.340951 | score= 93.18% | band=good
+04:44:42 | INFO | next_step: raw=0.104081 | score= 79.18% | band=medium-high
+04:44:42 | INFO | aux_latent: raw=0.006228 | score= 99.69% | band=good
+04:44:42 | INFO | q_loss: raw=0.068775 | score= 96.56% | band=good
+04:44:42 | INFO | holder_loss: raw=0.206883 | score= 89.66% | band=good
+04:44:42 | INFO | loss/text: raw=0.820873 | score= 58.96% | band=medium
+04:44:42 | INFO | loss/vision: raw=0.007971 | score= 98.41% | band=good
+04:44:42 | INFO | loss/audio: raw=0.013282 | score= 97.34% | band=good
+04:44:42 | INFO | loss/numeric: raw=0.008949 | score= 98.21% | band=good
+04:44:42 | INFO | stress: raw=0.034253 | score= 77.16% | band=medium-high
+04:44:42 | INFO |   ── Accuracy ──
+04:44:42 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:44:42 | INFO | entity_acc: raw=0.907895 | score= 90.79% | band=good
+04:44:42 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:44:42 | INFO | holder_acc: raw=0.914187 | score= 91.42% | band=good
+04:44:42 | INFO |   ── PNN ──
+04:44:42 | INFO | pnn_open: 5.000000
+04:44:42 | INFO | pnn_unlocks: 2.000000
+04:44:42 | INFO |   ── HPM ──
+04:44:42 | INFO | hpm_gate_mean: raw=0.700055 | score= 29.99% | band=low-medium
+04:44:42 | INFO | hpm_z_abs_mean: raw=0.387149 | score= 92.26% | band=good
+04:44:42 | INFO | hpm_z_abs_max: raw=4.093626 | score= 59.06% | band=medium
+04:44:42 | INFO | hpm_err_mean: raw=2.135644 | score= 57.29% | band=medium
+04:44:42 | INFO | hpm_write_mag: raw=0.851655 | score= 71.61% | band=medium-high
+04:44:42 | INFO | hpm_open_frac: 1.000000
+04:44:42 | INFO | hpm_closing_frac: 0.000000
+04:44:42 | INFO | hpm_locked_frac: 0.000000
+04:44:42 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:44:42 | INFO | hpm_mu: raw=2.021633 | score= 16.31% | band=bad
+04:44:42 | INFO | hpm_sigma: raw=0.317409 | score= 15.87% | band=bad
+04:44:42 | INFO | hpm_write_regular_frac: raw=0.993273 | score= 99.33% | band=good
+04:44:42 | INFO | hpm_write_forced_frac: raw=0.006727 | score= 99.33% | band=good
+04:44:54 | INFO | === [val] t3 ep0 ===
+04:44:54 | INFO |   ── Loss ──
+04:44:54 | INFO | next_step: raw=0.293786 | score= 41.24% | band=medium
+04:44:54 | INFO | loss/text: raw=0.867397 | score= 74.26% | band=medium-high
+04:44:54 | INFO | loss/vision: raw=0.008194 | score= 98.36% | band=good
+04:44:54 | INFO | loss/audio: raw=0.013248 | score= 97.35% | band=good
+04:44:54 | INFO | loss/numeric: raw=0.012125 | score= 97.58% | band=good
+04:44:54 | INFO | text_entropy: raw=0.610046 | score= 69.50% | band=medium-high
+04:44:54 | INFO |   ── Accuracy ──
+04:44:54 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:44:54 | INFO | holder_acc: raw=0.932354 | score= 93.24% | band=good
+04:44:54 | INFO | qacc/who_holds_token: raw=0.899473 | score= 89.95% | band=good
+04:44:54 | INFO | qacc/who_was_first_tagged: raw=0.671352 | score= 67.14% | band=medium-high
+04:44:54 | INFO | qacc/did_alarm_fire: raw=1.000000 | score=100.00% | band=good
+04:44:54 | INFO | qacc/which_entity_occluded: raw=0.852406 | score= 85.24% | band=good
+04:44:54 | INFO | qacc/did_trigger_before_alarm: raw=1.000000 | score=100.00% | band=good
+04:44:54 | INFO | qacc/which_entity_first_occluded: raw=0.857148 | score= 85.71% | band=good
+04:44:54 | INFO | qacc/did_chain2_fire: raw=1.000000 | score=100.00% | band=good
+04:44:54 | INFO | qacc/what_was_true_rule: raw=0.864286 | score= 86.43% | band=good
+04:44:54 | INFO |   ── Other ──
+04:44:54 | INFO | event_acc: 0.923239
+  -> holding tier 3; unmet gates: latent_acc=1.000 < 1.010
+04:44:56 | INFO | === =================================t3 ep1 s0000 | pnn=O/O/O/O/O/O open=6 (+1 unlocked)================================ ===
+04:44:56 | INFO |   ── Loss ──
+04:44:56 | INFO | total: raw=0.382998 | score= 92.34% | band=good
+04:44:56 | INFO | next_step: raw=0.108451 | score= 78.31% | band=medium-high
+04:44:56 | INFO | aux_latent: raw=0.009802 | score= 99.51% | band=good
+04:44:56 | INFO | q_loss: raw=0.083953 | score= 95.80% | band=good
+04:44:56 | INFO | holder_loss: raw=0.280590 | score= 85.97% | band=good
+04:44:56 | INFO | loss/text: raw=0.771468 | score= 61.43% | band=medium-high
+04:44:56 | INFO | loss/vision: raw=0.008518 | score= 98.30% | band=good
+04:44:56 | INFO | loss/audio: raw=0.012309 | score= 97.54% | band=good
+04:44:56 | INFO | loss/numeric: raw=0.013563 | score= 97.29% | band=good
+04:44:56 | INFO | stress: raw=0.032733 | score= 78.18% | band=medium-high
+04:44:56 | INFO |   ── Accuracy ──
+04:44:56 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:44:56 | INFO | entity_acc: raw=0.841463 | score= 84.15% | band=good
+04:44:56 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:44:56 | INFO | holder_acc: raw=0.872520 | score= 87.25% | band=good
+04:44:56 | INFO |   ── PNN ──
+04:44:56 | INFO | pnn_open: 6.000000
+04:44:56 | INFO | pnn_unlocks: 1.000000
+04:44:56 | INFO |   ── HPM ──
+04:44:56 | INFO | hpm_gate_mean: raw=0.652086 | score= 34.79% | band=low-medium
+04:44:56 | INFO | hpm_z_abs_mean: raw=0.374617 | score= 92.51% | band=good
+04:44:56 | INFO | hpm_z_abs_max: raw=4.098477 | score= 59.02% | band=medium
+04:44:56 | INFO | hpm_err_mean: raw=2.126602 | score= 57.47% | band=medium
+04:44:56 | INFO | hpm_write_mag: raw=0.880951 | score= 70.63% | band=medium-high
+04:44:56 | INFO | hpm_open_frac: 1.000000
+04:44:56 | INFO | hpm_closing_frac: 0.000000
+04:44:56 | INFO | hpm_locked_frac: 0.000000
+04:44:56 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:44:56 | INFO | hpm_mu: raw=2.025447 | score= 16.24% | band=bad
+04:44:56 | INFO | hpm_sigma: raw=0.316816 | score= 15.84% | band=bad
+04:44:56 | INFO | hpm_write_regular_frac: raw=0.993050 | score= 99.30% | band=good
+04:44:56 | INFO | hpm_write_forced_frac: raw=0.006950 | score= 99.30% | band=good
+04:45:17 | INFO | === =================================t3 ep1 s0010 | pnn=C/L/O/L/O/O open=3================================ ===
+04:45:17 | INFO |   ── Loss ──
+04:45:17 | INFO | total: raw=0.382523 | score= 92.35% | band=good
+04:45:17 | INFO | next_step: raw=0.127615 | score= 74.48% | band=medium-high
+04:45:17 | INFO | aux_latent: raw=0.004241 | score= 99.79% | band=good
+04:45:17 | INFO | q_loss: raw=0.115112 | score= 94.24% | band=good
+04:45:17 | INFO | holder_loss: raw=0.148960 | score= 92.55% | band=good
+04:45:17 | INFO | loss/text: raw=0.871854 | score= 56.41% | band=medium
+04:45:17 | INFO | loss/vision: raw=0.008255 | score= 98.35% | band=good
+04:45:17 | INFO | loss/audio: raw=0.012122 | score= 97.58% | band=good
+04:45:17 | INFO | loss/numeric: raw=0.010463 | score= 97.91% | band=good
+04:45:17 | INFO | stress: raw=0.030344 | score= 79.77% | band=medium-high
+04:45:17 | INFO |   ── Accuracy ──
+04:45:17 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:45:17 | INFO | entity_acc: raw=0.820895 | score= 82.09% | band=good
+04:45:17 | INFO | binary_acc: raw=0.983607 | score= 98.36% | band=good
+04:45:17 | INFO | holder_acc: raw=0.935516 | score= 93.55% | band=good
+04:45:17 | INFO |   ── PNN ──
+04:45:17 | INFO | pnn_open: 3.000000
+04:45:17 | INFO | pnn_unlocks: 0.000000
+04:45:17 | INFO |   ── HPM ──
+04:45:17 | INFO | hpm_gate_mean: raw=0.573096 | score= 42.69% | band=medium
+04:45:17 | INFO | hpm_z_abs_mean: raw=0.313786 | score= 93.72% | band=good
+04:45:17 | INFO | hpm_z_abs_max: raw=4.108998 | score= 58.91% | band=medium
+04:45:17 | INFO | hpm_err_mean: raw=2.088886 | score= 58.22% | band=medium
+04:45:17 | INFO | hpm_write_mag: raw=0.900095 | score= 70.00% | band=medium-high
+04:45:17 | INFO | hpm_open_frac: 1.000000
+04:45:17 | INFO | hpm_closing_frac: 0.000000
+04:45:17 | INFO | hpm_locked_frac: 0.000000
+04:45:17 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:45:17 | INFO | hpm_mu: raw=2.033077 | score= 16.12% | band=bad
+04:45:17 | INFO | hpm_sigma: raw=0.314892 | score= 15.74% | band=bad
+04:45:17 | INFO | hpm_write_regular_frac: raw=0.989250 | score= 98.93% | band=good
+04:45:17 | INFO | hpm_write_forced_frac: raw=0.010750 | score= 98.93% | band=good
+04:45:39 | INFO | === =================================t3 ep1 s0020 | pnn=L/O/O/O/O/O open=5 (+2 unlocked)================================ ===
+04:45:39 | INFO |   ── Loss ──
+04:45:39 | INFO | total: raw=0.422579 | score= 91.55% | band=good
+04:45:39 | INFO | next_step: raw=0.139600 | score= 72.08% | band=medium-high
+04:45:39 | INFO | aux_latent: raw=0.011750 | score= 99.41% | band=good
+04:45:39 | INFO | q_loss: raw=0.082933 | score= 95.85% | band=good
+04:45:39 | INFO | holder_loss: raw=0.221645 | score= 88.92% | band=good
+04:45:39 | INFO | loss/text: raw=0.775045 | score= 61.25% | band=medium-high
+04:45:39 | INFO | loss/vision: raw=0.009056 | score= 98.19% | band=good
+04:45:39 | INFO | loss/audio: raw=0.016454 | score= 96.71% | band=good
+04:45:39 | INFO | loss/numeric: raw=0.016435 | score= 96.71% | band=good
+04:45:39 | INFO | stress: raw=0.027094 | score= 81.94% | band=good
+04:45:39 | INFO |   ── Accuracy ──
+04:45:39 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:45:39 | INFO | entity_acc: raw=0.888889 | score= 88.89% | band=good
+04:45:39 | INFO | binary_acc: raw=0.978723 | score= 97.87% | band=good
+04:45:39 | INFO | holder_acc: raw=0.921131 | score= 92.11% | band=good
+04:45:39 | INFO |   ── PNN ──
+04:45:39 | INFO | pnn_open: 5.000000
+04:45:39 | INFO | pnn_unlocks: 2.000000
+04:45:39 | INFO |   ── HPM ──
+04:45:39 | INFO | hpm_gate_mean: raw=0.677997 | score= 32.20% | band=low-medium
+04:45:39 | INFO | hpm_z_abs_mean: raw=0.323692 | score= 93.53% | band=good
+04:45:39 | INFO | hpm_z_abs_max: raw=4.119465 | score= 58.81% | band=medium
+04:45:39 | INFO | hpm_err_mean: raw=2.084729 | score= 58.31% | band=medium
+04:45:39 | INFO | hpm_write_mag: raw=0.893497 | score= 70.22% | band=medium-high
+04:45:39 | INFO | hpm_open_frac: 1.000000
+04:45:39 | INFO | hpm_closing_frac: 0.000000
+04:45:39 | INFO | hpm_locked_frac: 0.000000
+04:45:39 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:45:39 | INFO | hpm_mu: raw=2.039269 | score= 16.01% | band=bad
+04:45:39 | INFO | hpm_sigma: raw=0.313236 | score= 15.66% | band=bad
+04:45:39 | INFO | hpm_write_regular_frac: raw=0.993394 | score= 99.34% | band=good
+04:45:39 | INFO | hpm_write_forced_frac: raw=0.006606 | score= 99.34% | band=good
+04:46:01 | INFO | === =================================t3 ep1 s0030 | pnn=O/C/O/C/O/O open=4 (+1 unlocked)================================ ===
+04:46:01 | INFO |   ── Loss ──
+04:46:01 | INFO | total: raw=0.429969 | score= 91.40% | band=good
+04:46:01 | INFO | next_step: raw=0.128631 | score= 74.27% | band=medium-high
+04:46:01 | INFO | aux_latent: raw=0.005125 | score= 99.74% | band=good
+04:46:01 | INFO | q_loss: raw=0.211729 | score= 89.41% | band=good
+04:46:01 | INFO | holder_loss: raw=0.051496 | score= 97.43% | band=good
+04:46:01 | INFO | loss/text: raw=0.690873 | score= 65.46% | band=medium-high
+04:46:01 | INFO | loss/vision: raw=0.007534 | score= 98.49% | band=good
+04:46:01 | INFO | loss/audio: raw=0.010403 | score= 97.92% | band=good
+04:46:01 | INFO | loss/numeric: raw=0.013281 | score= 97.34% | band=good
+04:46:01 | INFO | stress: raw=0.029764 | score= 80.16% | band=good
+04:46:01 | INFO |   ── Accuracy ──
+04:46:01 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:46:01 | INFO | entity_acc: raw=0.888889 | score= 88.89% | band=good
+04:46:01 | INFO | binary_acc: raw=0.982143 | score= 98.21% | band=good
+04:46:01 | INFO | holder_acc: raw=0.980159 | score= 98.02% | band=good
+04:46:01 | INFO |   ── PNN ──
+04:46:01 | INFO | pnn_open: 4.000000
+04:46:01 | INFO | pnn_unlocks: 1.000000
+04:46:01 | INFO |   ── HPM ──
+04:46:01 | INFO | hpm_gate_mean: raw=0.726326 | score= 27.37% | band=low-medium
+04:46:01 | INFO | hpm_z_abs_mean: raw=0.293876 | score= 94.12% | band=good
+04:46:01 | INFO | hpm_z_abs_max: raw=4.126856 | score= 58.73% | band=medium
+04:46:01 | INFO | hpm_err_mean: raw=2.095782 | score= 58.08% | band=medium
+04:46:01 | INFO | hpm_write_mag: raw=0.852467 | score= 71.58% | band=medium-high
+04:46:01 | INFO | hpm_open_frac: 1.000000
+04:46:01 | INFO | hpm_closing_frac: 0.000000
+04:46:01 | INFO | hpm_locked_frac: 0.000000
+04:46:01 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:46:01 | INFO | hpm_mu: raw=2.044274 | score= 15.93% | band=bad
+04:46:01 | INFO | hpm_sigma: raw=0.311724 | score= 15.59% | band=bad
+04:46:01 | INFO | hpm_write_regular_frac: raw=0.994191 | score= 99.42% | band=good
+04:46:01 | INFO | hpm_write_forced_frac: raw=0.005809 | score= 99.42% | band=good
+04:46:23 | INFO | === =================================t3 ep1 s0040 | pnn=L/L/O/L/O/O open=3================================ ===
+04:46:23 | INFO |   ── Loss ──
+04:46:23 | INFO | total: raw=0.485395 | score= 90.29% | band=good
+04:46:23 | INFO | next_step: raw=0.161521 | score= 67.70% | band=medium-high
+04:46:23 | INFO | aux_latent: raw=0.012272 | score= 99.39% | band=good
+04:46:23 | INFO | q_loss: raw=0.166226 | score= 91.69% | band=good
+04:46:23 | INFO | holder_loss: raw=0.186064 | score= 90.70% | band=good
+04:46:23 | INFO | loss/text: raw=0.800989 | score= 59.95% | band=medium
+04:46:23 | INFO | loss/vision: raw=0.008625 | score= 98.28% | band=good
+04:46:23 | INFO | loss/audio: raw=0.012724 | score= 97.46% | band=good
+04:46:23 | INFO | loss/numeric: raw=0.015218 | score= 96.96% | band=good
+04:46:23 | INFO | stress: raw=0.026457 | score= 82.36% | band=good
+04:46:23 | INFO |   ── Accuracy ──
+04:46:23 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:46:23 | INFO | entity_acc: raw=0.753425 | score= 75.34% | band=medium-high
+04:46:23 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:46:23 | INFO | holder_acc: raw=0.915179 | score= 91.52% | band=good
+04:46:23 | INFO |   ── PNN ──
+04:46:23 | INFO | pnn_open: 3.000000
+04:46:23 | INFO | pnn_unlocks: 0.000000
+04:46:23 | INFO |   ── HPM ──
+04:46:23 | INFO | hpm_gate_mean: raw=0.663103 | score= 33.69% | band=low-medium
+04:46:23 | INFO | hpm_z_abs_mean: raw=0.296755 | score= 94.06% | band=good
+04:46:23 | INFO | hpm_z_abs_max: raw=4.136927 | score= 58.63% | band=medium
+04:46:23 | INFO | hpm_err_mean: raw=2.064555 | score= 58.71% | band=medium
+04:46:23 | INFO | hpm_write_mag: raw=0.872429 | score= 70.92% | band=medium-high
+04:46:23 | INFO | hpm_open_frac: 1.000000
+04:46:23 | INFO | hpm_closing_frac: 0.000000
+04:46:23 | INFO | hpm_locked_frac: 0.000000
+04:46:23 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:46:23 | INFO | hpm_mu: raw=2.049098 | score= 15.85% | band=bad
+04:46:23 | INFO | hpm_sigma: raw=0.310876 | score= 15.54% | band=bad
+04:46:23 | INFO | hpm_write_regular_frac: raw=0.992786 | score= 99.28% | band=good
+04:46:23 | INFO | hpm_write_forced_frac: raw=0.007214 | score= 99.28% | band=good
+04:46:45 | INFO | === =================================t3 ep1 s0050 | pnn=O/C/O/O/O/O open=5 (+3 unlocked)================================ ===
+04:46:45 | INFO |   ── Loss ──
+04:46:45 | INFO | total: raw=0.450674 | score= 90.99% | band=good
+04:46:45 | INFO | next_step: raw=0.163811 | score= 67.24% | band=medium-high
+04:46:45 | INFO | aux_latent: raw=0.023863 | score= 98.81% | band=good
+04:46:45 | INFO | q_loss: raw=0.155883 | score= 92.21% | band=good
+04:46:45 | INFO | holder_loss: raw=0.090854 | score= 95.46% | band=good
+04:46:45 | INFO | loss/text: raw=0.747911 | score= 62.60% | band=medium-high
+04:46:45 | INFO | loss/vision: raw=0.008299 | score= 98.34% | band=good
+04:46:45 | INFO | loss/audio: raw=0.013905 | score= 97.22% | band=good
+04:46:45 | INFO | loss/numeric: raw=0.013714 | score= 97.26% | band=good
+04:46:45 | INFO | stress: raw=0.026371 | score= 82.42% | band=good
+04:46:45 | INFO |   ── Accuracy ──
+04:46:45 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:46:45 | INFO | entity_acc: raw=0.725000 | score= 72.50% | band=medium-high
+04:46:45 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:46:45 | INFO | holder_acc: raw=0.960317 | score= 96.03% | band=good
+04:46:45 | INFO |   ── PNN ──
+04:46:45 | INFO | pnn_open: 5.000000
+04:46:45 | INFO | pnn_unlocks: 3.000000
+04:46:45 | INFO |   ── HPM ──
+04:46:45 | INFO | hpm_gate_mean: raw=0.685807 | score= 31.42% | band=low-medium
+04:46:45 | INFO | hpm_z_abs_mean: raw=0.315571 | score= 93.69% | band=good
+04:46:45 | INFO | hpm_z_abs_max: raw=4.143284 | score= 58.57% | band=medium
+04:46:45 | INFO | hpm_err_mean: raw=2.103323 | score= 57.93% | band=medium
+04:46:45 | INFO | hpm_write_mag: raw=0.874069 | score= 70.86% | band=medium-high
+04:46:45 | INFO | hpm_open_frac: 1.000000
+04:46:45 | INFO | hpm_closing_frac: 0.000000
+04:46:45 | INFO | hpm_locked_frac: 0.000000
+04:46:45 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:46:45 | INFO | hpm_mu: raw=2.053039 | score= 15.78% | band=bad
+04:46:45 | INFO | hpm_sigma: raw=0.309581 | score= 15.48% | band=bad
+04:46:45 | INFO | hpm_write_regular_frac: raw=0.993607 | score= 99.36% | band=good
+04:46:45 | INFO | hpm_write_forced_frac: raw=0.006393 | score= 99.36% | band=good
+04:47:07 | INFO | === =================================t3 ep1 s0060 | pnn=C/L/O/L/O/O open=3================================ ===
+04:47:07 | INFO |   ── Loss ──
+04:47:07 | INFO | total: raw=0.415290 | score= 91.69% | band=good
+04:47:07 | INFO | next_step: raw=0.165622 | score= 66.88% | band=medium-high
+04:47:07 | INFO | aux_latent: raw=0.003111 | score= 99.84% | band=good
+04:47:07 | INFO | q_loss: raw=0.116448 | score= 94.18% | band=good
+04:47:07 | INFO | holder_loss: raw=0.139039 | score= 93.05% | band=good
+04:47:07 | INFO | loss/text: raw=0.708191 | score= 64.59% | band=medium-high
+04:47:07 | INFO | loss/vision: raw=0.008610 | score= 98.28% | band=good
+04:47:07 | INFO | loss/audio: raw=0.012655 | score= 97.47% | band=good
+04:47:07 | INFO | loss/numeric: raw=0.012634 | score= 97.47% | band=good
+04:47:07 | INFO | stress: raw=0.029059 | score= 80.63% | band=good
+04:47:07 | INFO |   ── Accuracy ──
+04:47:07 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:47:07 | INFO | entity_acc: raw=0.784810 | score= 78.48% | band=medium-high
+04:47:07 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:47:07 | INFO | holder_acc: raw=0.958333 | score= 95.83% | band=good
+04:47:07 | INFO |   ── PNN ──
+04:47:07 | INFO | pnn_open: 3.000000
+04:47:07 | INFO | pnn_unlocks: 0.000000
+04:47:07 | INFO |   ── HPM ──
+04:47:07 | INFO | hpm_gate_mean: raw=0.675892 | score= 32.41% | band=low-medium
+04:47:07 | INFO | hpm_z_abs_mean: raw=0.303010 | score= 93.94% | band=good
+04:47:07 | INFO | hpm_z_abs_max: raw=4.150243 | score= 58.50% | band=medium
+04:47:07 | INFO | hpm_err_mean: raw=2.090799 | score= 58.18% | band=medium
+04:47:07 | INFO | hpm_write_mag: raw=0.867677 | score= 71.08% | band=medium-high
+04:47:07 | INFO | hpm_open_frac: 1.000000
+04:47:07 | INFO | hpm_closing_frac: 0.000000
+04:47:07 | INFO | hpm_locked_frac: 0.000000
+04:47:07 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:47:07 | INFO | hpm_mu: raw=2.056842 | score= 15.72% | band=bad
+04:47:07 | INFO | hpm_sigma: raw=0.308740 | score= 15.44% | band=bad
+04:47:07 | INFO | hpm_write_regular_frac: raw=0.992673 | score= 99.27% | band=good
+04:47:07 | INFO | hpm_write_forced_frac: raw=0.007327 | score= 99.27% | band=good
+04:47:19 | INFO | === [val] t3 ep1 ===
+04:47:19 | INFO |   ── Loss ──
+04:47:19 | INFO | next_step: raw=0.236131 | score= 52.77% | band=medium
+04:47:19 | INFO | loss/text: raw=0.683193 | score= 92.69% | band=good
+04:47:19 | INFO | loss/vision: raw=0.007877 | score= 98.42% | band=good
+04:47:19 | INFO | loss/audio: raw=0.012482 | score= 97.50% | band=good
+04:47:19 | INFO | loss/numeric: raw=0.010813 | score= 97.84% | band=good
+04:47:19 | INFO | text_entropy: raw=0.610046 | score= 69.50% | band=medium-high
+04:47:19 | INFO |   ── Accuracy ──
+04:47:19 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:47:19 | INFO | holder_acc: raw=0.953311 | score= 95.33% | band=good
+04:47:19 | INFO | qacc/who_holds_token: raw=0.938907 | score= 93.89% | band=good
+04:47:19 | INFO | qacc/who_was_first_tagged: raw=0.666118 | score= 66.61% | band=medium-high
+04:47:19 | INFO | qacc/did_alarm_fire: raw=1.000000 | score=100.00% | band=good
+04:47:19 | INFO | qacc/which_entity_occluded: raw=0.850138 | score= 85.01% | band=good
+04:47:19 | INFO | qacc/did_trigger_before_alarm: raw=1.000000 | score=100.00% | band=good
+04:47:19 | INFO | qacc/which_entity_first_occluded: raw=0.874838 | score= 87.48% | band=good
+04:47:19 | INFO | qacc/did_chain2_fire: raw=1.000000 | score=100.00% | band=good
+04:47:19 | INFO | qacc/what_was_true_rule: raw=0.971429 | score= 97.14% | band=good
+04:47:19 | INFO |   ── Other ──
+04:47:19 | INFO | event_acc: 0.923983
+  -> holding tier 3; unmet gates: latent_acc=1.000 < 1.010
+04:47:21 | INFO | === =================================t3 ep2 s0000 | pnn=L/O/O/L/O/O open=4 (+1 unlocked)================================ ===
+04:47:21 | INFO |   ── Loss ──
+04:47:21 | INFO | total: raw=0.438316 | score= 91.23% | band=good
+04:47:21 | INFO | next_step: raw=0.172398 | score= 65.52% | band=medium-high
+04:47:21 | INFO | aux_latent: raw=0.009847 | score= 99.51% | band=good
+04:47:21 | INFO | q_loss: raw=0.121962 | score= 93.90% | band=good
+04:47:21 | INFO | holder_loss: raw=0.131484 | score= 93.43% | band=good
+04:47:21 | INFO | loss/text: raw=0.715918 | score= 64.20% | band=medium-high
+04:47:21 | INFO | loss/vision: raw=0.008684 | score= 98.26% | band=good
+04:47:21 | INFO | loss/audio: raw=0.013507 | score= 97.30% | band=good
+04:47:21 | INFO | loss/numeric: raw=0.012750 | score= 97.45% | band=good
+04:47:21 | INFO | stress: raw=0.025692 | score= 82.87% | band=good
+04:47:21 | INFO |   ── Accuracy ──
+04:47:21 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:47:21 | INFO | entity_acc: raw=0.733333 | score= 73.33% | band=medium-high
+04:47:21 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:47:21 | INFO | holder_acc: raw=0.946429 | score= 94.64% | band=good
+04:47:21 | INFO |   ── PNN ──
+04:47:21 | INFO | pnn_open: 4.000000
+04:47:21 | INFO | pnn_unlocks: 1.000000
+04:47:21 | INFO |   ── HPM ──
+04:47:21 | INFO | hpm_gate_mean: raw=0.658603 | score= 34.14% | band=low-medium
+04:47:21 | INFO | hpm_z_abs_mean: raw=0.271813 | score= 94.56% | band=good
+04:47:21 | INFO | hpm_z_abs_max: raw=4.152020 | score= 58.48% | band=medium
+04:47:21 | INFO | hpm_err_mean: raw=2.075700 | score= 58.49% | band=medium
+04:47:21 | INFO | hpm_write_mag: raw=0.851572 | score= 71.61% | band=medium-high
+04:47:21 | INFO | hpm_open_frac: 1.000000
+04:47:21 | INFO | hpm_closing_frac: 0.000000
+04:47:21 | INFO | hpm_locked_frac: 0.000000
+04:47:21 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:47:21 | INFO | hpm_mu: raw=2.057702 | score= 15.70% | band=bad
+04:47:21 | INFO | hpm_sigma: raw=0.308262 | score= 15.41% | band=bad
+04:47:21 | INFO | hpm_write_regular_frac: raw=0.992126 | score= 99.21% | band=good
+04:47:21 | INFO | hpm_write_forced_frac: raw=0.007874 | score= 99.21% | band=good
+04:47:42 | INFO | === =================================t3 ep2 s0010 | pnn=O/C/O/O/O/O open=5 (+2 unlocked)================================ ===
+04:47:42 | INFO |   ── Loss ──
+04:47:42 | INFO | total: raw=0.353532 | score= 92.93% | band=good
+04:47:42 | INFO | next_step: raw=0.167457 | score= 66.51% | band=medium-high
+04:47:42 | INFO | aux_latent: raw=0.007068 | score= 99.65% | band=good
+04:47:42 | INFO | q_loss: raw=0.076432 | score= 96.18% | band=good
+04:47:42 | INFO | holder_loss: raw=0.089629 | score= 95.52% | band=good
+04:47:42 | INFO | loss/text: raw=0.666460 | score= 66.68% | band=medium-high
+04:47:42 | INFO | loss/vision: raw=0.007948 | score= 98.41% | band=good
+04:47:42 | INFO | loss/audio: raw=0.011378 | score= 97.72% | band=good
+04:47:42 | INFO | loss/numeric: raw=0.010174 | score= 97.97% | band=good
+04:47:42 | INFO | stress: raw=0.029756 | score= 80.16% | band=good
+04:47:42 | INFO |   ── Accuracy ──
+04:47:42 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:47:42 | INFO | entity_acc: raw=0.866667 | score= 86.67% | band=good
+04:47:42 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:47:42 | INFO | holder_acc: raw=0.974206 | score= 97.42% | band=good
+04:47:42 | INFO |   ── PNN ──
+04:47:42 | INFO | pnn_open: 5.000000
+04:47:42 | INFO | pnn_unlocks: 2.000000
+04:47:42 | INFO |   ── HPM ──
+04:47:42 | INFO | hpm_gate_mean: raw=0.644869 | score= 35.51% | band=low-medium
+04:47:42 | INFO | hpm_z_abs_mean: raw=0.294295 | score= 94.11% | band=good
+04:47:42 | INFO | hpm_z_abs_max: raw=4.159298 | score= 58.41% | band=medium
+04:47:42 | INFO | hpm_err_mean: raw=2.077673 | score= 58.45% | band=medium
+04:47:42 | INFO | hpm_write_mag: raw=0.858692 | score= 71.38% | band=medium-high
+04:47:42 | INFO | hpm_open_frac: 1.000000
+04:47:42 | INFO | hpm_closing_frac: 0.000000
+04:47:42 | INFO | hpm_locked_frac: 0.000000
+04:47:42 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:47:42 | INFO | hpm_mu: raw=2.060499 | score= 15.66% | band=bad
+04:47:42 | INFO | hpm_sigma: raw=0.307270 | score= 15.36% | band=bad
+04:47:42 | INFO | hpm_write_regular_frac: raw=0.991588 | score= 99.16% | band=good
+04:47:42 | INFO | hpm_write_forced_frac: raw=0.008412 | score= 99.16% | band=good
+04:48:04 | INFO | === =================================t3 ep2 s0020 | pnn=C/L/O/L/O/O open=3================================ ===
+04:48:04 | INFO |   ── Loss ──
+04:48:04 | INFO | total: raw=0.404585 | score= 91.91% | band=good
+04:48:04 | INFO | next_step: raw=0.171069 | score= 65.79% | band=medium-high
+04:48:04 | INFO | aux_latent: raw=0.005948 | score= 99.70% | band=good
+04:48:04 | INFO | q_loss: raw=0.097383 | score= 95.13% | band=good
+04:48:04 | INFO | holder_loss: raw=0.117060 | score= 94.15% | band=good
+04:48:04 | INFO | loss/text: raw=0.633516 | score= 68.32% | band=medium-high
+04:48:04 | INFO | loss/vision: raw=0.008068 | score= 98.39% | band=good
+04:48:04 | INFO | loss/audio: raw=0.013412 | score= 97.32% | band=good
+04:48:04 | INFO | loss/numeric: raw=0.008949 | score= 98.21% | band=good
+04:48:04 | INFO | stress: raw=0.034842 | score= 76.77% | band=medium-high
+04:48:04 | INFO |   ── Accuracy ──
+04:48:04 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:48:04 | INFO | entity_acc: raw=0.823529 | score= 82.35% | band=good
+04:48:04 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:48:04 | INFO | holder_acc: raw=0.946925 | score= 94.69% | band=good
+04:48:04 | INFO |   ── PNN ──
+04:48:04 | INFO | pnn_open: 3.000000
+04:48:04 | INFO | pnn_unlocks: 0.000000
+04:48:04 | INFO |   ── HPM ──
+04:48:04 | INFO | hpm_gate_mean: raw=0.647332 | score= 35.27% | band=low-medium
+04:48:04 | INFO | hpm_z_abs_mean: raw=0.311470 | score= 93.77% | band=good
+04:48:04 | INFO | hpm_z_abs_max: raw=4.168430 | score= 58.32% | band=medium
+04:48:04 | INFO | hpm_err_mean: raw=2.093051 | score= 58.14% | band=medium
+04:48:04 | INFO | hpm_write_mag: raw=0.893777 | score= 70.21% | band=medium-high
+04:48:04 | INFO | hpm_open_frac: 1.000000
+04:48:04 | INFO | hpm_closing_frac: 0.000000
+04:48:04 | INFO | hpm_locked_frac: 0.000000
+04:48:04 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:48:04 | INFO | hpm_mu: raw=2.063436 | score= 15.61% | band=bad
+04:48:04 | INFO | hpm_sigma: raw=0.306667 | score= 15.33% | band=bad
+04:48:04 | INFO | hpm_write_regular_frac: raw=0.990341 | score= 99.03% | band=good
+04:48:04 | INFO | hpm_write_forced_frac: raw=0.009659 | score= 99.03% | band=good
+04:48:25 | INFO | === =================================t3 ep2 s0030 | pnn=L/O/O/O/O/O open=5 (+2 unlocked)================================ ===
+04:48:25 | INFO |   ── Loss ──
+04:48:25 | INFO | total: raw=0.472888 | score= 90.54% | band=good
+04:48:25 | INFO | next_step: raw=0.195629 | score= 60.87% | band=medium-high
+04:48:25 | INFO | aux_latent: raw=0.005906 | score= 99.70% | band=good
+04:48:25 | INFO | q_loss: raw=0.125078 | score= 93.75% | band=good
+04:48:25 | INFO | holder_loss: raw=0.147989 | score= 92.60% | band=good
+04:48:25 | INFO | loss/text: raw=0.688016 | score= 65.60% | band=medium-high
+04:48:25 | INFO | loss/vision: raw=0.008318 | score= 98.34% | band=good
+04:48:25 | INFO | loss/audio: raw=0.014239 | score= 97.15% | band=good
+04:48:25 | INFO | loss/numeric: raw=0.010012 | score= 98.00% | band=good
+04:48:25 | INFO | stress: raw=0.025082 | score= 83.28% | band=good
+04:48:25 | INFO |   ── Accuracy ──
+04:48:25 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:48:25 | INFO | entity_acc: raw=0.787879 | score= 78.79% | band=medium-high
+04:48:25 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:48:25 | INFO | holder_acc: raw=0.932540 | score= 93.25% | band=good
+04:48:25 | INFO |   ── PNN ──
+04:48:25 | INFO | pnn_open: 5.000000
+04:48:25 | INFO | pnn_unlocks: 2.000000
+04:48:25 | INFO |   ── HPM ──
+04:48:25 | INFO | hpm_gate_mean: raw=0.628645 | score= 37.14% | band=low-medium
+04:48:25 | INFO | hpm_z_abs_mean: raw=0.303750 | score= 93.93% | band=good
+04:48:25 | INFO | hpm_z_abs_max: raw=4.177240 | score= 58.23% | band=medium
+04:48:25 | INFO | hpm_err_mean: raw=2.090525 | score= 58.19% | band=medium
+04:48:25 | INFO | hpm_write_mag: raw=0.901312 | score= 69.96% | band=medium-high
+04:48:25 | INFO | hpm_open_frac: 1.000000
+04:48:25 | INFO | hpm_closing_frac: 0.000000
+04:48:25 | INFO | hpm_locked_frac: 0.000000
+04:48:25 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:48:25 | INFO | hpm_mu: raw=2.066859 | score= 15.55% | band=bad
+04:48:25 | INFO | hpm_sigma: raw=0.306314 | score= 15.32% | band=bad
+04:48:25 | INFO | hpm_write_regular_frac: raw=0.991509 | score= 99.15% | band=good
+04:48:25 | INFO | hpm_write_forced_frac: raw=0.008491 | score= 99.15% | band=good
+04:48:47 | INFO | === =================================t3 ep2 s0040 | pnn=O/L/O/C/O/O open=4 (+1 unlocked)================================ ===
+04:48:47 | INFO |   ── Loss ──
+04:48:47 | INFO | total: raw=0.395222 | score= 92.10% | band=good
+04:48:47 | INFO | next_step: raw=0.181492 | score= 63.70% | band=medium-high
+04:48:47 | INFO | aux_latent: raw=0.003006 | score= 99.85% | band=good
+04:48:47 | INFO | q_loss: raw=0.076228 | score= 96.19% | band=good
+04:48:47 | INFO | holder_loss: raw=0.156666 | score= 92.17% | band=good
+04:48:47 | INFO | loss/text: raw=0.609837 | score= 69.51% | band=medium-high
+04:48:47 | INFO | loss/vision: raw=0.008026 | score= 98.39% | band=good
+04:48:47 | INFO | loss/audio: raw=0.011384 | score= 97.72% | band=good
+04:48:47 | INFO | loss/numeric: raw=0.008403 | score= 98.32% | band=good
+04:48:47 | INFO | stress: raw=0.026388 | score= 82.41% | band=good
+04:48:47 | INFO |   ── Accuracy ──
+04:48:47 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:48:47 | INFO | entity_acc: raw=0.876543 | score= 87.65% | band=good
+04:48:47 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:48:47 | INFO | holder_acc: raw=0.925595 | score= 92.56% | band=good
+04:48:47 | INFO |   ── PNN ──
+04:48:47 | INFO | pnn_open: 4.000000
+04:48:47 | INFO | pnn_unlocks: 1.000000
+04:48:47 | INFO |   ── HPM ──
+04:48:47 | INFO | hpm_gate_mean: raw=0.604449 | score= 39.56% | band=low-medium
+04:48:47 | INFO | hpm_z_abs_mean: raw=0.314887 | score= 93.70% | band=good
+04:48:47 | INFO | hpm_z_abs_max: raw=4.183880 | score= 58.16% | band=medium
+04:48:47 | INFO | hpm_err_mean: raw=2.106564 | score= 57.87% | band=medium
+04:48:47 | INFO | hpm_write_mag: raw=0.882510 | score= 70.58% | band=medium-high
+04:48:47 | INFO | hpm_open_frac: 1.000000
+04:48:47 | INFO | hpm_closing_frac: 0.000000
+04:48:47 | INFO | hpm_locked_frac: 0.000000
+04:48:47 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:48:47 | INFO | hpm_mu: raw=2.069844 | score= 15.50% | band=bad
+04:48:47 | INFO | hpm_sigma: raw=0.305976 | score= 15.30% | band=bad
+04:48:47 | INFO | hpm_write_regular_frac: raw=0.985289 | score= 98.53% | band=good
+04:48:47 | INFO | hpm_write_forced_frac: raw=0.014711 | score= 98.53% | band=good
+04:49:10 | INFO | === =================================t3 ep2 s0050 | pnn=L/O/O/L/O/O open=4 (+1 unlocked)================================ ===
+04:49:10 | INFO |   ── Loss ──
+04:49:10 | INFO | total: raw=0.474694 | score= 90.51% | band=good
+04:49:10 | INFO | next_step: raw=0.204984 | score= 59.00% | band=medium
+04:49:10 | INFO | aux_latent: raw=0.013591 | score= 99.32% | band=good
+04:49:10 | INFO | q_loss: raw=0.116903 | score= 94.15% | band=good
+04:49:10 | INFO | holder_loss: raw=0.198586 | score= 90.07% | band=good
+04:49:10 | INFO | loss/text: raw=0.660961 | score= 66.95% | band=medium-high
+04:49:10 | INFO | loss/vision: raw=0.007941 | score= 98.41% | band=good
+04:49:10 | INFO | loss/audio: raw=0.011230 | score= 97.75% | band=good
+04:49:10 | INFO | loss/numeric: raw=0.009337 | score= 98.13% | band=good
+04:49:10 | INFO | stress: raw=0.022170 | score= 85.22% | band=good
+04:49:10 | INFO |   ── Accuracy ──
+04:49:10 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:49:10 | INFO | entity_acc: raw=0.785714 | score= 78.57% | band=medium-high
+04:49:10 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:49:10 | INFO | holder_acc: raw=0.908730 | score= 90.87% | band=good
+04:49:10 | INFO |   ── PNN ──
+04:49:10 | INFO | pnn_open: 4.000000
+04:49:10 | INFO | pnn_unlocks: 1.000000
+04:49:10 | INFO |   ── HPM ──
+04:49:10 | INFO | hpm_gate_mean: raw=0.603786 | score= 39.62% | band=low-medium
+04:49:10 | INFO | hpm_z_abs_mean: raw=0.352185 | score= 92.96% | band=good
+04:49:10 | INFO | hpm_z_abs_max: raw=4.192504 | score= 58.07% | band=medium
+04:49:10 | INFO | hpm_err_mean: raw=2.127737 | score= 57.45% | band=medium
+04:49:10 | INFO | hpm_write_mag: raw=0.901879 | score= 69.94% | band=medium-high
+04:49:10 | INFO | hpm_open_frac: 1.000000
+04:49:10 | INFO | hpm_closing_frac: 0.000000
+04:49:10 | INFO | hpm_locked_frac: 0.000000
+04:49:10 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:49:10 | INFO | hpm_mu: raw=2.073702 | score= 15.44% | band=bad
+04:49:10 | INFO | hpm_sigma: raw=0.306041 | score= 15.30% | band=bad
+04:49:10 | INFO | hpm_write_regular_frac: raw=0.985813 | score= 98.58% | band=good
+04:49:10 | INFO | hpm_write_forced_frac: raw=0.014187 | score= 98.58% | band=good
+04:49:31 | INFO | === =================================t3 ep2 s0060 | pnn=O/L/O/O/O/O open=5 (+2 unlocked)================================ ===
+04:49:31 | INFO |   ── Loss ──
+04:49:31 | INFO | total: raw=0.349340 | score= 93.01% | band=good
+04:49:31 | INFO | next_step: raw=0.197101 | score= 60.58% | band=medium-high
+04:49:31 | INFO | aux_latent: raw=0.004344 | score= 99.78% | band=good
+04:49:31 | INFO | q_loss: raw=0.052290 | score= 97.39% | band=good
+04:49:31 | INFO | holder_loss: raw=0.066002 | score= 96.70% | band=good
+04:49:31 | INFO | loss/text: raw=0.608225 | score= 69.59% | band=medium-high
+04:49:31 | INFO | loss/vision: raw=0.007392 | score= 98.52% | band=good
+04:49:31 | INFO | loss/audio: raw=0.010712 | score= 97.86% | band=good
+04:49:31 | INFO | loss/numeric: raw=0.007477 | score= 98.50% | band=good
+04:49:31 | INFO | stress: raw=0.028187 | score= 81.21% | band=good
+04:49:31 | INFO |   ── Accuracy ──
+04:49:31 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:49:31 | INFO | entity_acc: raw=0.917808 | score= 91.78% | band=good
+04:49:31 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:49:31 | INFO | holder_acc: raw=0.989087 | score= 98.91% | band=good
+04:49:31 | INFO |   ── PNN ──
+04:49:31 | INFO | pnn_open: 5.000000
+04:49:31 | INFO | pnn_unlocks: 2.000000
+04:49:31 | INFO |   ── HPM ──
+04:49:31 | INFO | hpm_gate_mean: raw=0.587818 | score= 41.22% | band=medium
+04:49:31 | INFO | hpm_z_abs_mean: raw=0.316269 | score= 93.67% | band=good
+04:49:31 | INFO | hpm_z_abs_max: raw=4.201437 | score= 57.99% | band=medium
+04:49:31 | INFO | hpm_err_mean: raw=2.099801 | score= 58.00% | band=medium
+04:49:31 | INFO | hpm_write_mag: raw=0.866137 | score= 71.13% | band=medium-high
+04:49:31 | INFO | hpm_open_frac: 1.000000
+04:49:31 | INFO | hpm_closing_frac: 0.000000
+04:49:31 | INFO | hpm_locked_frac: 0.000000
+04:49:31 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:49:31 | INFO | hpm_mu: raw=2.075735 | score= 15.40% | band=bad
+04:49:31 | INFO | hpm_sigma: raw=0.305986 | score= 15.30% | band=bad
+04:49:31 | INFO | hpm_write_regular_frac: raw=0.985117 | score= 98.51% | band=good
+04:49:31 | INFO | hpm_write_forced_frac: raw=0.014883 | score= 98.51% | band=good
+04:49:43 | INFO | === [val] t3 ep2 ===
+04:49:43 | INFO |   ── Loss ──
+04:49:43 | INFO | next_step: raw=0.211723 | score= 57.66% | band=medium
+04:49:43 | INFO | loss/text: raw=0.619691 | score= 99.04% | band=good
+04:49:43 | INFO | loss/vision: raw=0.007243 | score= 98.55% | band=good
+04:49:43 | INFO | loss/audio: raw=0.011399 | score= 97.72% | band=good
+04:49:43 | INFO | loss/numeric: raw=0.007173 | score= 98.57% | band=good
+04:49:43 | INFO | text_entropy: raw=0.610046 | score= 69.50% | band=medium-high
+04:49:43 | INFO |   ── Accuracy ──
+04:49:43 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:49:43 | INFO | holder_acc: raw=0.960876 | score= 96.09% | band=good
+04:49:43 | INFO | qacc/who_holds_token: raw=0.938907 | score= 93.89% | band=good
+04:49:43 | INFO | qacc/who_was_first_tagged: raw=0.636677 | score= 63.67% | band=medium-high
+04:49:43 | INFO | qacc/did_alarm_fire: raw=1.000000 | score=100.00% | band=good
+04:49:43 | INFO | qacc/which_entity_occluded: raw=0.864666 | score= 86.47% | band=good
+04:49:43 | INFO | qacc/did_trigger_before_alarm: raw=1.000000 | score=100.00% | band=good
+04:49:43 | INFO | qacc/which_entity_first_occluded: raw=0.856703 | score= 85.67% | band=good
+04:49:43 | INFO | qacc/did_chain2_fire: raw=1.000000 | score=100.00% | band=good
+04:49:43 | INFO | qacc/what_was_true_rule: raw=0.971429 | score= 97.14% | band=good
+04:49:43 | INFO |   ── Other ──
+04:49:43 | INFO | event_acc: 0.924975
+  -> holding tier 3; unmet gates: latent_acc=1.000 < 1.010
+04:49:46 | INFO | === =================================t3 ep3 s0000 | pnn=O/L/O/C/O/O open=4================================ ===
+04:49:46 | INFO |   ── Loss ──
+04:49:46 | INFO | total: raw=0.356745 | score= 92.87% | band=good
+04:49:46 | INFO | next_step: raw=0.195888 | score= 60.82% | band=medium-high
+04:49:46 | INFO | aux_latent: raw=0.002847 | score= 99.86% | band=good
+04:49:46 | INFO | q_loss: raw=0.057718 | score= 97.11% | band=good
+04:49:46 | INFO | holder_loss: raw=0.067113 | score= 96.64% | band=good
+04:49:46 | INFO | loss/text: raw=0.587525 | score= 70.62% | band=medium-high
+04:49:46 | INFO | loss/vision: raw=0.007787 | score= 98.44% | band=good
+04:49:46 | INFO | loss/audio: raw=0.011656 | score= 97.67% | band=good
+04:49:46 | INFO | loss/numeric: raw=0.007239 | score= 98.55% | band=good
+04:49:46 | INFO | stress: raw=0.028189 | score= 81.21% | band=good
+04:49:46 | INFO |   ── Accuracy ──
+04:49:46 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:49:46 | INFO | entity_acc: raw=0.860759 | score= 86.08% | band=good
+04:49:46 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:49:46 | INFO | holder_acc: raw=0.968254 | score= 96.83% | band=good
+04:49:46 | INFO |   ── PNN ──
+04:49:46 | INFO | pnn_open: 4.000000
+04:49:46 | INFO | pnn_unlocks: 0.000000
+04:49:46 | INFO |   ── HPM ──
+04:49:46 | INFO | hpm_gate_mean: raw=0.592532 | score= 40.75% | band=medium
+04:49:46 | INFO | hpm_z_abs_mean: raw=0.320305 | score= 93.59% | band=good
+04:49:46 | INFO | hpm_z_abs_max: raw=4.204966 | score= 57.95% | band=medium
+04:49:46 | INFO | hpm_err_mean: raw=2.100423 | score= 57.99% | band=medium
+04:49:46 | INFO | hpm_write_mag: raw=0.848671 | score= 71.71% | band=medium-high
+04:49:46 | INFO | hpm_open_frac: 1.000000
+04:49:46 | INFO | hpm_closing_frac: 0.000000
+04:49:46 | INFO | hpm_locked_frac: 0.000000
+04:49:46 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:49:46 | INFO | hpm_mu: raw=2.076689 | score= 15.39% | band=bad
+04:49:46 | INFO | hpm_sigma: raw=0.305877 | score= 15.29% | band=bad
+04:49:46 | INFO | hpm_write_regular_frac: raw=0.986227 | score= 98.62% | band=good
+04:49:46 | INFO | hpm_write_forced_frac: raw=0.013773 | score= 98.62% | band=good
+04:50:07 | INFO | === =================================t3 ep3 s0010 | pnn=L/O/O/L/O/O open=4 (+1 unlocked)================================ ===
+04:50:07 | INFO |   ── Loss ──
+04:50:07 | INFO | total: raw=0.360685 | score= 92.79% | band=good
+04:50:07 | INFO | next_step: raw=0.212630 | score= 57.47% | band=medium
+04:50:07 | INFO | aux_latent: raw=0.008863 | score= 99.56% | band=good
+04:50:07 | INFO | q_loss: raw=0.053608 | score= 97.32% | band=good
+04:50:07 | INFO | holder_loss: raw=0.059532 | score= 97.02% | band=good
+04:50:07 | INFO | loss/text: raw=0.624052 | score= 68.80% | band=medium-high
+04:50:07 | INFO | loss/vision: raw=0.007642 | score= 98.47% | band=good
+04:50:07 | INFO | loss/audio: raw=0.010024 | score= 98.00% | band=good
+04:50:07 | INFO | loss/numeric: raw=0.007748 | score= 98.45% | band=good
+04:50:07 | INFO | stress: raw=0.030216 | score= 79.86% | band=medium-high
+04:50:07 | INFO |   ── Accuracy ──
+04:50:07 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:50:07 | INFO | entity_acc: raw=0.947368 | score= 94.74% | band=good
+04:50:07 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:50:07 | INFO | holder_acc: raw=0.986111 | score= 98.61% | band=good
+04:50:07 | INFO |   ── PNN ──
+04:50:07 | INFO | pnn_open: 4.000000
+04:50:07 | INFO | pnn_unlocks: 1.000000
+04:50:07 | INFO |   ── HPM ──
+04:50:07 | INFO | hpm_gate_mean: raw=0.611199 | score= 38.88% | band=low-medium
+04:50:07 | INFO | hpm_z_abs_mean: raw=0.315661 | score= 93.69% | band=good
+04:50:07 | INFO | hpm_z_abs_max: raw=4.212263 | score= 57.88% | band=medium
+04:50:07 | INFO | hpm_err_mean: raw=2.112845 | score= 57.74% | band=medium
+04:50:07 | INFO | hpm_write_mag: raw=0.904726 | score= 69.84% | band=medium-high
+04:50:07 | INFO | hpm_open_frac: 1.000000
+04:50:07 | INFO | hpm_closing_frac: 0.000000
+04:50:07 | INFO | hpm_locked_frac: 0.000000
+04:50:07 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:50:07 | INFO | hpm_mu: raw=2.079016 | score= 15.35% | band=bad
+04:50:07 | INFO | hpm_sigma: raw=0.305713 | score= 15.29% | band=bad
+04:50:07 | INFO | hpm_write_regular_frac: raw=0.989126 | score= 98.91% | band=good
+04:50:07 | INFO | hpm_write_forced_frac: raw=0.010874 | score= 98.91% | band=good
+04:50:28 | INFO | === =================================t3 ep3 s0020 | pnn=O/L/O/O/O/O open=5 (+2 unlocked)================================ ===
+04:50:28 | INFO |   ── Loss ──
+04:50:28 | INFO | total: raw=0.445545 | score= 91.09% | band=good
+04:50:28 | INFO | next_step: raw=0.222869 | score= 55.43% | band=medium
+04:50:28 | INFO | aux_latent: raw=0.001723 | score= 99.91% | band=good
+04:50:28 | INFO | q_loss: raw=0.099052 | score= 95.05% | band=good
+04:50:28 | INFO | holder_loss: raw=0.134575 | score= 93.27% | band=good
+04:50:28 | INFO | loss/text: raw=0.638289 | score= 68.09% | band=medium-high
+04:50:28 | INFO | loss/vision: raw=0.008474 | score= 98.31% | band=good
+04:50:28 | INFO | loss/audio: raw=0.011538 | score= 97.69% | band=good
+04:50:28 | INFO | loss/numeric: raw=0.011371 | score= 97.73% | band=good
+04:50:28 | INFO | stress: raw=0.025119 | score= 83.25% | band=good
+04:50:28 | INFO |   ── Accuracy ──
+04:50:28 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:50:28 | INFO | entity_acc: raw=0.736111 | score= 73.61% | band=medium-high
+04:50:28 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:50:28 | INFO | holder_acc: raw=0.933532 | score= 93.35% | band=good
+04:50:28 | INFO |   ── PNN ──
+04:50:28 | INFO | pnn_open: 5.000000
+04:50:28 | INFO | pnn_unlocks: 2.000000
+04:50:28 | INFO |   ── HPM ──
+04:50:28 | INFO | hpm_gate_mean: raw=0.575428 | score= 42.46% | band=medium
+04:50:28 | INFO | hpm_z_abs_mean: raw=0.313821 | score= 93.72% | band=good
+04:50:28 | INFO | hpm_z_abs_max: raw=4.216218 | score= 57.84% | band=medium
+04:50:28 | INFO | hpm_err_mean: raw=2.098190 | score= 58.04% | band=medium
+04:50:28 | INFO | hpm_write_mag: raw=0.886606 | score= 70.45% | band=medium-high
+04:50:28 | INFO | hpm_open_frac: 1.000000
+04:50:28 | INFO | hpm_closing_frac: 0.000000
+04:50:28 | INFO | hpm_locked_frac: 0.000000
+04:50:28 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:50:28 | INFO | hpm_mu: raw=2.081037 | score= 15.32% | band=bad
+04:50:28 | INFO | hpm_sigma: raw=0.305491 | score= 15.27% | band=bad
+04:50:28 | INFO | hpm_write_regular_frac: raw=0.986980 | score= 98.70% | band=good
+04:50:28 | INFO | hpm_write_forced_frac: raw=0.013020 | score= 98.70% | band=good
+04:50:50 | INFO | === =================================t3 ep3 s0030 | pnn=L/O/O/L/O/O open=4 (+1 unlocked)================================ ===
+04:50:50 | INFO |   ── Loss ──
+04:50:50 | INFO | total: raw=0.413504 | score= 91.73% | band=good
+04:50:50 | INFO | next_step: raw=0.225766 | score= 54.85% | band=medium
+04:50:50 | INFO | aux_latent: raw=0.037261 | score= 98.14% | band=good
+04:50:50 | INFO | q_loss: raw=0.053887 | score= 97.31% | band=good
+04:50:50 | INFO | holder_loss: raw=0.102550 | score= 94.87% | band=good
+04:50:50 | INFO | loss/text: raw=0.652282 | score= 67.39% | band=medium-high
+04:50:50 | INFO | loss/vision: raw=0.008382 | score= 98.32% | band=good
+04:50:50 | INFO | loss/audio: raw=0.012013 | score= 97.60% | band=good
+04:50:50 | INFO | loss/numeric: raw=0.009686 | score= 98.06% | band=good
+04:50:50 | INFO | stress: raw=0.027152 | score= 81.90% | band=good
+04:50:50 | INFO |   ── Accuracy ──
+04:50:50 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:50:50 | INFO | entity_acc: raw=0.904110 | score= 90.41% | band=good
+04:50:50 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:50:50 | INFO | holder_acc: raw=0.968750 | score= 96.88% | band=good
+04:50:50 | INFO |   ── PNN ──
+04:50:50 | INFO | pnn_open: 4.000000
+04:50:50 | INFO | pnn_unlocks: 1.000000
+04:50:50 | INFO |   ── HPM ──
+04:50:50 | INFO | hpm_gate_mean: raw=0.573333 | score= 42.67% | band=medium
+04:50:50 | INFO | hpm_z_abs_mean: raw=0.312638 | score= 93.75% | band=good
+04:50:50 | INFO | hpm_z_abs_max: raw=4.219920 | score= 57.80% | band=medium
+04:50:50 | INFO | hpm_err_mean: raw=2.082358 | score= 58.35% | band=medium
+04:50:50 | INFO | hpm_write_mag: raw=0.871564 | score= 70.95% | band=medium-high
+04:50:50 | INFO | hpm_open_frac: 1.000000
+04:50:50 | INFO | hpm_closing_frac: 0.000000
+04:50:50 | INFO | hpm_locked_frac: 0.000000
+04:50:50 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:50:50 | INFO | hpm_mu: raw=2.083095 | score= 15.28% | band=bad
+04:50:50 | INFO | hpm_sigma: raw=0.305430 | score= 15.27% | band=bad
+04:50:50 | INFO | hpm_write_regular_frac: raw=0.987652 | score= 98.77% | band=good
+04:50:50 | INFO | hpm_write_forced_frac: raw=0.012348 | score= 98.77% | band=good
+04:51:12 | INFO | === =================================t3 ep3 s0040 | pnn=O/O/O/O/O/O open=6 (+2 unlocked)================================ ===
+04:51:12 | INFO |   ── Loss ──
+04:51:12 | INFO | total: raw=1.237350 | score= 75.25% | band=medium-high
+04:51:12 | INFO | next_step: raw=0.211978 | score= 57.60% | band=medium
+04:51:12 | INFO | aux_latent: raw=1.687454 | score= 15.63% | band=bad
+04:51:12 | INFO | q_loss: raw=0.074761 | score= 96.26% | band=good
+04:51:12 | INFO | holder_loss: raw=0.071856 | score= 96.41% | band=good
+04:51:12 | INFO | loss/text: raw=0.613005 | score= 69.35% | band=medium-high
+04:51:12 | INFO | loss/vision: raw=0.007845 | score= 98.43% | band=good
+04:51:12 | INFO | loss/audio: raw=0.012495 | score= 97.50% | band=good
+04:51:12 | INFO | loss/numeric: raw=0.007737 | score= 98.45% | band=good
+04:51:12 | INFO | stress: raw=0.010260 | score= 93.16% | band=good
+04:51:12 | INFO |   ── Accuracy ──
+04:51:12 | INFO | latent_acc: raw=0.656250 | score= 65.62% | band=medium-high
+04:51:12 | INFO | entity_acc: raw=0.848101 | score= 84.81% | band=good
+04:51:12 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:51:12 | INFO | holder_acc: raw=0.960814 | score= 96.08% | band=good
+04:51:12 | INFO |   ── PNN ──
+04:51:12 | INFO | pnn_open: 6.000000
+04:51:12 | INFO | pnn_unlocks: 2.000000
+04:51:12 | INFO |   ── HPM ──
+04:51:12 | INFO | hpm_gate_mean: raw=0.571316 | score= 42.87% | band=medium
+04:51:12 | INFO | hpm_z_abs_mean: raw=0.299240 | score= 94.02% | band=good
+04:51:12 | INFO | hpm_z_abs_max: raw=4.221087 | score= 57.79% | band=medium
+04:51:12 | INFO | hpm_err_mean: raw=2.072129 | score= 58.56% | band=medium
+04:51:12 | INFO | hpm_write_mag: raw=0.862276 | score= 71.26% | band=medium-high
+04:51:12 | INFO | hpm_open_frac: 1.000000
+04:51:12 | INFO | hpm_closing_frac: 0.000000
+04:51:12 | INFO | hpm_locked_frac: 0.000000
+04:51:12 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:51:12 | INFO | hpm_mu: raw=2.084041 | score= 15.27% | band=bad
+04:51:12 | INFO | hpm_sigma: raw=0.305320 | score= 15.27% | band=bad
+04:51:12 | INFO | hpm_write_regular_frac: raw=0.986412 | score= 98.64% | band=good
+04:51:12 | INFO | hpm_write_forced_frac: raw=0.013588 | score= 98.64% | band=good
+04:51:34 | INFO | === =================================t3 ep3 s0050 | pnn=C/C/O/C/O/O open=3================================ ===
+04:51:34 | INFO |   ── Loss ──
+04:51:34 | INFO | total: raw=0.530069 | score= 89.40% | band=good
+04:51:34 | INFO | next_step: raw=0.230468 | score= 53.91% | band=medium
+04:51:34 | INFO | aux_latent: raw=0.082406 | score= 95.88% | band=good
+04:51:34 | INFO | q_loss: raw=0.115443 | score= 94.23% | band=good
+04:51:34 | INFO | holder_loss: raw=0.162108 | score= 91.89% | band=good
+04:51:34 | INFO | loss/text: raw=0.658856 | score= 67.06% | band=medium-high
+04:51:34 | INFO | loss/vision: raw=0.008972 | score= 98.21% | band=good
+04:51:34 | INFO | loss/audio: raw=0.013641 | score= 97.27% | band=good
+04:51:34 | INFO | loss/numeric: raw=0.010199 | score= 97.96% | band=good
+04:51:34 | INFO | stress: raw=0.020567 | score= 86.29% | band=good
+04:51:34 | INFO |   ── Accuracy ──
+04:51:34 | INFO | latent_acc: raw=0.968750 | score= 96.88% | band=good
+04:51:34 | INFO | entity_acc: raw=0.786667 | score= 78.67% | band=medium-high
+04:51:34 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:51:34 | INFO | holder_acc: raw=0.917659 | score= 91.77% | band=good
+04:51:34 | INFO |   ── PNN ──
+04:51:34 | INFO | pnn_open: 3.000000
+04:51:34 | INFO | pnn_unlocks: 0.000000
+04:51:34 | INFO |   ── HPM ──
+04:51:34 | INFO | hpm_gate_mean: raw=0.600069 | score= 39.99% | band=low-medium
+04:51:34 | INFO | hpm_z_abs_mean: raw=0.280589 | score= 94.39% | band=good
+04:51:34 | INFO | hpm_z_abs_max: raw=4.218923 | score= 57.81% | band=medium
+04:51:34 | INFO | hpm_err_mean: raw=2.069891 | score= 58.60% | band=medium
+04:51:34 | INFO | hpm_write_mag: raw=0.885246 | score= 70.49% | band=medium-high
+04:51:34 | INFO | hpm_open_frac: 1.000000
+04:51:34 | INFO | hpm_closing_frac: 0.000000
+04:51:34 | INFO | hpm_locked_frac: 0.000000
+04:51:34 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:51:34 | INFO | hpm_mu: raw=2.083403 | score= 15.28% | band=bad
+04:51:34 | INFO | hpm_sigma: raw=0.304793 | score= 15.24% | band=bad
+04:51:34 | INFO | hpm_write_regular_frac: raw=0.988993 | score= 98.90% | band=good
+04:51:34 | INFO | hpm_write_forced_frac: raw=0.011007 | score= 98.90% | band=good
+04:51:56 | INFO | === =================================t3 ep3 s0060 | pnn=L/L/O/L/O/O open=3================================ ===
+04:51:56 | INFO |   ── Loss ──
+04:51:56 | INFO | total: raw=0.362868 | score= 92.74% | band=good
+04:51:56 | INFO | next_step: raw=0.213713 | score= 57.26% | band=medium
+04:51:56 | INFO | aux_latent: raw=0.001464 | score= 99.93% | band=good
+04:51:56 | INFO | q_loss: raw=0.059314 | score= 97.03% | band=good
+04:51:56 | INFO | holder_loss: raw=0.050067 | score= 97.50% | band=good
+04:51:56 | INFO | loss/text: raw=0.632603 | score= 68.37% | band=medium-high
+04:51:56 | INFO | loss/vision: raw=0.007611 | score= 98.48% | band=good
+04:51:56 | INFO | loss/audio: raw=0.009683 | score= 98.06% | band=good
+04:51:56 | INFO | loss/numeric: raw=0.006638 | score= 98.67% | band=good
+04:51:56 | INFO | stress: raw=0.030326 | score= 79.78% | band=medium-high
+04:51:56 | INFO |   ── Accuracy ──
+04:51:56 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:51:56 | INFO | entity_acc: raw=0.849315 | score= 84.93% | band=good
+04:51:56 | INFO | binary_acc: raw=1.000000 | score=100.00% | band=good
+04:51:56 | INFO | holder_acc: raw=0.977183 | score= 97.72% | band=good
+04:51:56 | INFO |   ── PNN ──
+04:51:56 | INFO | pnn_open: 3.000000
+04:51:56 | INFO | pnn_unlocks: 0.000000
+04:51:56 | INFO |   ── HPM ──
+04:51:56 | INFO | hpm_gate_mean: raw=0.628783 | score= 37.12% | band=low-medium
+04:51:56 | INFO | hpm_z_abs_mean: raw=0.315759 | score= 93.68% | band=good
+04:51:56 | INFO | hpm_z_abs_max: raw=4.219528 | score= 57.80% | band=medium
+04:51:56 | INFO | hpm_err_mean: raw=2.103847 | score= 57.92% | band=medium
+04:51:56 | INFO | hpm_write_mag: raw=0.900767 | score= 69.97% | band=medium-high
+04:51:56 | INFO | hpm_open_frac: 1.000000
+04:51:56 | INFO | hpm_closing_frac: 0.000000
+04:51:56 | INFO | hpm_locked_frac: 0.000000
+04:51:56 | INFO | hpm_force_unlocks_step: raw=4.000000 | score= 60.00% | band=medium-high
+04:51:56 | INFO | hpm_mu: raw=2.083287 | score= 15.28% | band=bad
+04:51:56 | INFO | hpm_sigma: raw=0.304333 | score= 15.22% | band=bad
+04:51:56 | INFO | hpm_write_regular_frac: raw=0.989219 | score= 98.92% | band=good
+04:51:56 | INFO | hpm_write_forced_frac: raw=0.010781 | score= 98.92% | band=good
+04:52:08 | INFO | === [val] t3 ep3 ===
+04:52:08 | INFO |   ── Loss ──
+04:52:08 | INFO | next_step: raw=0.211679 | score= 57.66% | band=medium
+04:52:08 | INFO | loss/text: raw=0.616225 | score= 99.38% | band=good
+04:52:08 | INFO | loss/vision: raw=0.007358 | score= 98.53% | band=good
+04:52:08 | INFO | loss/audio: raw=0.011534 | score= 97.69% | band=good
+04:52:08 | INFO | loss/numeric: raw=0.007920 | score= 98.42% | band=good
+04:52:08 | INFO | text_entropy: raw=0.610046 | score= 69.50% | band=medium-high
+04:52:08 | INFO |   ── Accuracy ──
+04:52:08 | INFO | latent_acc: raw=1.000000 | score=100.00% | band=good
+04:52:08 | INFO | holder_acc: raw=0.968440 | score= 96.84% | band=good
+04:52:08 | INFO | qacc/who_holds_token: raw=0.963461 | score= 96.35% | band=good
+04:52:08 | INFO | qacc/who_was_first_tagged: raw=0.647512 | score= 64.75% | band=medium-high
+04:52:08 | INFO | qacc/did_alarm_fire: raw=1.000000 | score=100.00% | band=good
+04:52:08 | INFO | qacc/which_entity_occluded: raw=0.867317 | score= 86.73% | band=good
+04:52:08 | INFO | qacc/did_trigger_before_alarm: raw=1.000000 | score=100.00% | band=good
+04:52:08 | INFO | qacc/which_entity_first_occluded: raw=0.840890 | score= 84.09% | band=good
+04:52:08 | INFO | qacc/did_chain2_fire: raw=0.994048 | score= 99.40% | band=good
+04:52:08 | INFO | qacc/what_was_true_rule: raw=0.971429 | score= 97.14% | band=good
+04:52:08 | INFO |   ── Other ──
+04:52:08 | INFO | event_acc: 0.924541
+  -> holding tier 3; unmet gates: latent_acc=1.000 < 1.010
+  -> tier 3 did not reach promotion threshold; continuing anyway
+  -> saved checkpoint to checkpoint_tier3.pt
+
+  ===== Diagnostics =====
+  mean_episodic_read_entropy: 3.228
+  who_holds_token by handoffs:
+    handoffs= 0  acc=1.000  n=18
+    handoffs= 1  acc=0.972  n=36
+    handoffs= 2  acc=1.000  n=27
+    handoffs= 3  acc=0.958  n=24
+    handoffs= 4  acc=1.000  n=16
+    handoffs= 5  acc=0.733  n=15
+    handoffs=6+  acc=1.000  n=29
+  who_was_first_tagged by handoffs:
+    handoffs= 0  acc=1.000  n=9
+    handoffs= 1  acc=0.667  n=15
+    handoffs= 2  acc=0.692  n=26
+    handoffs= 3  acc=0.364  n=11
+    handoffs= 4  acc=0.429  n=21
+    handoffs= 5  acc=0.800  n=10
+    handoffs=6+  acc=0.689  n=45
+  what_was_true_rule (belief revision):
+        with_cue  acc=1.000  n=31
+  temporal ordering (trigger<alarm):  acc=1.000  n=127
+  first occluded entity:  acc=0.896  n=135
+  chain2 fire:  acc=1.000  n=131
+  color change (zero-shot, untrained):  acc=0.220  n=254
+  color change by lag (steps since event):
+    lag=  0-5  acc=1.000  n=1
+    lag= 6-15  acc=0.000  n=4
+    lag=16-30  acc=0.222  n=9
+    lag=  31+  acc=0.221  n=240
+  ===== Emergent Capability Probes (zero-shot) =====
+    HPM slot specialization:  0.036  (n=211, 0=uniform, 1=fully specialized; >0.3 interesting)
+    causal thread separation:  0.035  (n=39, within-between cos_sim; >0.1 interesting)
+    retroactive cause binding:  -0.180  (n=10, correction↔cue - correction↔random; >0.05 interesting)
+    state reactivation (replay):  -0.159  (n=10, post-surprise↔pre max_sim - baseline; >0 suggestive)
+    event boundary chunking:  18.255  (n=63, ||Δh|| event/non-event ratio; >1.5 interesting)
+    surprise-event correlation:  1.743  (n=63, HPM |z| event/non-event ratio; >1.5 interesting)
+
+exit=0

@@ -1424,6 +1424,17 @@ class HomeostaticMultimodalWorldModel(nn.Module):
         self.fusion = GatedModalityFusion(cfg)
         self.blocks = nn.ModuleList([AdaptiveSparseWorldBlock(cfg, i) for i in range(cfg.num_layers)])
         self.episodic_memory = EpisodicMemoryBank(cfg)
+        # Empty episodic slots must not be the zero vector: the cosine
+        # normalisation in EpisodicMemoryBank.write and the RMSNorm applied to
+        # the whole bank each step both have Jacobians that scale as 1/eps at
+        # zero, and the per-step recurrence compounds that into non-finite
+        # gradients whenever slots stay unallocated through an episode.
+        # Fixed unit-RMS random rows keep every normalisation well-conditioned
+        # while remaining as inert as zeros for matching (|cos| ~ d^-1/2).
+        _gen = torch.Generator().manual_seed(0x5EED)
+        _empty = torch.randn(cfg.num_episodic_slots, cfg.d_model, generator=_gen)
+        _empty = _empty / _empty.pow(2).mean(dim=-1, keepdim=True).sqrt()
+        self.register_buffer("episodic_empty_init", _empty, persistent=False)
         self.final_norm = RMSNorm(cfg.d_model)
         self.event_proj = nn.Linear(2 * cfg.d_model, 1)
         self.controller = HomeostaticController(self.blocks, cfg)
@@ -1514,7 +1525,7 @@ class HomeostaticMultimodalWorldModel(nn.Module):
         device = device or next(self.parameters()).device
         hidden = [torch.zeros(batch_size, self.cfg.d_model, device=device) for _ in range(self.cfg.num_layers)]
         memory = [torch.zeros(batch_size, self.cfg.num_memory_slots, self.cfg.d_model, device=device) for _ in range(self.cfg.num_layers)]
-        episodic = torch.zeros(batch_size, self.cfg.num_episodic_slots, self.cfg.d_model, device=device)
+        episodic = self.episodic_empty_init.to(device).unsqueeze(0).expand(batch_size, -1, -1).contiguous()
         episodic_strengths = torch.full((batch_size, self.cfg.num_episodic_slots), self.cfg.episodic_min_strength, device=device)
         return WorldModelState(
             layer_hidden=hidden,

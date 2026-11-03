@@ -13,3 +13,12 @@ These logs predate the v2 runner. They are working records, not current benchmar
 | [`training_logs_20260411164430.txt`](https://github.com/ai-wes/hmwmc/blob/78121b697a54806907feaf7d7bd022fcd419927c/.history/training_logs_20260411164430.txt) | `6081f18cede9918077f624f9cb0cf70db9065f27` | later legacy runner snapshot |
 
 The empty `training_logs_20260411150611.txt` snapshot is intentionally omitted. The original paths and blobs remain available through Git history; this manifest exists so removing editor debris does not make the research provenance undiscoverable.
+
+## v2 runs preserved in this directory
+
+| File | Code state | Note |
+|---|---|---|
+| `baseline_v2_2026-11-03.log` | commit `82ab1e1`, unmodified | 544 of 768 optimizer steps skipped for non-finite gradients; negative baseline. Multi-line gradient-skip parameter dumps are truncated |
+| `fixed_v2_2026-11-03.log` | `82ab1e1` plus the 2026-11-03 holder-label and episodic-init fixes | 0 skipped steps; the run reported in the README results table |
+
+Each file begins with a header giving the exact command, Python, PyTorch, and GPU used.

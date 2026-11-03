@@ -86,6 +86,24 @@ class HandoffState:
     color_change_entity_id: int = -1   # entity that changed color, -1 if none
     color_change_step: int = -1        # step at which the change occurred
 
+    def holder_at(self, t: int) -> int:
+        """
+        Holder id as of the end of step ``t``.
+
+        Replays ``transfer_history`` (which is appended in chronological order)
+        up to and including step ``t``. The initial holder is recovered from the
+        first transfer's ``from_id``; with no transfers, the current holder is
+        the initial holder.
+        """
+        if not self.transfer_history:
+            return self.holder_id
+        holder = self.transfer_history[0][1]
+        for step, _from_id, to_id in self.transfer_history:
+            if step > t:
+                break
+            holder = to_id
+        return holder
+
 
 def _step_world_with_handoff(
     state: WorldState,
@@ -311,7 +329,11 @@ def generate_episode_with_queries(
         qtype = rng.choice(QUERY_TYPES)
         time_asked = rng.randint(back_half_start, T - 1)
         if qtype == "who_holds_token":
-            target = handoff.holder_id
+            # Who holds the token *at the time the question is asked*. The
+            # backbone is a causal scan, so a label taken from the end of the
+            # episode would be unanswerable whenever a handoff follows
+            # ``time_asked``.
+            target = handoff.holder_at(time_asked)
             queries.append(Query(qtype, target, time_asked, is_binary=False))
         elif qtype == "who_was_first_tagged":
             target = max(0, handoff.first_tagged_id)
