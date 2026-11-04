@@ -1014,3 +1014,16 @@ Added `--ablate {none,hpm,episodic,structured}` to `tmew1_run_v2.py` and a memor
 ### Validation
 
 - Each ablation ran a 1-epoch, 64-episode curriculum on the GPU end to end with zero non-finite steps; parameter counts 11.42M (hpm off), 12.02M (episodic off), 10.96M (structured off) versus 12.02M.
+
+## [2026-11-04 01:30]
+
+### Memory ablation results (Colab A100, default size, 3 seeds)
+
+- All four conditions (full, no HPM, no episodic, no structured) land at 0.30–0.34 on `who_holds_token` and show the same handoff profile: ~0.85 at zero handoffs, 0.05–0.27 at one, chance thereafter. No memory module is load-bearing for the holder query. Full-model seed 2 died of CUDA OOM at the first Tier 3 step (shared GPU), so that row has 2 seeds.
+- Without structured state the holder answer is a near-constant "entity 0" (bit-identical tables across seeds at Tier 2); with it the model beats that baseline only in the one-handoff bucket. `which_entity_changed_color` is 0.20–0.23 everywhere. Observable queries unchanged by every ablation.
+- Only non-flat metric: `what_was_true_rule` 0.95 (full) vs 0.78 ± 0.13 (no episodic) on 31 queries; overlapping, not a result.
+- Table and reading in `docs/raw_runs/ablations_2026-11-04.md`. This confirms the assumption in `docs/superpowers/specs/2026-11-03-transient-cue-write-path-design.md`.
+
+### Next Steps
+
+- Implement the event-latched transient-cue write path per the design doc; four-run experiment (latch on, oracle gate, latch ablated, structured ablated with latch) at default size, 3 seeds.

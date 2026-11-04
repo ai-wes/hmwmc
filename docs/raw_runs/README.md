@@ -23,5 +23,6 @@ The empty `training_logs_20260411150611.txt` snapshot is intentionally omitted. 
 | `honest_v2_2026-11-03b.log` + `honest_v2_2026-11-03b_json/` | `6db1b34`, benchmark revision 2026-11-03b | default curriculum with the per-epoch probe monitor; holder query 0.293 once the ambient cue is removed. JSON directory holds `run_config.json`, `val_tier*_ep*.json`, `diagnostics_tier*.json`, `probes_tier*_ep*.json` |
 | `honest_A1_2026-11-03b.log` | `6db1b34` | branch A1 (6–8 entities), verdict kill on belief-revision regression |
 | `honest_A2_2026-11-03b.log` | `6db1b34` | branch A2 (`T=96`), CUDA out of memory in Tier 3 at batch 32 on an 8 GB card; no verdict |
+| `ablations_2026-11-04.md` | `a5ec217`, benchmark revision 2026-11-03b, Colab A100 | memory ablations (HPM / episodic / structured off), default size, 3 seeds, side-by-side tables and reading; source JSONs on Drive |
 
 Each file begins with a header giving the exact command, Python, PyTorch, and GPU used.
