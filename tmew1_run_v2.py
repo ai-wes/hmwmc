@@ -48,9 +48,14 @@ from tmew1_diagnostics_v2 import (
     run_diagnostic_report,
     run_emergent_probes,
     TMEW1DiagnosticDataset,
+    build_latch_targets,
+    latch_gate_override_for,
+    accumulate_latch_stats,
+    summarize_latch_stats,
+    flatten_latch_summary,
 )
 
-from hpm_v2 import HPMConfig
+from hpm_v2 import HPMConfig, LatchConfig
 from homeostatic_multimodal_world_model_chunked_v2 import (
     ControllerConfig,
     HomeostaticMultimodalWorldModel,
@@ -236,6 +241,11 @@ def get_retrieval_context(output: ForwardOutput):
         "state_checkpoint_mask": output.state_checkpoint_mask,
         "state_checkpoint_times": output.state_checkpoint_times,
         "state_checkpoint_holder_logits": output.state_checkpoint_holder_logits,
+        "latch_values": output.latch_values,
+        "latch_log_entries": output.latch_log_entries,
+        "latch_log_mask": output.latch_log_mask,
+        "latch_log_times": output.latch_log_times,
+        "latch_log_registers": output.latch_log_registers,
     })
     return ctx
 
@@ -373,6 +383,7 @@ def train_one_step(
         vision=vision_in if "vision" in enabled else None,
         audio=audio_in if "audio" in enabled else None,
         numeric=numeric_in if "numeric" in enabled else None,
+        latch_gate_override=latch_gate_override_for(model, batch, vision_in.size(1)),
     )
 
     losses: LossOutput = criterion(
@@ -450,7 +461,34 @@ def train_one_step(
                 output.typed_event_type_logits.argmax(-1) == event_targets
             ).float().mean().item()
 
-    total = losses.total + tcfg.aux_latent_weight * aux + q_loss + tcfg.holder_loss_weight * holder_loss + 0.20 * event_loss
+    # Event-latch supervision (design doc section 3.5): gate BCE against the
+    # cue step with a per-register pos_weight from the batch's positive rate,
+    # and CE on the latched value at every step so the pre-write prior trains.
+    latch_gate_loss = torch.zeros((), device=output.sequence.device)
+    latch_value_loss = torch.zeros((), device=output.sequence.device)
+    latch_acc = 0.0
+    latch_active = output.latch_values is not None and "holder_per_step" in batch
+    if latch_active:
+        registers = model.cfg.latch_config.registers
+        gate_targets, value_targets = build_latch_targets(batch, output.latch_values.size(1), registers)
+        gate_logits = output.latch_gate_logits
+        pos = gate_targets.sum(dim=(0, 1))                       # (R,)
+        neg = gate_targets.numel() / gate_targets.size(-1) - pos
+        pos_weight = (neg / pos.clamp_min(1.0)).clamp(min=1.0, max=100.0)
+        latch_gate_loss = nn.functional.binary_cross_entropy_with_logits(
+            gate_logits.float(), gate_targets, pos_weight=pos_weight,
+        )
+        latch_value_loss = nn.functional.cross_entropy(
+            output.latch_values.reshape(-1, output.latch_values.size(-1)).float(),
+            value_targets.reshape(-1),
+        )
+        with torch.no_grad():
+            latch_acc = (output.latch_values.argmax(-1) == value_targets).float().mean().item()
+
+    total = (
+        losses.total + tcfg.aux_latent_weight * aux + q_loss + tcfg.holder_loss_weight * holder_loss + 0.20 * event_loss
+        + tcfg.latch_gate_weight * latch_gate_loss + tcfg.latch_value_weight * latch_value_loss
+    )
 
     # HPM v2: extract diversity regularizer (Tensor) and add to total.
     _hpm_diag = getattr(model, '_last_hpm_diagnostics', None)
@@ -506,6 +544,7 @@ def train_one_step(
             "q_loss": float("nan"),
             **({"holder_loss": float("nan"), "holder_acc": holder_acc} if holder_active else {}),
             **({"event_loss": float("nan"), "event_acc": event_acc} if output.typed_event_type_logits is not None else {}),
+            **({"latch_gate_loss": float("nan"), "latch_value_loss": float("nan"), "latch_acc": latch_acc} if latch_active else {}),
             **q_metrics,
         }
 
@@ -557,6 +596,7 @@ def train_one_step(
             "q_loss": float(q_loss.item()),
             **({"holder_loss": float(holder_loss.item()), "holder_acc": holder_acc} if holder_active else {}),
             **({"event_loss": float(event_loss.item()), "event_acc": event_acc} if output.typed_event_type_logits is not None else {}),
+            **({"latch_gate_loss": float(latch_gate_loss.item()), "latch_value_loss": float(latch_value_loss.item()), "latch_acc": latch_acc} if latch_active else {}),
             "skipped_step": True, **q_metrics,
         }
     optimizer.step()
@@ -599,6 +639,10 @@ def train_one_step(
     if output.typed_event_type_logits is not None:
         out["event_loss"] = float(event_loss.item())
         out["event_acc"] = event_acc
+    if latch_active:
+        out["latch_gate_loss"] = float(latch_gate_loss.item())
+        out["latch_value_loss"] = float(latch_value_loss.item())
+        out["latch_acc"] = latch_acc
     for mod_name, mod_loss in losses.parts.items():
         out[f"loss/{mod_name}"] = float(mod_loss.item())
     return out
@@ -623,6 +667,7 @@ def evaluate(
 
     sums: Dict[str, float] = {}
     counts: Dict[str, int] = {}
+    latch_stats: Dict[str, float] = {}
     n = 0
 
     for batch in loader:
@@ -639,7 +684,10 @@ def evaluate(
             vision=vision_in if "vision" in enabled else None,
             audio=audio_in if "audio" in enabled else None,
             numeric=numeric_in if "numeric" in enabled else None,
+            latch_gate_override=latch_gate_override_for(model, batch, vision_in.size(1)),
         )
+        if output.latch_values is not None and "holder_per_step" in batch:
+            accumulate_latch_stats(latch_stats, output, batch, model.cfg.latch_config.registers)
         losses = criterion(
             output,
             text_targets=text_tgt if "text" in enabled else None,
@@ -720,6 +768,8 @@ def evaluate(
     for k in sums:
         if k.startswith("qacc/"):
             out[k] = sums[k] / max(1, counts[k])
+    if latch_stats:
+        out.update(flatten_latch_summary(summarize_latch_stats(latch_stats, model.cfg.latch_config.registers)))
     return out
 
 
@@ -776,6 +826,8 @@ ABLATIONS: Dict[str, Dict[str, Any]] = {
         "typed_event_log_config": None,
         "state_checkpoint_config": None,
     },
+    # Event-latched registers off: should reproduce the pre-latch table.
+    "latch": {"latch_config": None},
 }
 
 
@@ -786,6 +838,7 @@ def resolve_model_overrides(
     memory_slots: Optional[int] = None,
     episodic_slots: Optional[int] = None,
     ablate: str = "none",
+    latch_oracle_gate: bool = False,
 ) -> Dict[str, Any]:
     """Compose a size preset, an ablation, and explicit per-field overrides (explicit wins)."""
     if size not in MODEL_SIZE_PRESETS:
@@ -794,6 +847,12 @@ def resolve_model_overrides(
         raise ValueError(f"unknown --ablate {ablate!r}; choose from {sorted(ABLATIONS)}")
     overrides = dict(MODEL_SIZE_PRESETS[size])
     overrides.update(ABLATIONS[ablate])
+    if latch_oracle_gate:
+        if ablate == "latch":
+            raise ValueError("--latch-oracle-gate has no effect with --ablate latch")
+        # Diagnostic upper bound: the gate is replaced by the ground-truth cue
+        # step. build_model fills in the entity count and channel offsets.
+        overrides["latch_config"] = LatchConfig(enabled=True, oracle_gate=True)
     for key, value in (
         ("d_model", d_model),
         ("num_layers", num_layers),
@@ -883,7 +942,9 @@ def run_curriculum(
         getattr(model, "structured_state", None) is not None
         or getattr(model, "typed_event_log", None) is not None
         or getattr(model, "state_checkpoint_bank", None) is not None
+        or getattr(model, "latch", None) is not None
     )
+    _latch_registers = tuple(model.latch.registers) if getattr(model, "latch", None) is not None else ()
     _use_iterative = (
         getattr(model, "entity_table", None) is not None
         or getattr(model, "event_tape", None) is not None
@@ -895,6 +956,7 @@ def run_curriculum(
             max_entities=num_categorical_answers,
             num_query_types=len(get_extended_query_types()),
             query_type_names=get_extended_query_types(),
+            latch_registers=_latch_registers,
         )
     elif _use_iterative:
         d_entity = 0
@@ -958,6 +1020,7 @@ def run_curriculum(
                 "model_config_overrides": {k: (vars(v) if hasattr(v, "__dataclass_fields__") else v) for k, v in (model_config_overrides or {}).items()},
                 "probe_every_epoch": bool(probe_every_epoch),
                 "ablation": os.environ.get("TMEW1_ABLATION", "none"),
+                "latch": (vars(model.cfg.latch_config) if model.cfg.latch_config is not None else None),
                 "torch": torch.__version__,
                 "gpu": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
             }, _rf, indent=2, default=_json_default)
@@ -1279,9 +1342,11 @@ def main() -> None:
     parser.add_argument("--memory-slots", type=int, default=None, help="Override per-layer memory slots")
     parser.add_argument("--episodic-slots", type=int, default=None, help="Override episodic memory slots")
     parser.add_argument("--ablate", type=str, default="none", choices=sorted(ABLATIONS),
-                        help="Memory ablation: hpm (HPM off), episodic (episodic bank off), structured (state table, typed events, checkpoints off)")
+                        help="Memory ablation: hpm (HPM off), episodic (episodic bank off), structured (state table, typed events, checkpoints off), latch (event-latched registers off)")
     parser.add_argument("--probe-every-epoch", action="store_true",
                         help="Run the six emergent-capability probes after every validation pass and write probes_tier{N}_ep{E}.json (needs --out-dir)")
+    parser.add_argument("--latch-oracle-gate", action="store_true",
+                        help="Diagnostic only: replace the event-latch write gate with the ground-truth cue step (upper bound, never a result)")
     args = parser.parse_args()
 
     if args.probe_every_epoch and not args.out_dir:
@@ -1308,7 +1373,10 @@ def main() -> None:
         num_workers=args.workers,
         seed=args.seed,
     )
-    overrides = resolve_model_overrides(args.size, args.d_model, args.num_layers, args.memory_slots, args.episodic_slots, ablate=args.ablate)
+    overrides = resolve_model_overrides(
+        args.size, args.d_model, args.num_layers, args.memory_slots, args.episodic_slots,
+        ablate=args.ablate, latch_oracle_gate=args.latch_oracle_gate,
+    )
     run_curriculum(
         world_cfg, tcfg, resume_from=args.resume,
         model_config_overrides=overrides or None,

@@ -675,6 +675,12 @@ class StructuredQueryHeadV2(nn.Module):
         num_query_types: int,
         query_type_names: Optional[Sequence[str]] = None,
         n_retrieval_steps: int = 2,
+        latch_registers: Sequence[str] = (),
+        holder_base_weight: float = 0.25,
+        holder_structured_weight: float = 1.50,
+        holder_latch_weight: float = 1.50,
+        holder_structured_weight_with_latch: float = 0.50,
+        first_tagged_latch_weight: float = 1.50,
     ):
         super().__init__()
         self.d_memory = d_memory
@@ -684,6 +690,17 @@ class StructuredQueryHeadV2(nn.Module):
         self.uses_structured_context = True
         self.qtype_names = tuple(query_type_names or ())
         self.qtype_to_idx = {name: i for i, name in enumerate(self.qtype_names)}
+        # Event-latch reads. ``latch_registers`` names the register axis of
+        # ``latch_values`` (B, T, R, E); current-state identity queries read
+        # their register at the query step. Blend weights are config, not
+        # literals; when the latch is present it gets the larger holder weight.
+        self.latch_registers = tuple(latch_registers)
+        self.latch_index = {name: i for i, name in enumerate(self.latch_registers)}
+        self.holder_base_weight = float(holder_base_weight)
+        self.holder_structured_weight = float(holder_structured_weight)
+        self.holder_latch_weight = float(holder_latch_weight)
+        self.holder_structured_weight_with_latch = float(holder_structured_weight_with_latch)
+        self.first_tagged_latch_weight = float(first_tagged_latch_weight)
 
         self.qtype_embed = nn.Embedding(num_query_types, d_memory)
         self.input_proj = nn.Linear(d_input, d_memory)
@@ -793,10 +810,17 @@ class StructuredQueryHeadV2(nn.Module):
         state_checkpoint_mask: Optional[Tensor] = None,
         state_checkpoint_times: Optional[Tensor] = None,
         state_checkpoint_holder_logits: Optional[Tensor] = None,
+        latch_values: Optional[Tensor] = None,
+        latch_log_entries: Optional[Tensor] = None,
+        latch_log_mask: Optional[Tensor] = None,
+        latch_log_times: Optional[Tensor] = None,
+        latch_log_registers: Optional[Tensor] = None,
         **_: Tensor,
     ) -> Tuple[Tensor, Tensor]:
         B, T, D_in = sequence.shape
         d = self.d_memory
+        if latch_values is not None and not self.latch_registers:
+            latch_values = None  # head was built without a register map; ignore
 
         states = torch.gather(
             sequence,
@@ -841,11 +865,30 @@ class StructuredQueryHeadV2(nn.Module):
             ),
         )
 
+        latch_holder = self.latch_index.get("holder") if latch_values is not None else None
         if structured_state_holder_logits is not None and current_holder_mask.any():
             holder_at_q = self._gather_at_query_times(structured_state_holder_logits, query_times)
             entity_logits = self._blend_entity_prefix(
                 entity_logits, holder_at_q, current_holder_mask,
-                base_weight=0.25, entity_weight=1.50,
+                base_weight=self.holder_base_weight,
+                entity_weight=(
+                    self.holder_structured_weight_with_latch if latch_holder is not None
+                    else self.holder_structured_weight
+                ),
+            )
+        if latch_holder is not None and current_holder_mask.any():
+            latch_at_q = self._gather_at_query_times(latch_values[:, :, latch_holder], query_times)
+            entity_logits = self._blend_entity_prefix(
+                entity_logits, latch_at_q, current_holder_mask,
+                base_weight=1.0, entity_weight=self.holder_latch_weight,
+            )
+        latch_first_tagged = self.latch_index.get("first_tagged") if latch_values is not None else None
+        first_tagged_mask = self._mask_from_names(query_types, ("who_was_first_tagged",))
+        if latch_first_tagged is not None and first_tagged_mask.any():
+            ft_at_q = self._gather_at_query_times(latch_values[:, :, latch_first_tagged], query_times)
+            entity_logits = self._blend_entity_prefix(
+                entity_logits, ft_at_q, first_tagged_mask,
+                base_weight=self.holder_base_weight, entity_weight=self.first_tagged_latch_weight,
             )
 
         memory_parts: List[Tensor] = []
@@ -879,6 +922,20 @@ class StructuredQueryHeadV2(nn.Module):
             )
             if state_checkpoint_times is not None:
                 time_parts.append(state_checkpoint_times)
+        if latch_log_entries is not None and self.latch_registers:
+            memory_parts.append(latch_log_entries)
+            mask_parts.append(
+                latch_log_mask
+                if latch_log_mask is not None
+                else torch.ones(
+                    latch_log_entries.size(0),
+                    latch_log_entries.size(1),
+                    dtype=torch.bool,
+                    device=latch_log_entries.device,
+                )
+            )
+            if latch_log_times is not None:
+                time_parts.append(latch_log_times)
 
         if memory_parts and (historical_entity_mask.any() or historical_binary_mask.any()):
             history_memory = torch.cat(memory_parts, dim=1)

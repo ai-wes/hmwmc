@@ -1027,3 +1027,31 @@ Added `--ablate {none,hpm,episodic,structured}` to `tmew1_run_v2.py` and a memor
 ### Next Steps
 
 - Implement the event-latched transient-cue write path per the design doc; four-run experiment (latch on, oracle gate, latch ablated, structured ablated with latch) at default size, 3 seeds.
+
+## [2026-11-04 12:10]
+
+### Summary
+
+Implemented the event-latched transient-cue write path from `docs/superpowers/specs/2026-11-03-transient-cue-write-path-design.md`, in two commits (PR1 module and wiring, PR2 supervision, reads, diagnostics, flags). The latch is on by default; the four-run experiment that decides whether it worked is in notebook section 5c and has not been run yet.
+
+### Changes
+
+- `hpm_v2.py`: `LatchConfig`, `LatchOutput`, `EventLatchBank`. Typed registers (`holder`, `first_tagged`, `color_changed`), gate from raw cue channels at `t`/`t-1` plus per-modality features (never `sequence`), value heads with a direct one-hot source prior, `L[t] = (1-g)L[t-1] + gv[t]` with no decay and a learned pre-write prior, write-once via a running-max `written` scalar, fixed-capacity write log with register and time embeddings, `oracle_gate` override.
+- `homeostatic_multimodal_world_model_chunked_v2.py`: `_encode_modalities` also returns the per-modality features; `WorldModelConfig.latch_config`; `forward(latch_gate_override=...)`; latch runs post hoc after the checkpoint bank; nine `latch_*` fields on `ForwardOutput`.
+- `tmew1_diagnostics_v2.py`: `first_tagged_id` / `first_tagged_step` on `EpisodeWithDiagnostics` and in the tensors; `build_latch_targets` (gate on the cue step, value every step with the benchmark's pre-write conventions), `latch_gate_override_for`, `accumulate_latch_stats` / `summarize_latch_stats` / `flatten_latch_summary`; `recall_by_difficulty` reports `latch_gate` (P/R/F1/fp_rate per register), `latch_retention` (by steps since last true write, plus `pre`), and `which_entity_changed_color_latch` with lag buckets; `_get_retrieval_context_v2` passes the latch outputs; `format_diagnostics` prints them.
+- `tmew1_run_v2.py`: gate BCE with per-batch `pos_weight` and latch value CE in `train_one_step` (weights `TrainConfig.latch_gate_weight=0.5`, `latch_value_weight=1.0`); latch metrics in `evaluate`; `ABLATIONS["latch"]`; `--latch-oracle-gate`; the latch alone is enough to select `StructuredQueryHeadV2` (so `--ablate structured` keeps the latch read); latch config recorded in `run_config.json`.
+- `tmew1_queries_v2.py`: `StructuredQueryHeadV2(latch_registers=..., holder_*_weight=...)` reads the holder and first-tagged registers at the query step (latch weight 1.5, structured weight drops to 0.5 when the latch is present; all weights are constructor args) and appends the latch log to the history-attention memory.
+- `tmew1_train_v2.py`: default `LatchConfig` in `build_model` with the renderer offsets; a `LatchConfig` override keeps the world's entity count and offsets; latch metrics in `evaluate` when the batch carries targets.
+- `tmew1_aggregate_runs.py`: `latch_gate`, `latch_retention`, `which_entity_changed_color_latch` sections and `latch_*` validation keys.
+- `tmew1_colab.ipynb`: section 5c (four runs x 3 seeds, summaries, decision table). README: architecture item, flags, ablation note. Tests: `_smoke_test_v2.py` section 8b (exact hold over 34 random steps, write-once, wiring on/off); `_test_query_labels.py` pins the register targets to the query targets at `time_asked` and the gate targets to the rendered cue steps.
+
+### Validation
+
+- `scripts/run_ci_checks.sh` with the repo `.venv` (all unit files plus the end-to-end smoke) passes; the smoke prints the new latch diagnostics.
+- One training step and one eval pass under each of the four conditions on the GPU; with `--latch-oracle-gate` the effective gate equals the target exactly and the untrained source prior already gives 1.00 holder argmax on cue steps.
+- Local short run (RTX 3070, 1 epoch x 512 episodes per tier, seed 0; a sanity check, not a result). Tier 3 `latch_gate`: first_tagged P=1.00 R=0.98; holder P=0.46 R=0.92 (fp_rate 0.07); color_changed F1 0.05. `latch_retention` at lag 31+: first_tagged 0.88, holder 0.19, color_changed 0.21. The diagnostic separates the cases as designed: a clean gate holds for 31+ steps, spurious holder writes overwrite the register, and the colour cue is not yet detected at this training budget.
+
+### Next Steps
+
+- Run the four-run experiment on Colab (notebook 5c), default size, 3 seeds; record under `docs/raw_runs/`.
+- Tune `latch_gate_weight` / `latch_value_weight` and the holder blend weights on the smoke run if the learned gate's F1 stays low; the oracle run says whether detection or retention is the problem.

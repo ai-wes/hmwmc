@@ -16,6 +16,7 @@ delays drop into the same generator interface without trainer changes.
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -40,7 +41,7 @@ from homeostatic_multimodal_world_model_chunked_v2 import (
     LossOutput,
     summarize_controller_report,
 )
-from hpm_v2 import StructuredStateConfig, TypedEventLogConfig, StateCheckpointConfig
+from hpm_v2 import StructuredStateConfig, TypedEventLogConfig, StateCheckpointConfig, LatchConfig
 from score_logging import ScoreLogger, build_default_metric_specs, log_training_snapshot
 
 
@@ -518,6 +519,10 @@ class TrainConfig:
     holder_loss_weight: float = 0.3
     # When False, HPM slot-diversity regularizer is zeroed out.
     diversity_loss_enabled: bool = True
+    # Event-latch supervision: BCE on the write gate against the cue step, and
+    # CE on the latched register value at every step (incl. pre-write prior).
+    latch_gate_weight: float = 0.5
+    latch_value_weight: float = 1.0
 
 
 class LatentRuleProbe(nn.Module):
@@ -570,6 +575,15 @@ def build_model(world_cfg: WorldConfig, **model_config_overrides) -> Tuple[Homeo
             enabled=True,
             n_checkpoints=16,
         ),
+        # Event-latched registers for transient cues (holder handoff, first
+        # tag, colour change). Offsets come from this file's renderers.
+        latch_config=LatchConfig(
+            enabled=True,
+            n_entities=world_cfg.max_entities,
+            audio_holder_offset=8,
+            numeric_entity_offset=NUMERIC_ENTITY_OFFSET,
+            numeric_entity_stride=NUMERIC_ENTITY_STRIDE,
+        ),
         entity_table_config=None,
         event_tape_config=None,
         entity_history_config=None,
@@ -577,6 +591,15 @@ def build_model(world_cfg: WorldConfig, **model_config_overrides) -> Tuple[Homeo
     # Explicit overrides (size presets, branch configs) take precedence over
     # the research defaults above.
     base_kwargs.update(model_config_overrides)
+    # A LatchConfig override (e.g. the oracle-gate flag) keeps the world's
+    # entity count and channel offsets unless it set them explicitly.
+    if isinstance(base_kwargs.get("latch_config"), LatchConfig):
+        base_kwargs["latch_config"] = dataclasses.replace(
+            base_kwargs["latch_config"],
+            n_entities=world_cfg.max_entities,
+            numeric_entity_offset=NUMERIC_ENTITY_OFFSET,
+            numeric_entity_stride=NUMERIC_ENTITY_STRIDE,
+        )
     cfg = WorldModelConfig(**base_kwargs)
     model = HomeostaticMultimodalWorldModel(cfg)
     criterion = MultimodalPredictionLoss(cfg, LossWeights(text=0.3, numeric=1.0, audio=1.0, vision=1.0))
@@ -656,6 +679,7 @@ def evaluate(
     model.eval()
     probe.eval()
     totals: Dict[str, float] = {}
+    latch_stats: Dict[str, float] = {}
     n = 0
     for batch in loader:
         batch = {k: v.to(tcfg.device) for k, v in batch.items()}
@@ -685,9 +709,18 @@ def evaluate(
         totals["aux_latent"] = totals.get("aux_latent", 0.0) + float(aux.item()) * bs
         totals["latent_acc"] = totals.get("latent_acc", 0.0) + rule_acc * bs
         n += bs
+        if output.latch_values is not None and "holder_per_step" in batch:
+            # Only diagnostic batches carry per-step targets; the base
+            # Episode does not, so this is a no-op on the plain loader.
+            from tmew1_diagnostics_v2 import accumulate_latch_stats
+            accumulate_latch_stats(latch_stats, output, batch, model.cfg.latch_config.registers)
     model.train()
     probe.train()
-    return {k: v / max(1, n) for k, v in totals.items()}
+    out = {k: v / max(1, n) for k, v in totals.items()}
+    if latch_stats:
+        from tmew1_diagnostics_v2 import summarize_latch_stats, flatten_latch_summary
+        out.update(flatten_latch_summary(summarize_latch_stats(latch_stats, model.cfg.latch_config.registers)))
+    return out
 
 
 def run_curriculum(world_cfg: WorldConfig, tcfg: TrainConfig, tiers: Sequence[CurriculumTier] = DEFAULT_TIERS) -> None:

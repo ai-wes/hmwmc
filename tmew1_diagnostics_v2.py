@@ -34,6 +34,7 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 
 from tmew1_train_v2 import WorldConfig, CurriculumTier, _make_world, _render_vision, _render_audio, _render_numeric, _render_text
+from hpm_v2 import LATCH_REGISTERS
 from score_logging import (
     ScoreColorMapper,
     MetricSpec,
@@ -89,6 +90,11 @@ def _get_retrieval_context_v2(output: Any) -> Dict[str, Optional[Tensor]]:
         "state_checkpoint_mask": getattr(output, "state_checkpoint_mask", None),
         "state_checkpoint_times": getattr(output, "state_checkpoint_times", None),
         "state_checkpoint_holder_logits": getattr(output, "state_checkpoint_holder_logits", None),
+        "latch_values": getattr(output, "latch_values", None),
+        "latch_log_entries": getattr(output, "latch_log_entries", None),
+        "latch_log_mask": getattr(output, "latch_log_mask", None),
+        "latch_log_times": getattr(output, "latch_log_times", None),
+        "latch_log_registers": getattr(output, "latch_log_registers", None),
     }
 
 
@@ -173,6 +179,11 @@ class EpisodeWithDiagnostics:
     alarm_step: int = -1
     chain2_fire_step: int = -1
     false_cue_step: int = -1           # step when false cue was injected
+    # First tag event, for the event-latch ``first_tagged`` register. The id is
+    # ``HandoffState.first_tagged_id``; the step is the first step whose
+    # ``tagged_ids`` event is non-empty (the step the numeric cue fires).
+    first_tagged_id: int = -1
+    first_tagged_step: int = -1
 
 
 # -----------------------------------------------------------------------------
@@ -223,6 +234,7 @@ def generate_episode_with_diagnostics(
     trigger_at = -1
     chain2_fired_at = -1
     first_handoff_at = -1
+    first_tag_at = -1
     last_occluded_id = -1
     first_occluded_id = -1
     first_occlusion_at = -1
@@ -276,6 +288,8 @@ def generate_episode_with_diagnostics(
             chain2_fired_at = t
         if events.get("handoff") and first_handoff_at < 0:
             first_handoff_at = t
+        if events.get("tagged_ids") and first_tag_at < 0:
+            first_tag_at = t
         if events.get("occluded_ids"):
             last_occluded_id = events["occluded_ids"][0]
             if first_occluded_id < 0:
@@ -502,6 +516,8 @@ def generate_episode_with_diagnostics(
         alarm_step=fired_at,
         chain2_fire_step=chain2_fired_at,
         false_cue_step=false_cue_step,
+        first_tagged_id=int(handoff.first_tagged_id),
+        first_tagged_step=int(first_tag_at),
     )
 
 
@@ -532,6 +548,8 @@ def episode_to_diag_tensors(ep: EpisodeWithDiagnostics) -> Dict[str, Tensor]:
         "chain2_fire_step": torch.tensor(ep.chain2_fire_step, dtype=torch.long),
         "cue_corrected_at": torch.tensor(ep.cue_corrected_at, dtype=torch.long),
         "false_cue_step": torch.tensor(ep.false_cue_step, dtype=torch.long),
+        "first_tagged_id": torch.tensor(ep.first_tagged_id, dtype=torch.long),
+        "first_tagged_step": torch.tensor(ep.first_tagged_step, dtype=torch.long),
     }
 
 
@@ -557,6 +575,179 @@ class TMEW1DiagnosticDataset(Dataset):
             num_queries=self.num_queries, enable_false_cue=self.enable_false_cue,
         )
         return episode_to_diag_tensors(ep)
+
+
+# -----------------------------------------------------------------------------
+# Event-latch supervision and metrics (transient-cue write path)
+# -----------------------------------------------------------------------------
+LATCH_LAG_KEYS: Tuple[str, ...] = ("0", "1-5", "6-15", "16-30", "31+")
+
+
+def _latch_lag_bucket(lag: int) -> str:
+    if lag <= 0:
+        return "0"
+    if lag <= 5:
+        return "1-5"
+    if lag <= 15:
+        return "6-15"
+    if lag <= 30:
+        return "16-30"
+    return "31+"
+
+
+def build_latch_targets(
+    batch: Dict[str, Tensor],
+    seq_len: int,
+    registers: Sequence[str] = LATCH_REGISTERS,
+) -> Tuple[Tensor, Tensor]:
+    """
+    Per-step supervision for the event-latch bank, aligned to the model's
+    *input* steps (``seq_len`` = T - 1 after ``shift_targets``).
+
+    Returns ``gate_targets`` (B, T, R) in {0, 1} and ``value_targets``
+    (B, T, R) long. The gate target is 1 on exactly the input step the cue
+    is rendered on; the value target is defined on every step, including
+    steps before the first write, using the benchmark's own conventions
+    (holder before any handoff is ``holder_per_step[t]``; ``first_tagged``
+    and ``color_changed`` are 0 before their event, matching ``max(0, id)``
+    in the query generator). Do not reuse ``build_typed_event_targets``:
+    it labels the handoff one step early and overwrites coincident events.
+    """
+    holder = batch["holder_per_step"][:, :seq_len].long()
+    B, T = holder.shape
+    device = holder.device
+    R = len(registers)
+    steps = torch.arange(T, device=device).view(1, T)
+    gate = torch.zeros(B, T, R, device=device, dtype=torch.float32)
+    value = torch.zeros(B, T, R, device=device, dtype=torch.long)
+
+    def _event(step_key: str, id_key: str) -> Tuple[Tensor, Tensor]:
+        step = batch.get(step_key)
+        ent = batch.get(id_key)
+        if step is None or ent is None:
+            return (torch.full((B,), -1, device=device, dtype=torch.long),
+                    torch.full((B,), -1, device=device, dtype=torch.long))
+        return step.long().to(device), ent.long().to(device)
+
+    for r, name in enumerate(registers):
+        if name == "holder":
+            if T > 1:
+                gate[:, 1:, r] = (holder[:, 1:] != holder[:, :-1]).float()
+            value[:, :, r] = holder
+        elif name in ("first_tagged", "color_changed"):
+            step_key, id_key = (
+                ("first_tagged_step", "first_tagged_id") if name == "first_tagged"
+                else ("color_change_step", "color_change_entity_id")
+            )
+            step, ent = _event(step_key, id_key)
+            valid = (step >= 0) & (step < T) & (ent >= 0)
+            rows = valid.nonzero(as_tuple=False).squeeze(-1)
+            if rows.numel() > 0:
+                gate[rows, step[rows], r] = 1.0
+            after = (steps >= step.view(B, 1)) & (step.view(B, 1) >= 0) & (ent.view(B, 1) >= 0)
+            value[:, :, r] = torch.where(after, ent.clamp(min=0).view(B, 1).expand(B, T), torch.zeros_like(value[:, :, r]))
+        # Unknown register names keep zero gate / zero value targets.
+    return gate, value
+
+
+def latch_gate_override_for(model: Any, batch: Dict[str, Tensor], seq_len: int) -> Optional[Tensor]:
+    """Ground-truth gate for the ``--latch-oracle-gate`` diagnostic; None otherwise."""
+    cfg = getattr(getattr(model, "cfg", None), "latch_config", None)
+    if cfg is None or not cfg.enabled or not cfg.oracle_gate or "holder_per_step" not in batch:
+        return None
+    gate, _ = build_latch_targets(batch, seq_len, cfg.registers)
+    return gate
+
+
+@torch.no_grad()
+def accumulate_latch_stats(
+    stats: Dict[str, float],
+    output: Any,
+    batch: Dict[str, Tensor],
+    registers: Sequence[str],
+    threshold: float = 0.5,
+) -> None:
+    """
+    Add one batch's latch counts to ``stats`` (in place). Keys:
+      {reg}/tp, fp, fn, tn        gate > threshold vs gate target
+      {reg}/all/correct, n        argmax L[t] vs value target, all steps
+      {reg}/pre/correct, n        steps before the first true write
+      {reg}/lag/{bucket}/correct, n   steps since the last true write
+    """
+    values = getattr(output, "latch_values", None)
+    gates = getattr(output, "latch_gates", None)
+    if values is None or gates is None or "holder_per_step" not in batch:
+        return
+    T = values.size(1)
+    gate_t, value_t = build_latch_targets(batch, T, registers)
+    pred_fire = gates > threshold
+    true_fire = gate_t > 0.5
+    correct = values.argmax(dim=-1) == value_t  # (B, T, R)
+    B = values.size(0)
+    steps = torch.arange(T, device=values.device).view(1, T)
+    for r, name in enumerate(registers):
+        pf, tf = pred_fire[..., r], true_fire[..., r]
+        stats[f"{name}/tp"] = stats.get(f"{name}/tp", 0.0) + float((pf & tf).sum())
+        stats[f"{name}/fp"] = stats.get(f"{name}/fp", 0.0) + float((pf & ~tf).sum())
+        stats[f"{name}/fn"] = stats.get(f"{name}/fn", 0.0) + float((~pf & tf).sum())
+        stats[f"{name}/tn"] = stats.get(f"{name}/tn", 0.0) + float((~pf & ~tf).sum())
+        stats[f"{name}/all/correct"] = stats.get(f"{name}/all/correct", 0.0) + float(correct[..., r].sum())
+        stats[f"{name}/all/n"] = stats.get(f"{name}/all/n", 0.0) + float(correct[..., r].numel())
+        # Steps since the last true write: cummax of the write step index.
+        write_step = torch.where(tf, steps.expand(B, T), torch.full_like(steps.expand(B, T), -1))
+        last_write = torch.cummax(write_step, dim=1).values  # (B, T), -1 before any write
+        pre = last_write < 0
+        stats[f"{name}/pre/correct"] = stats.get(f"{name}/pre/correct", 0.0) + float(correct[..., r][pre].sum())
+        stats[f"{name}/pre/n"] = stats.get(f"{name}/pre/n", 0.0) + float(pre.sum())
+        lag = (steps - last_write)[~pre]
+        corr = correct[..., r][~pre]
+        for lo, hi, key in ((0, 0, "0"), (1, 5, "1-5"), (6, 15, "6-15"), (16, 30, "16-30"), (31, 10**9, "31+")):
+            sel = (lag >= lo) & (lag <= hi)
+            stats[f"{name}/lag/{key}/correct"] = stats.get(f"{name}/lag/{key}/correct", 0.0) + float(corr[sel].sum())
+            stats[f"{name}/lag/{key}/n"] = stats.get(f"{name}/lag/{key}/n", 0.0) + float(sel.sum())
+
+
+def summarize_latch_stats(stats: Dict[str, float], registers: Sequence[str]) -> Dict[str, Any]:
+    """Nested report: latch_gate/{reg} (precision, recall, f1, fp_rate) and latch_retention/{reg}."""
+    gate_report: Dict[str, Dict[str, Optional[float]]] = {}
+    retention: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    for name in registers:
+        tp, fp = stats.get(f"{name}/tp", 0.0), stats.get(f"{name}/fp", 0.0)
+        fn, tn = stats.get(f"{name}/fn", 0.0), stats.get(f"{name}/tn", 0.0)
+        precision = tp / (tp + fp) if (tp + fp) > 0 else None
+        recall = tp / (tp + fn) if (tp + fn) > 0 else None
+        f1 = (2 * precision * recall / (precision + recall)) if (precision and recall) else (0.0 if (tp + fp + fn) > 0 else None)
+        gate_report[name] = {
+            "precision": precision, "recall": recall, "f1": f1,
+            "fp_rate": fp / (fp + tn) if (fp + tn) > 0 else None,
+            "n_events": tp + fn,
+        }
+        buckets: Dict[str, Dict[str, Any]] = {}
+        n_pre = stats.get(f"{name}/pre/n", 0.0)
+        buckets["pre"] = {"acc": (stats.get(f"{name}/pre/correct", 0.0) / n_pre) if n_pre > 0 else None, "n": int(n_pre)}
+        for key in LATCH_LAG_KEYS:
+            n = stats.get(f"{name}/lag/{key}/n", 0.0)
+            buckets[key] = {"acc": (stats.get(f"{name}/lag/{key}/correct", 0.0) / n) if n > 0 else None, "n": int(n)}
+        n_all = stats.get(f"{name}/all/n", 0.0)
+        buckets["all"] = {"acc": (stats.get(f"{name}/all/correct", 0.0) / n_all) if n_all > 0 else None, "n": int(n_all)}
+        retention[name] = buckets
+    return {"latch_gate": gate_report, "latch_retention": retention}
+
+
+def flatten_latch_summary(summary: Dict[str, Any]) -> Dict[str, float]:
+    """Scalar view of ``summarize_latch_stats`` for val_tier*.json."""
+    out: Dict[str, float] = {}
+    for name, g in summary.get("latch_gate", {}).items():
+        if g.get("f1") is not None:
+            out[f"latch_gate_f1/{name}"] = float(g["f1"])
+        if g.get("recall") is not None:
+            out[f"latch_gate_recall/{name}"] = float(g["recall"])
+    for name, buckets in summary.get("latch_retention", {}).items():
+        if buckets.get("all", {}).get("acc") is not None:
+            out[f"latch_acc/{name}"] = float(buckets["all"]["acc"])
+        if buckets.get("31+", {}).get("acc") is not None:
+            out[f"latch_acc_lag31/{name}"] = float(buckets["31+"]["acc"])
+    return out
 
 
 # -----------------------------------------------------------------------------
@@ -606,7 +797,12 @@ def recall_by_difficulty(
     color_change_correct: List[int] = []
     _lag_keys = ["0-5", "6-15", "16-30", "31+"]
     color_change_by_lag: Dict[str, List[int]] = {k: [] for k in _lag_keys}
+    color_change_latch_correct: List[int] = []
+    color_change_latch_by_lag: Dict[str, List[int]] = {k: [] for k in _lag_keys}
     entropy_samples: List[float] = []
+    latch_cfg = getattr(getattr(model, "cfg", None), "latch_config", None)
+    latch_registers: Tuple[str, ...] = tuple(latch_cfg.registers) if (latch_cfg is not None and latch_cfg.enabled) else ()
+    latch_stats: Dict[str, float] = {}
 
     def bucket_for(n: int) -> str:
         return "6+" if n >= 6 else str(n)
@@ -623,9 +819,12 @@ def recall_by_difficulty(
             vision=vision_in if "vision" in enabled else None,
             audio=audio_in if "audio" in enabled else None,
             numeric=numeric_in if "numeric" in enabled else None,
+            latch_gate_override=latch_gate_override_for(model, batch, vision_in.size(1)),
         )
         if output.episodic_read_entropy is not None:
             entropy_samples.append(float(output.episodic_read_entropy))
+        if latch_registers:
+            accumulate_latch_stats(latch_stats, output, batch, latch_registers)
 
         t_max = output.sequence.size(1) - 1
         qtimes = batch["query_times"].clamp(max=t_max)
@@ -713,6 +912,13 @@ def recall_by_difficulty(
             correct = int(pred == cc_entity)
             color_change_correct.append(correct)
             color_change_by_lag[lag_bucket].append(correct)
+            # Latch line: read the color_changed register directly at t_max.
+            if output.latch_values is not None and "color_changed" in latch_registers and cc_step <= t_max:
+                ci = latch_registers.index("color_changed")
+                latch_pred = int(output.latch_values[bi, t_max, ci].argmax().item())
+                latch_correct = int(latch_pred == cc_entity)
+                color_change_latch_correct.append(latch_correct)
+                color_change_latch_by_lag[lag_bucket].append(latch_correct)
 
     model.train()
     query_head.train()
@@ -733,7 +939,10 @@ def recall_by_difficulty(
         "extra_query_metrics": summarize(extra_query_correct),
         "which_entity_changed_color": {"acc": (sum(color_change_correct) / len(color_change_correct)) if color_change_correct else None, "n": len(color_change_correct)},
         "color_change_by_lag": summarize(color_change_by_lag),
+        "which_entity_changed_color_latch": {"acc": (sum(color_change_latch_correct) / len(color_change_latch_correct)) if color_change_latch_correct else None, "n": len(color_change_latch_correct)},
+        "color_change_latch_by_lag": summarize(color_change_latch_by_lag),
         "mean_episodic_read_entropy": float(np.mean(entropy_samples)) if entropy_samples else None,
+        **(summarize_latch_stats(latch_stats, latch_registers) if latch_registers else {}),
     }
 
 
@@ -1001,6 +1210,29 @@ def format_diagnostics(report: Dict[str, Any]) -> str:
         for k, v in lag_data.items():
             if v["n"] > 0:
                 lines.append(f"    lag={k:>5s}  acc={_color_val(v['acc'], acc_spec)}  n={v['n']}")
+    lag_data = report.get("color_change_latch_by_lag", {})
+    if any(v.get("n", 0) > 0 for v in lag_data.values()):
+        lines.append("  color change read from the latch register, by lag:")
+        for k, v in lag_data.items():
+            if v["n"] > 0:
+                lines.append(f"    lag={k:>5s}  acc={_color_val(v['acc'], acc_spec)}  n={v['n']}")
+    # ── Event-latch diagnostics: did it detect / did it keep ──
+    latch_gate = report.get("latch_gate") or {}
+    latch_ret = report.get("latch_retention") or {}
+    if latch_gate:
+        lines.append("  latch gate (g > 0.5 vs cue step):")
+        for name, g in latch_gate.items():
+            fmt = lambda x: "N/A" if x is None else f"{x:.3f}"
+            lines.append(f"    {name:<14s} P={fmt(g.get('precision'))} R={fmt(g.get('recall'))} F1={fmt(g.get('f1'))} fp_rate={fmt(g.get('fp_rate'))} events={int(g.get('n_events') or 0)}")
+    if latch_ret:
+        lines.append("  latch retention (argmax L vs target, by steps since last true write):")
+        for name, buckets in latch_ret.items():
+            parts = []
+            for k in ("pre",) + tuple(LATCH_LAG_KEYS):
+                v = buckets.get(k, {})
+                if v.get("n", 0) > 0:
+                    parts.append(f"{k}={v['acc']:.3f}(n={v['n']})")
+            lines.append(f"    {name:<14s} " + "  ".join(parts))
     # ── Emergent capability probes ──
     emergent = report.get("emergent_probes")
     if emergent:
@@ -1067,4 +1299,10 @@ __all__ = [
     "format_diagnostics",
     "run_diagnostic_report",
     "run_emergent_probes",
+    "build_latch_targets",
+    "latch_gate_override_for",
+    "accumulate_latch_stats",
+    "summarize_latch_stats",
+    "flatten_latch_summary",
+    "LATCH_LAG_KEYS",
 ]

@@ -71,6 +71,57 @@ def test_queries_generator_labels_holder_at_query_time() -> None:
     assert n_checked > 0
 
 
+def test_latch_value_targets_agree_with_query_targets() -> None:
+    """The per-step register targets must equal the query targets at time_asked."""
+    import torch
+    from tmew1_diagnostics_v2 import build_latch_targets, episode_to_diag_tensors, collate_diag
+    from hpm_v2 import LATCH_REGISTERS
+
+    cfg = WorldConfig()
+    reg = {name: i for i, name in enumerate(LATCH_REGISTERS)}
+    n_holder = n_tag = n_color = n_gate = 0
+    for tier in DEFAULT_TIERS:
+        eps = [
+            generate_episode_with_diagnostics(cfg, tier, seed=11000 + 1000 * tier.tier + i, num_queries=4, enable_false_cue=tier.tier >= 2)
+            for i in range(48)
+        ]
+        batch = collate_diag([episode_to_diag_tensors(ep) for ep in eps])
+        T_in = batch["vision"].size(1) - 1          # inputs are shifted by one
+        gate, value = build_latch_targets(batch, T_in, LATCH_REGISTERS)
+        assert gate.shape == (len(eps), T_in, len(LATCH_REGISTERS)) and value.shape == gate.shape
+        for b, ep in enumerate(eps):
+            for q in ep.queries:
+                t = min(q.time_asked, T_in - 1)
+                if q.qtype == "who_holds_token":
+                    assert int(value[b, t, reg["holder"]]) == q.target, (tier.tier, b, q)
+                    n_holder += 1
+                elif q.qtype == "who_was_first_tagged" and (ep.first_tagged_step < 0 or ep.first_tagged_step <= t):
+                    assert int(value[b, t, reg["first_tagged"]]) == q.target, (tier.tier, b, q, ep.first_tagged_step)
+                    n_tag += 1
+            # colour: after the change step the register target is the entity; before it, 0
+            if 0 <= ep.color_change_step < T_in:
+                assert int(value[b, ep.color_change_step, reg["color_changed"]]) == ep.color_change_entity_id
+                assert int(value[b, T_in - 1, reg["color_changed"]]) == ep.color_change_entity_id
+                if ep.color_change_step > 0:
+                    assert int(value[b, ep.color_change_step - 1, reg["color_changed"]]) == 0
+                assert float(gate[b, ep.color_change_step, reg["color_changed"]]) == 1.0
+                assert float(gate[b, :, reg["color_changed"]].sum()) == 1.0
+                n_color += 1
+            # gate targets sit on the cue step: holder audio one-hot, numeric tag bit
+            h = ep.holder_per_step[:T_in]
+            for t in range(1, T_in):
+                g = float(gate[b, t, reg["holder"]])
+                assert g == float(h[t] != h[t - 1])
+                if g == 1.0:
+                    assert ep.audio[t, 8 + h[t]] == 1.0, "holder gate target off the audio cue step"
+                    n_gate += 1
+            if 0 <= ep.first_tagged_step < T_in:
+                assert float(gate[b, ep.first_tagged_step, reg["first_tagged"]]) == 1.0
+                assert ep.numeric[ep.first_tagged_step, 10 + 5 * ep.first_tagged_id + 4] == 1.0, "first_tagged gate target off the numeric cue step"
+                assert float(gate[b, :, reg["first_tagged"]].sum()) == 1.0
+    assert n_holder > 0 and n_tag > 0 and n_color > 0 and n_gate > 0
+
+
 if __name__ == "__main__":
     test_holder_at_replays_history()
     print("PASS: HandoffState.holder_at replays transfer history")
@@ -78,4 +129,6 @@ if __name__ == "__main__":
     print("PASS: diagnostics generator labels who_holds_token at query time")
     test_queries_generator_labels_holder_at_query_time()
     print("PASS: queries generator labels who_holds_token at query time")
+    test_latch_value_targets_agree_with_query_targets()
+    print("PASS: latch register targets agree with query targets at time_asked")
     print("\nAll query-label tests PASSED")

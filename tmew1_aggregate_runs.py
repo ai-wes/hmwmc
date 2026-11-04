@@ -63,7 +63,7 @@ def _collect(runs: List[Dict[str, Any]], getter) -> Dict[str, List[float]]:
 
 def summarize(runs: List[Dict[str, Any]]) -> Dict[str, Dict[str, Dict[str, float]]]:
     def val_metrics(run):
-        return {k: v for k, v in run["val"].items() if k in ("latent_acc", "holder_acc", "event_acc") or k.startswith("qacc/")}
+        return {k: v for k, v in run["val"].items() if k in ("latent_acc", "holder_acc", "event_acc") or k.startswith("qacc/") or k.startswith("latch_")}
 
     def handoff_buckets(run):
         d = (run.get("diag") or {}).get("who_holds_token_by_handoffs") or {}
@@ -73,10 +73,38 @@ def summarize(runs: List[Dict[str, Any]]) -> Dict[str, Dict[str, Dict[str, float
         d = (run.get("diag") or {}).get("emergent_probes") or {}
         return {k: v for k, v in d.items() if not k.endswith("_n")}
 
+    def latch_gate(run):
+        d = (run.get("diag") or {}).get("latch_gate") or {}
+        out = {}
+        for reg, g in d.items():
+            for stat in ("precision", "recall", "f1", "fp_rate"):
+                if g.get(stat) is not None:
+                    out[f"{reg}/{stat}"] = g[stat]
+        return out
+
+    def latch_retention(run):
+        d = (run.get("diag") or {}).get("latch_retention") or {}
+        return {f"{reg}/lag={k}": v.get("acc") for reg, buckets in d.items() for k, v in buckets.items()
+                if isinstance(v, dict) and v.get("n", 0) > 0}
+
+    def color_latch(run):
+        diag = run.get("diag") or {}
+        out = {}
+        top = diag.get("which_entity_changed_color_latch") or {}
+        if top.get("n", 0) > 0:
+            out["all"] = top.get("acc")
+        for k, v in (diag.get("color_change_latch_by_lag") or {}).items():
+            if isinstance(v, dict) and v.get("n", 0) > 0:
+                out[f"lag={k}"] = v.get("acc")
+        return out
+
     sections = {
         "validation": _collect(runs, val_metrics),
         "who_holds_token_by_handoffs_before_query": _collect(runs, handoff_buckets),
         "emergent_probes": _collect(runs, probes),
+        "latch_gate": _collect(runs, latch_gate),
+        "latch_retention": _collect(runs, latch_retention),
+        "which_entity_changed_color_latch": _collect(runs, color_latch),
     }
     summary: Dict[str, Dict[str, Dict[str, float]]] = {}
     for name, metrics in sections.items():
