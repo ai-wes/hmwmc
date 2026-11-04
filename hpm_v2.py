@@ -1626,6 +1626,252 @@ class StateCheckpointBank(nn.Module):
         )
 
 
+# -----------------------------------------------------------------------------
+# Event-latched relational registers (transient-cue write path).
+# -----------------------------------------------------------------------------
+LATCH_REGISTERS: Tuple[str, ...] = ("holder", "first_tagged", "color_changed")
+
+
+@dataclass
+class LatchConfig:
+    """
+    Event-latched registers: one typed register per relation the benchmark
+    asks about. Each register is written only when a learned (and directly
+    supervised) gate fires on the raw cue channels, and is held bit-for-bit
+    otherwise. See docs/superpowers/specs/2026-11-03-transient-cue-write-path-design.md.
+
+    The channel offsets are config fields because this file cannot import
+    them from tmew1_train_v2.py (that file imports the model).
+    """
+
+    enabled: bool = True
+    registers: Tuple[str, ...] = LATCH_REGISTERS
+    n_entities: int = 6
+    audio_holder_offset: int = 8
+    numeric_entity_offset: int = 10
+    numeric_entity_stride: int = 5
+    gate_hidden: int = 64
+    value_hidden: int = 64
+    log_capacity: int = 32
+    log_threshold: float = 0.5
+    oracle_gate: bool = False
+    max_time_embeddings: int = 512
+    # Registers that accept exactly one write per episode.
+    write_once: Tuple[str, ...] = ("first_tagged",)
+
+
+@dataclass
+class LatchOutput:
+    values: Tensor         # (B, T, R, E) latched logits over entities, after step t
+    gates: Tensor          # (B, T, R) effective write gate in (0, 1)
+    gate_logits: Tensor    # (B, T, R) pre-sigmoid gate (before write-once masking)
+    value_logits: Tensor   # (B, T, R, E) proposed write value at each step
+    log_entries: Tensor    # (B, K, D)
+    log_mask: Tensor       # (B, K) bool
+    log_times: Tensor      # (B, K) long
+    log_registers: Tensor  # (B, K) long
+    diagnostics: Dict[str, float]
+
+
+class EventLatchBank(nn.Module):
+    """
+    Detect / latch / log.
+
+    detect: a gate per register from the raw cue channels at t and t-1 plus
+            the per-modality encoder features at t. The gate never sees the
+            backbone ``sequence``.
+    latch:  L[t] = (1 - g) * L[t-1] + g * v[t]. No decay, no per-step input
+            when g == 0, so a register holds exactly until the next write.
+            L[-1] is a learned per-register prior (the benchmark never cues the
+            initial holder).
+    log:    (t, r, v[t, r]) appended to a fixed-capacity log whenever
+            g > log_threshold; historical queries attend over it.
+    """
+
+    def __init__(self, d_model: int, cfg: LatchConfig):
+        super().__init__()
+        self.cfg = cfg
+        self.d_model = d_model
+        self.registers: Tuple[str, ...] = tuple(cfg.registers)
+        self.register_index: Dict[str, int] = {name: i for i, name in enumerate(self.registers)}
+        self.n_entities = int(cfg.n_entities)
+        E, R = self.n_entities, len(self.registers)
+        self.n_registers = R
+        self.stride = int(cfg.numeric_entity_stride)
+        # Raw cue block per step: audio holder one-hot (E) + numeric per-entity block (E * stride).
+        self.cue_raw_dim = E + E * self.stride
+        self.n_modalities = 4  # text, vision, audio, numeric (zeros when absent)
+        gate_in = 2 * self.cue_raw_dim + self.n_modalities * d_model
+        self.gate_net = nn.Sequential(
+            nn.Linear(gate_in, cfg.gate_hidden),
+            nn.GELU(),
+            nn.Linear(cfg.gate_hidden, R),
+        )
+        value_in = E + 2 * self.cue_raw_dim + d_model
+        self.value_nets = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(value_in, cfg.value_hidden),
+                nn.GELU(),
+                nn.Linear(cfg.value_hidden, E),
+            )
+            for _ in range(R)
+        ])
+        # Direct prior from the register's raw source (a one-hot on the cue step).
+        self.source_scale = nn.Parameter(torch.full((R,), 4.0))
+        # Learned pre-write value per register.
+        self.initial_value = nn.Parameter(torch.zeros(R, E))
+        write_once = torch.zeros(R, dtype=torch.bool)
+        for name in cfg.write_once:
+            if name in self.register_index:
+                write_once[self.register_index[name]] = True
+        self.register_buffer("write_once_mask", write_once, persistent=False)
+        self.entry_proj = nn.Linear(E + R, d_model)
+        self.time_embed = nn.Embedding(cfg.max_time_embeddings, d_model)
+        with torch.no_grad():
+            # Bias the gate towards "closed" at init so an untrained bank holds its prior.
+            self.gate_net[-1].bias.fill_(-3.0)
+
+    # -- raw channel helpers ---------------------------------------------------
+    def _raw_blocks(
+        self,
+        audio: Optional[Tensor],
+        numeric: Optional[Tensor],
+        B: int,
+        T: int,
+        device: torch.device,
+        dtype: torch.dtype,
+    ) -> Tuple[Tensor, Tensor]:
+        """Return (holder_audio (B,T,E), entity_block (B,T,E,stride)) with zeros for missing inputs."""
+        E, S = self.n_entities, self.stride
+        if audio is not None:
+            off = int(self.cfg.audio_holder_offset)
+            holder_audio = audio[..., off:off + E].to(dtype)
+            if holder_audio.size(-1) < E:
+                holder_audio = F.pad(holder_audio, (0, E - holder_audio.size(-1)))
+        else:
+            holder_audio = torch.zeros(B, T, E, device=device, dtype=dtype)
+        if numeric is not None:
+            off = int(self.cfg.numeric_entity_offset)
+            block = numeric[..., off:off + E * S].to(dtype)
+            if block.size(-1) < E * S:
+                block = F.pad(block, (0, E * S - block.size(-1)))
+            entity_block = block.reshape(B, T, E, S)
+        else:
+            entity_block = torch.zeros(B, T, E, S, device=device, dtype=dtype)
+        return holder_audio, entity_block
+
+    def _register_sources(
+        self,
+        holder_audio: Tensor,
+        entity_block: Tensor,
+        entity_block_prev: Tensor,
+    ) -> Tensor:
+        """Per-register raw source (B, T, R, E): the thing that is the answer on the cue step."""
+        B, T, E, S = entity_block.shape
+        sources = []
+        for name in self.registers:
+            if name == "holder":
+                sources.append(holder_audio)
+            elif name == "first_tagged" and S >= 5:
+                sources.append(entity_block[..., 4])
+            elif name == "color_changed" and S >= 4:
+                sources.append((entity_block[..., 3] - entity_block_prev[..., 3]).abs())
+            else:
+                sources.append(torch.zeros(B, T, E, device=entity_block.device, dtype=entity_block.dtype))
+        return torch.stack(sources, dim=2)
+
+    def forward(
+        self,
+        sequence: Tensor,
+        audio: Optional[Tensor],
+        numeric: Optional[Tensor],
+        features: Optional[Dict[str, Optional[Tensor]]] = None,
+        gate_override: Optional[Tensor] = None,
+    ) -> LatchOutput:
+        B, T, D = sequence.shape
+        device, dtype = sequence.device, sequence.dtype
+        E, R = self.n_entities, self.n_registers
+
+        holder_audio, entity_block = self._raw_blocks(audio, numeric, B, T, device, dtype)
+        raw_t = torch.cat([holder_audio, entity_block.reshape(B, T, E * self.stride)], dim=-1)
+        raw_prev = torch.cat([raw_t.new_zeros(B, 1, raw_t.size(-1)), raw_t[:, :-1]], dim=1)
+        entity_block_prev = torch.cat([entity_block.new_zeros(B, 1, E, self.stride), entity_block[:, :-1]], dim=1)
+
+        feat_parts = []
+        for name in ("text", "vision", "audio", "numeric"):
+            feat = features.get(name) if features is not None else None
+            feat_parts.append(feat.to(dtype) if feat is not None else sequence.new_zeros(B, T, D))
+        gate_in = torch.cat([raw_t, raw_prev] + feat_parts, dim=-1)
+        gate_logits = self.gate_net(gate_in)  # (B, T, R)
+        gates = torch.sigmoid(gate_logits)
+        if self.cfg.oracle_gate and gate_override is not None:
+            gates = gate_override.to(dtype)
+
+        sources = self._register_sources(holder_audio, entity_block, entity_block_prev)  # (B, T, R, E)
+        value_ctx = torch.cat([raw_t, raw_prev, sequence], dim=-1)  # (B, T, 2*cue + D)
+        value_logits = torch.stack([
+            net(torch.cat([sources[:, :, r], value_ctx], dim=-1))
+            for r, net in enumerate(self.value_nets)
+        ], dim=2)  # (B, T, R, E)
+        value_logits = value_logits + self.source_scale.view(1, 1, R, 1) * sources
+
+        latched = self.initial_value.to(dtype).unsqueeze(0).expand(B, R, E)
+        written = torch.zeros(B, R, device=device, dtype=dtype)
+        write_once = self.write_once_mask.view(1, R).to(dtype)
+        values: List[Tensor] = []
+        eff_gates: List[Tensor] = []
+        for t in range(T):
+            g = gates[:, t]
+            g_eff = g * (1.0 - written * write_once)
+            latched = (1.0 - g_eff).unsqueeze(-1) * latched + g_eff.unsqueeze(-1) * value_logits[:, t]
+            written = torch.maximum(written, g_eff)
+            values.append(latched)
+            eff_gates.append(g_eff)
+        values_stack = torch.stack(values, dim=1)   # (B, T, R, E)
+        gates_stack = torch.stack(eff_gates, dim=1)  # (B, T, R)
+
+        # Write log: not differentiated through the selection.
+        K = max(1, min(int(self.cfg.log_capacity), T * R))
+        log_entries = torch.zeros(B, K, D, device=device, dtype=dtype)
+        log_mask = torch.zeros(B, K, dtype=torch.bool, device=device)
+        log_times = torch.zeros(B, K, dtype=torch.long, device=device)
+        log_registers = torch.zeros(B, K, dtype=torch.long, device=device)
+        fired = (gates_stack.detach() > float(self.cfg.log_threshold))  # (B, T, R)
+        reg_onehot = torch.eye(R, device=device, dtype=dtype)
+        for b in range(B):
+            idx = fired[b].nonzero(as_tuple=False)  # (n, 2) sorted by t then r
+            if idx.numel() == 0:
+                continue
+            idx = idx[:K]
+            n = idx.size(0)
+            t_idx, r_idx = idx[:, 0], idx[:, 1]
+            v = value_logits[b, t_idx, r_idx].softmax(dim=-1)  # (n, E)
+            entry = self.entry_proj(torch.cat([v, reg_onehot[r_idx]], dim=-1))
+            entry = entry + self.time_embed(t_idx.clamp(max=self.cfg.max_time_embeddings - 1))
+            log_entries[b, :n] = entry
+            log_mask[b, :n] = True
+            log_times[b, :n] = t_idx
+            log_registers[b, :n] = r_idx
+
+        diag: Dict[str, float] = {
+            "latch_log_fill_rate": float(log_mask.float().mean().item()),
+        }
+        for r, name in enumerate(self.registers):
+            diag[f"latch_gate_mean/{name}"] = float(gates_stack[..., r].detach().float().mean().item())
+            diag[f"latch_fire_rate/{name}"] = float(fired[..., r].float().mean().item())
+        return LatchOutput(
+            values=values_stack,
+            gates=gates_stack,
+            gate_logits=gate_logits,
+            value_logits=value_logits,
+            log_entries=log_entries,
+            log_mask=log_mask,
+            log_times=log_times,
+            log_registers=log_registers,
+            diagnostics=diag,
+        )
+
+
 __all__ = [
     "HomeostaticPredictiveMemory",
     "HPMConfig",
@@ -1644,6 +1890,10 @@ __all__ = [
     "StructuredStateTable",
     "TypedEventLog",
     "StateCheckpointBank",
+    "LATCH_REGISTERS",
+    "LatchConfig",
+    "LatchOutput",
+    "EventLatchBank",
     "SlotLinear",
     "STATE_OPEN",
     "STATE_CLOSING",

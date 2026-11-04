@@ -225,6 +225,70 @@ def test_structured_entity_blend_masks_entity_only_suffix():
     assert torch.allclose(full_width, expected_prefix)
 check("structured entity blend masks entity-only suffix", test_structured_entity_blend_masks_entity_only_suffix)
 
+# ── 8b. EventLatchBank: hold exactly, write-once ──────────────────
+print("\n=== 8b. EventLatchBank ===")
+from hpm_v2 import LatchConfig, EventLatchBank
+
+def test_latch_holds_exactly():
+    torch.manual_seed(0)
+    E, D, B, T = 4, 32, 2, 66
+    cfg = LatchConfig(n_entities=E, oracle_gate=True, audio_holder_offset=8,
+                      numeric_entity_offset=10, numeric_entity_stride=5)
+    bank = EventLatchBank(D, cfg)
+    R = bank.n_registers
+    seq = torch.randn(B, T, D)
+    audio = torch.rand(B, T, 8 + E)
+    numeric = torch.rand(B, T, 10 + 5 * E)
+    feats = {"audio": torch.randn(B, T, D), "numeric": torch.randn(B, T, D), "text": None, "vision": None}
+    gate = torch.zeros(B, T, R)
+    gate[:, 5, :] = 1.0          # one write at t=5 on every register
+    gate[:, 40, :] = 1.0         # second write at t=40 (first_tagged must ignore it)
+    out = bank(seq, audio, numeric, feats, gate_override=gate)
+    assert out.values.shape == (B, T, R, E), out.values.shape
+    # Exact hold between writes: 34 steps of random input, no decay, bit-for-bit.
+    assert torch.equal(out.values[:, 39], out.values[:, 5]), "latch drifted between writes"
+    # Pre-write value equals the learned prior.
+    assert torch.equal(out.values[:, 4], bank.initial_value.unsqueeze(0).expand(B, -1, -1)), "pre-write value is not the prior"
+    hi = bank.register_index["holder"]
+    ft = bank.register_index["first_tagged"]
+    # holder takes the second write; first_tagged ignores it.
+    assert torch.equal(out.values[:, 40, hi], out.value_logits[:, 40, hi]), "holder did not take the second write"
+    assert torch.equal(out.values[:, 40, ft], out.values[:, 5, ft]), "first_tagged accepted a second write"
+    assert torch.equal(out.values[:, T - 1], out.values[:, 40]), "latch drifted after the last write"
+    assert float(out.gates[:, 40, ft].max()) == 0.0, "write-once gate not closed after the first write"
+    # Log: two fires per register for holder/color, one for first_tagged.
+    assert int(out.log_mask[0].sum()) == 2 * R - 1, int(out.log_mask[0].sum())
+    assert sorted(out.log_times[0, out.log_mask[0]].tolist()) == sorted([5] * R + [40] * (R - 1))
+check("latch holds exactly and first_tagged is write-once", test_latch_holds_exactly)
+
+def test_latch_learned_gate_runs_without_audio():
+    E, D, B, T = 6, 16, 2, 12
+    bank = EventLatchBank(D, LatchConfig(n_entities=E))
+    out = bank(torch.randn(B, T, D), None, torch.rand(B, T, 40), None)
+    assert out.values.shape == (B, T, bank.n_registers, E)
+    assert torch.isfinite(out.values).all()
+    out.values.sum().backward()   # differentiable
+check("latch learned gate runs without audio / features", test_latch_learned_gate_runs_without_audio)
+
+def test_world_model_latch_wiring():
+    from homeostatic_multimodal_world_model_chunked_v2 import HomeostaticMultimodalWorldModel, WorldModelConfig, ModalityConfig
+    mod = ModalityConfig(text_vocab_size=8, vision_channels=3, vision_height=8, vision_width=8, audio_dim=24, numeric_dim=40)
+    for latch in (LatchConfig(n_entities=6), None):
+        cfg = WorldModelConfig(d_model=32, num_layers=1, num_memory_slots=4, num_episodic_slots=4,
+                               modality=mod, latch_config=latch,
+                               structured_state_config=StructuredStateConfig(enabled=True, n_entities=6, d_state=16))
+        m = HomeostaticMultimodalWorldModel(cfg)
+        B, T = 2, 7
+        out = m(vision=torch.rand(B, T, 3, 8, 8), audio=torch.rand(B, T, 24), numeric=torch.rand(B, T, 40))
+        if latch is None:
+            assert out.latch_values is None and m.latch is None
+        else:
+            assert out.latch_values.shape == (B, T, 3, 6), out.latch_values.shape
+            assert out.latch_log_entries.shape[-1] == 32
+            assert out.latch_diagnostics is not None
+check("world model forward with latch on and off", test_world_model_latch_wiring)
+
+
 # ── 9. Score logging ─────────────────────────────────────────────
 print("\n=== 9. Score logging groups ===")
 from score_logging import _METRIC_GROUPS, build_default_metric_specs

@@ -28,6 +28,7 @@ from hpm_v2 import (
     StructuredStateTable, StructuredStateConfig,
     TypedEventLog, TypedEventLogConfig,
     StateCheckpointBank, StateCheckpointConfig,
+    EventLatchBank, LatchConfig, LatchOutput,
 )
 from enum import Enum
 from pathlib import Path
@@ -457,6 +458,8 @@ class WorldModelConfig:
     structured_state_config: Optional[StructuredStateConfig] = None
     typed_event_log_config: Optional[TypedEventLogConfig] = None
     state_checkpoint_config: Optional[StateCheckpointConfig] = None
+    # Event-latched relational registers (transient-cue write path).
+    latch_config: Optional[LatchConfig] = None
 
 
 # -----------------------------------------------------------------------------
@@ -1401,6 +1404,16 @@ class ForwardOutput:
     state_checkpoint_times: Optional[Tensor] = None
     state_checkpoint_holder_logits: Optional[Tensor] = None
     state_checkpoint_diagnostics: Optional[Dict[str, float]] = None
+    # Event-latched registers.
+    latch_values: Optional[Tensor] = None          # (B, T, R, E)
+    latch_gates: Optional[Tensor] = None           # (B, T, R)
+    latch_gate_logits: Optional[Tensor] = None     # (B, T, R)
+    latch_value_logits: Optional[Tensor] = None    # (B, T, R, E)
+    latch_log_entries: Optional[Tensor] = None     # (B, K, D)
+    latch_log_mask: Optional[Tensor] = None        # (B, K) bool
+    latch_log_times: Optional[Tensor] = None       # (B, K) long
+    latch_log_registers: Optional[Tensor] = None   # (B, K) long
+    latch_diagnostics: Optional[Dict[str, float]] = None
 
 
 # -----------------------------------------------------------------------------
@@ -1465,6 +1478,7 @@ class HomeostaticMultimodalWorldModel(nn.Module):
         self._last_structured_state_diagnostics: Optional[Dict[str, float]] = None
         self._last_typed_event_diagnostics: Optional[Dict[str, float]] = None
         self._last_state_checkpoint_diagnostics: Optional[Dict[str, float]] = None
+        self._last_latch_diagnostics: Optional[Dict[str, float]] = None
 
         # Dual-bank HPM: optional slow-plasticity bank for structural/rule memory.
         self.hpm_slow: Optional[HomeostaticPredictiveMemory] = None
@@ -1523,6 +1537,12 @@ class HomeostaticMultimodalWorldModel(nn.Module):
                 cfg.structured_state_config.n_entities,
                 cfg.state_checkpoint_config,
             )
+
+        # Event-latched relational registers: runs post hoc on the full
+        # sequence like the structured state, reads the raw cue channels.
+        self.latch: Optional[EventLatchBank] = None
+        if cfg.latch_config is not None and cfg.latch_config.enabled:
+            self.latch = EventLatchBank(cfg.d_model, cfg.latch_config)
 
     def init_state(self, batch_size: int, device: torch.device | None = None) -> WorldModelState:
         device = device or next(self.parameters()).device
@@ -1591,7 +1611,7 @@ class HomeostaticMultimodalWorldModel(nn.Module):
         vision: Optional[Tensor],
         audio: Optional[Tensor],
         numeric: Optional[Tensor],
-    ) -> Tuple[Tensor, Dict[str, Tensor]]:
+    ) -> Tuple[Tensor, Dict[str, Tensor], Dict[str, Optional[Tensor]]]:
         features: Dict[str, Optional[Tensor]] = {
             "text": self.text_encoder(text_tokens) if text_tokens is not None else None,
             "vision": self.vision_encoder(vision) if vision is not None else None,
@@ -1599,7 +1619,7 @@ class HomeostaticMultimodalWorldModel(nn.Module):
             "numeric": self.numeric_encoder(numeric) if numeric is not None else None,
         }
         fused, weights = self.fusion(features)
-        return fused, weights
+        return fused, weights, features
 
     def _run_episodic_chunk(
         self,
@@ -1661,9 +1681,10 @@ class HomeostaticMultimodalWorldModel(nn.Module):
         event_mask: Optional[Tensor] = None,
         state: Optional[WorldModelState] = None,
         controller_loss: Optional[Tensor | float] = None,
+        latch_gate_override: Optional[Tensor] = None,
     ) -> ForwardOutput:
         self._validate_inputs(text_tokens, vision, audio, numeric, event_mask)
-        fused, fusion_weights = self._encode_modalities(text_tokens, vision, audio, numeric)
+        fused, fusion_weights, modality_features = self._encode_modalities(text_tokens, vision, audio, numeric)
         b, t, _ = fused.shape
         device = fused.device
         state = state or self.init_state(b, device=device)
@@ -1815,6 +1836,17 @@ class HomeostaticMultimodalWorldModel(nn.Module):
                 state_checkpoint_diagnostics = checkpoint_output.diagnostics
                 self._last_state_checkpoint_diagnostics = checkpoint_output.diagnostics
 
+        latch_output: Optional[LatchOutput] = None
+        if self.latch is not None:
+            latch_output = self.latch(
+                sequence,
+                audio,
+                numeric,
+                modality_features,
+                gate_override=latch_gate_override,
+            )
+            self._last_latch_diagnostics = latch_output.diagnostics
+
         layer_diagnostics = []
         for layer_stats in per_layer_diagnostics:
             if not layer_stats:
@@ -1889,6 +1921,15 @@ class HomeostaticMultimodalWorldModel(nn.Module):
             state_checkpoint_times=state_checkpoint_times,
             state_checkpoint_holder_logits=state_checkpoint_holder_logits,
             state_checkpoint_diagnostics=state_checkpoint_diagnostics,
+            latch_values=latch_output.values if latch_output is not None else None,
+            latch_gates=latch_output.gates if latch_output is not None else None,
+            latch_gate_logits=latch_output.gate_logits if latch_output is not None else None,
+            latch_value_logits=latch_output.value_logits if latch_output is not None else None,
+            latch_log_entries=latch_output.log_entries if latch_output is not None else None,
+            latch_log_mask=latch_output.log_mask if latch_output is not None else None,
+            latch_log_times=latch_output.log_times if latch_output is not None else None,
+            latch_log_registers=latch_output.log_registers if latch_output is not None else None,
+            latch_diagnostics=latch_output.diagnostics if latch_output is not None else None,
         )
 
     def controller_step(self, loss_value: Tensor | float) -> Dict[str, Any]:
